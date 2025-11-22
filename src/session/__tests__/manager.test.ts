@@ -82,13 +82,23 @@ describe('SessionManager', () => {
     it('should cache session in Redis', async () => {
       const session = await sessionManager.createSession('user123');
 
-      expect(mockRedis.hSet).toHaveBeenCalledWith(
+      // cacheSession uses pipeline, so check multi() was called and pipeline operations
+      expect(mockRedis.multi).toHaveBeenCalled();
+      const pipeline = (mockRedis.multi as jest.Mock).mock.results[0].value;
+      
+      // Verify pipeline was executed
+      expect(pipeline.exec).toHaveBeenCalled();
+      
+      // Verify hSet was called with correct session data
+      expect(pipeline.hSet).toHaveBeenCalledWith(
         `session:${session.id}`,
         expect.objectContaining({
           userId: 'user123'
         })
       );
-      expect(mockRedis.expire).toHaveBeenCalledWith(`session:${session.id}`, 2592000);
+      
+      // Verify expire was called
+      expect(pipeline.expire).toHaveBeenCalledWith(`session:${session.id}`, 2592000);
     });
   });
 
@@ -206,13 +216,16 @@ describe('SessionManager', () => {
 
       const mockSessionData = {
         userId: 'user123',
-        history: JSON.stringify(history),
         createdAt: new Date().toISOString(),
         lastActivityAt: new Date().toISOString(),
         contextWindowUsed: '10'
       };
 
+      // Mock the new cache structure: metadata in hash, history in list
       (mockRedis.hGetAll as jest.Mock).mockResolvedValueOnce(mockSessionData);
+      (mockRedis.lRange as jest.Mock).mockResolvedValueOnce(
+        history.map(entry => JSON.stringify(entry))
+      );
 
       const context = await sessionManager.getContextForRequest('session-id', 1000);
 
@@ -236,7 +249,12 @@ describe('SessionManager', () => {
       const count = await sessionManager.expireInactiveSessions(86400000); // 1 day
 
       expect(count).toBe(2);
-      expect(mockRedis.del).toHaveBeenCalledTimes(2);
+      // expireInactiveSessions deletes both session metadata and history keys (2 per session)
+      expect(mockRedis.del).toHaveBeenCalledTimes(4);
+      expect(mockRedis.del).toHaveBeenCalledWith('session:session1');
+      expect(mockRedis.del).toHaveBeenCalledWith('session:session1:history');
+      expect(mockRedis.del).toHaveBeenCalledWith('session:session2');
+      expect(mockRedis.del).toHaveBeenCalledWith('session:session2:history');
     });
 
     it('should return 0 when no sessions to expire', async () => {

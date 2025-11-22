@@ -198,11 +198,12 @@ export class SessionManager implements ISessionManager {
         // Summarize remaining older messages
         const olderMessages = session.history.slice(0, i + 1);
         const summary = this.summarizeMessages(olderMessages);
-        const summaryTokens = this.estimateTokens(summary);
+        const summaryContent = `[Summary of earlier conversation: ${summary}]`;
+        const summaryTokens = this.estimateTokens(summaryContent);
         
         messages.unshift({
           role: 'assistant',
-          content: `[Summary of earlier conversation: ${summary}]`,
+          content: summaryContent,
           timestamp: olderMessages[0].timestamp
         });
         totalTokens += summaryTokens;
@@ -373,60 +374,29 @@ export class SessionManager implements ISessionManager {
   /**
    * Summarize older messages
    * Extracts key information from conversation history to preserve context
+   * Creates a concise summary appropriate for the available token budget
    */
   private summarizeMessages(messages: HistoryEntry[]): string {
     if (messages.length === 0) {
-      return 'No previous conversation history.';
+      return 'No previous conversation.';
     }
     
-    // Extract user queries to identify topics
-    const userQueries = messages
-      .filter(m => m.role === 'user')
-      .map(m => m.content)
-      .slice(0, 10); // Limit to first 10 queries
-    
-    // Extract key assistant responses (first and last few)
-    const assistantResponses = messages
-      .filter(m => m.role === 'assistant')
-      .map(m => m.content);
-    
-    // Build summary with actual content
-    let summary = 'Previous conversation summary:\n\n';
-    
-    if (userQueries.length > 0) {
-      summary += 'Topics discussed:\n';
-      userQueries.forEach((query, idx) => {
-        // Truncate long queries
-        const truncatedQuery = query.length > 200 
-          ? query.substring(0, 200) + '...' 
-          : query;
-        summary += `${idx + 1}. ${truncatedQuery}\n`;
-      });
-      summary += '\n';
-    }
-    
-    // Include key points from assistant responses
-    if (assistantResponses.length > 0) {
-      summary += 'Key points from responses:\n';
-      // Take first response and last response if multiple
-      const keyResponses = assistantResponses.length === 1
-        ? [assistantResponses[0]]
-        : [assistantResponses[0], assistantResponses[assistantResponses.length - 1]];
-      
-      keyResponses.forEach((response, idx) => {
-        // Extract first sentence or first 150 chars
-        const firstSentence = response.split(/[.!?]/)[0];
-        const excerpt = firstSentence.length > 150 
-          ? response.substring(0, 150) + '...' 
-          : firstSentence || response.substring(0, 150);
-        summary += `- ${excerpt}\n`;
-      });
-    }
-    
-    // Add metadata
     const totalMessages = messages.length;
-    summary += `\n(Total: ${totalMessages} messages in earlier conversation)`;
+    const userCount = messages.filter(m => m.role === 'user').length;
+    const assistantCount = messages.filter(m => m.role === 'assistant').length;
     
-    return summary;
+    // For very short summaries, just provide counts
+    if (totalMessages <= 3) {
+      return `${totalMessages} earlier messages`;
+    }
+    
+    // Extract first user query to identify initial topic
+    const firstUserQuery = messages.find(m => m.role === 'user')?.content || '';
+    const topicHint = firstUserQuery.length > 50 
+      ? firstUserQuery.substring(0, 50).trim() + '...'
+      : firstUserQuery.trim();
+    
+    // Build concise summary
+    return `${totalMessages} earlier messages (${userCount} user, ${assistantCount} assistant). Topic: ${topicHint}`;
   }
 }

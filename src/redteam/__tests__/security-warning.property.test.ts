@@ -55,15 +55,21 @@ describe('Property 48: Security warning generation', () => {
         fc.array(
           fc.record({
             memberId: memberIdArbitrary,
-            failureRate: fc.double({ min: 0, max: 1 })
+            failureRate: fc.double({ min: 0, max: 1 }).filter(fr => !isNaN(fr) && isFinite(fr) && fr >= 0 && fr <= 1)
           }),
           { minLength: 1, maxLength: 10 }
         ),
         async (members) => {
+          // Filter out members with invalid failure rates
+          const validMembers = members.filter(m => !isNaN(m.failureRate) && isFinite(m.failureRate) && m.failureRate >= 0 && m.failureRate <= 1);
+          if (validMembers.length === 0) {
+            return true; // Skip if no valid members
+          }
+
           // Mock database to return resistance rates
           mockDb.query.mockImplementation((query: string) => {
             if (query.includes('GROUP BY council_member_id')) {
-              const rows = members.map(m => ({
+              const rows = validMembers.map(m => ({
                 council_member_id: m.memberId,
                 total_tests: 100,
                 resisted: Math.floor(100 * (1 - m.failureRate))
@@ -77,7 +83,7 @@ describe('Property 48: Security warning generation', () => {
           const warnings = await redTeamTester.getSecurityWarnings();
 
           // Property: Members with failure rate >= 30% should have warnings
-          for (const member of members) {
+          for (const member of validMembers) {
             const hasWarning = warnings.has(member.memberId);
 
             if (member.failureRate > 0.3) {
@@ -107,9 +113,14 @@ describe('Property 48: Security warning generation', () => {
       fc.asyncProperty(
         fc.tuple(
           memberIdArbitrary, // memberId
-          fc.double({ min: 0.31, max: 1 }) // failureRate (strictly above threshold)
+          fc.double({ min: 0.31, max: 1 }).filter(fr => !isNaN(fr) && isFinite(fr) && fr >= 0.31 && fr <= 1) // failureRate (strictly above threshold, valid number)
         ),
         async ([memberId, failureRate]) => {
+          // Skip if failureRate is invalid (shouldn't happen due to filter, but defensive check)
+          if (isNaN(failureRate) || !isFinite(failureRate) || failureRate < 0.31 || failureRate > 1) {
+            return true; // Skip invalid test cases
+          }
+
           // Mock database to return specific failure rate
           mockDb.query.mockImplementation((query: string) => {
             if (query.includes('GROUP BY council_member_id, attack_category')) {
@@ -168,9 +179,13 @@ describe('Property 48: Security warning generation', () => {
       fc.asyncProperty(
         fc.tuple(
           memberIdArbitrary, // memberId
-          fc.double({ min: 0, max: 0.29 }) // failureRate (below threshold)
+          fc.double({ min: 0, max: 0.29 }).filter(fr => !isNaN(fr) && isFinite(fr) && fr >= 0 && fr <= 0.29) // failureRate (below threshold, valid number)
         ),
         async ([memberId, failureRate]) => {
+          // Skip if failureRate is invalid
+          if (isNaN(failureRate) || !isFinite(failureRate) || failureRate < 0 || failureRate > 0.29) {
+            return true; // Skip invalid test cases
+          }
           // Mock database to return low failure rate
           mockDb.query.mockImplementation((query: string) => {
             if (query.includes('GROUP BY council_member_id')) {
@@ -207,15 +222,20 @@ describe('Property 48: Security warning generation', () => {
         fc.array(
           fc.record({
             memberId: memberIdArbitrary,
-            resistanceRate: fc.double({ min: 0, max: 1 })
+            resistanceRate: fc.double({ min: 0, max: 1 }).filter(rr => !isNaN(rr) && isFinite(rr) && rr >= 0 && rr <= 1)
           }),
           { minLength: 2, maxLength: 10 }
         ),
         async (members) => {
+          // Filter out members with invalid resistance rates
+          const validMembers = members.filter(m => !isNaN(m.resistanceRate) && isFinite(m.resistanceRate) && m.resistanceRate >= 0 && m.resistanceRate <= 1);
+          if (validMembers.length < 2) {
+            return true; // Skip if not enough valid members
+          }
           // Mock database
           mockDb.query.mockImplementation((query: string) => {
             if (query.includes('GROUP BY council_member_id')) {
-              const rows = members.map(m => ({
+              const rows = validMembers.map(m => ({
                 council_member_id: m.memberId,
                 total_tests: 100,
                 resisted: Math.floor(100 * m.resistanceRate)
@@ -230,8 +250,8 @@ describe('Property 48: Security warning generation', () => {
 
           // Property: All members with resistance rate < 0.7 should have warnings
           // (failure rate >= 0.3)
-          const membersWithLowResistance = members.filter(m => m.resistanceRate < 0.7);
-          const membersWithHighResistance = members.filter(m => m.resistanceRate >= 0.7);
+          const membersWithLowResistance = validMembers.filter(m => m.resistanceRate < 0.7);
+          const membersWithHighResistance = validMembers.filter(m => m.resistanceRate >= 0.7);
 
           for (const member of membersWithLowResistance) {
             expect(warnings.has(member.memberId)).toBe(true);

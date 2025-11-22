@@ -223,17 +223,24 @@ describe('Property Test: Streaming Initiation Timing', () => {
   let app: any;
 
   beforeEach(() => {
+    // Ensure test environment for API key validation
+    process.env.NODE_ENV = 'test';
+    
     mockOrchestrationEngine = new MockOrchestrationEngine();
     mockSessionManager = new MockSessionManager();
     mockEventLogger = new MockEventLogger();
 
-    // Mock JWT verification to always succeed
-    const jwt = require('jsonwebtoken');
-    jest.spyOn(jwt, 'verify').mockReturnValue({ userId: 'test-user' });
-
+    // Track stored requests in a Map for the mock
+    const storedRequests = new Map<string, string>();
+    
     const mockRedis = {
-      set: jest.fn().mockResolvedValue('OK'),
-      get: jest.fn().mockResolvedValue(null),
+      set: jest.fn().mockImplementation((key: string, value: string) => {
+        storedRequests.set(key, value);
+        return Promise.resolve('OK');
+      }),
+      get: jest.fn().mockImplementation((key: string) => {
+        return Promise.resolve(storedRequests.get(key) || null);
+      }),
       expire: jest.fn().mockResolvedValue(true)
     } as any;
 
@@ -276,7 +283,7 @@ describe('Property Test: Streaming Initiation Timing', () => {
           // Step 1: Submit request
           const submitResponse = await request(app)
             .post('/api/v1/requests')
-            .set('Authorization', 'Bearer test-token')
+            .set('Authorization', 'ApiKey test-key')
             .send(requestBody);
 
           // Verify request was accepted
@@ -288,7 +295,7 @@ describe('Property Test: Streaming Initiation Timing', () => {
           // Step 2: Connect to streaming endpoint
           const streamResponse = await request(app)
             .get(`/api/v1/requests/${requestId}/stream`)
-            .set('Authorization', 'Bearer test-token');
+            .set('Authorization', 'ApiKey test-key');
 
           // Property assertions:
           // 1. Streaming should have been initiated (SSE headers set)
@@ -315,7 +322,7 @@ describe('Property Test: Streaming Initiation Timing', () => {
           // Step 1: Submit request
           const submitResponse = await request(app)
             .post('/api/v1/requests')
-            .set('Authorization', 'Bearer test-token')
+            .set('Authorization', 'ApiKey test-key')
             .send(requestBody);
 
           const requestId = submitResponse.body.requestId;
@@ -326,7 +333,7 @@ describe('Property Test: Streaming Initiation Timing', () => {
           // Step 2: Connect to streaming endpoint after completion
           const streamResponse = await request(app)
             .get(`/api/v1/requests/${requestId}/stream`)
-            .set('Authorization', 'Bearer test-token');
+            .set('Authorization', 'ApiKey test-key');
 
           // Property assertions:
           // 1. Should have SSE headers
@@ -352,7 +359,7 @@ describe('Property Test: Streaming Initiation Timing', () => {
           // Step 1: Submit request
           const submitResponse = await request(app)
             .post('/api/v1/requests')
-            .set('Authorization', 'Bearer test-token')
+            .set('Authorization', 'ApiKey test-key')
             .send(requestBody);
 
           const requestId = submitResponse.body.requestId;
@@ -360,7 +367,7 @@ describe('Property Test: Streaming Initiation Timing', () => {
           // Step 2: Connect to streaming endpoint
           const streamResponse = await request(app)
             .get(`/api/v1/requests/${requestId}/stream`)
-            .set('Authorization', 'Bearer test-token');
+            .set('Authorization', 'ApiKey test-key');
 
           // Property assertions:
           // 1. Should have SSE headers
@@ -382,7 +389,7 @@ describe('Property Test: Streaming Initiation Timing', () => {
           // Try to stream a non-existent request
           const streamResponse = await request(app)
             .get(`/api/v1/requests/${nonExistentRequestId}/stream`)
-            .set('Authorization', 'Bearer test-token');
+            .set('Authorization', 'ApiKey test-key');
 
           // Property assertions:
           // 1. Should return 404 error

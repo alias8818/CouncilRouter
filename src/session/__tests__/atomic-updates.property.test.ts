@@ -212,7 +212,15 @@ describe('SessionManager Atomic Updates Property Test', () => {
           expect(mockClient.release).toHaveBeenCalledTimes(testData.entries.length);
 
           // Verify cache was updated after each transaction
-          expect(mockRedis.hSet).toHaveBeenCalledTimes(testData.entries.length);
+          // cacheSession uses pipeline, so check multi() and exec() were called for each entry
+          expect(mockRedis.multi).toHaveBeenCalledTimes(testData.entries.length);
+          // Get all pipeline objects and verify exec() was called on each
+          const multiCalls = (mockRedis.multi as jest.Mock).mock.results;
+          expect(multiCalls.length).toBe(testData.entries.length);
+          for (const result of multiCalls) {
+            const pipeline = result.value;
+            expect(pipeline.exec).toHaveBeenCalled();
+          }
         }
       ),
       { numRuns: 100 }
@@ -379,23 +387,38 @@ describe('SessionManager Atomic Updates Property Test', () => {
           await sessionManager.addToHistory(testData.sessionId, testData.newEntry);
 
           // Assert: Verify cache was updated with correct data
-          expect(mockRedis.hSet).toHaveBeenCalledTimes(1);
-
-          const cacheCall = (mockRedis.hSet as jest.Mock).mock.calls[0];
-          expect(cacheCall[0]).toBe(`session:${testData.sessionId}`);
-
+          // cacheSession uses pipeline, so check multi() was called and exec() was called
+          expect(mockRedis.multi).toHaveBeenCalledTimes(1);
+          
+          const pipeline = (mockRedis.multi as jest.Mock).mock.results[0].value;
+          // Verify pipeline was executed
+          expect(pipeline.exec).toHaveBeenCalled();
+          
+          // Verify hSet was called with correct session data
+          const hSetCalls = (pipeline.hSet as jest.Mock).mock.calls;
+          expect(hSetCalls.length).toBeGreaterThan(0);
+          
+          const cacheCall = hSetCalls.find((call: any[]) => call[0] === `session:${testData.sessionId}`);
+          expect(cacheCall).toBeDefined();
+          
           const cachedData = cacheCall[1];
           expect(cachedData.userId).toBe(testData.userId);
           expect(cachedData.contextWindowUsed).toBe(expectedContextWindow.toString());
-
-          // Verify cached history includes all entries
-          const cachedHistory = JSON.parse(cachedData.history);
-          expect(cachedHistory.length).toBe(finalHistory.length);
-
-          // Verify the new entry is in the cached history
-          const lastCachedEntry = cachedHistory[cachedHistory.length - 1];
-          expect(lastCachedEntry.role).toBe(testData.newEntry.role);
-          expect(lastCachedEntry.content).toBe(testData.newEntry.content);
+          
+          // Verify history was updated via rPush (if history length changed)
+          const rPushCalls = (pipeline.rPush as jest.Mock).mock.calls;
+          const historyKey = `session:${testData.sessionId}:history`;
+          const historyPushCalls = rPushCalls.filter((call: any[]) => call[0] === historyKey);
+          
+          // History should be updated if it's a new entry (length increased)
+          if (testData.initialHistory.length < finalHistory.length) {
+            expect(historyPushCalls.length).toBeGreaterThan(0);
+            // Verify the new entry was pushed
+            const lastPushCall = historyPushCalls[historyPushCalls.length - 1];
+            const pushedEntry = JSON.parse(lastPushCall[1]);
+            expect(pushedEntry.role).toBe(testData.newEntry.role);
+            expect(pushedEntry.content).toBe(testData.newEntry.content);
+          }
         }
       ),
       { numRuns: 100 }

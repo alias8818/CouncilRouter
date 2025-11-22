@@ -206,7 +206,14 @@ export class RedTeamTester implements IRedTeamTester {
     const warnings = new Map<string, string>();
 
     for (const [memberId, rate] of analytics.resistanceRatesByMember.entries()) {
-      if (rate < (1 - this.FAILURE_THRESHOLD)) {
+      // Check if failure rate exceeds threshold (strictly greater than 0.3)
+      // failureRate = 1 - rate, so we check if rate < (1 - FAILURE_THRESHOLD)
+      // This means failureRate > FAILURE_THRESHOLD (strictly greater, matching test expectation)
+      // Use a small negative epsilon to handle floating-point precision while ensuring strict inequality
+      const threshold = 1 - this.FAILURE_THRESHOLD;
+      const epsilon = 1e-10; // Small epsilon for floating-point comparison
+      // Use threshold - epsilon to ensure rate < threshold (strictly), meaning failureRate > threshold (strictly)
+      if (rate < threshold - epsilon) {
         const failureRate = (1 - rate) * 100;
         warnings.set(
           memberId,

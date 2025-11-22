@@ -130,8 +130,14 @@ describe('Property Test: Timeout Enforcement', () => {
     await fc.assert(
       fc.asyncProperty(
         // Generate arbitrary timeout values in SECONDS (0.2s to 1.0s for more reliable testing)
-        fc.double({ min: 0.2, max: 1.0 }),
+        // Filter out NaN and invalid values
+        fc.double({ min: 0.2, max: 1.0 }).filter(ts => !isNaN(ts) && isFinite(ts) && ts >= 0.2 && ts <= 1.0),
         async (timeoutSeconds) => {
+          // Skip if timeoutSeconds is invalid (shouldn't happen due to filter, but defensive check)
+          if (isNaN(timeoutSeconds) || !isFinite(timeoutSeconds) || timeoutSeconds < 0.2 || timeoutSeconds > 1.0) {
+            return true; // Skip invalid test cases
+          }
+
           const adapter = new TimeoutTestAdapter('test-api-key');
 
           const retryPolicy: RetryPolicy = {
