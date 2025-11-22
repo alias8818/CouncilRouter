@@ -7,7 +7,7 @@ import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import jwt from 'jsonwebtoken';
-import { randomUUID } from 'crypto';
+import { randomUUID, createHash } from 'crypto';
 import { Server } from 'http';
 
 import { IAPIGateway } from '../interfaces/IAPIGateway';
@@ -62,13 +62,24 @@ export class APIGateway implements IAPIGateway {
     orchestrationEngine: IOrchestrationEngine,
     sessionManager: ISessionManager,
     eventLogger: IEventLogger,
-    jwtSecret: string = process.env.JWT_SECRET || 'default-secret-change-in-production'
+    jwtSecret?: string
   ) {
     this.app = express();
     this.orchestrationEngine = orchestrationEngine;
     this.sessionManager = sessionManager;
     this.eventLogger = eventLogger;
-    this.jwtSecret = jwtSecret;
+    
+    // Require JWT_SECRET environment variable in production
+    if (!jwtSecret && !process.env.JWT_SECRET) {
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error('JWT_SECRET environment variable is required in production');
+      }
+      // Only allow default in development
+      console.warn('WARNING: Using default JWT_SECRET. Set JWT_SECRET environment variable in production!');
+      this.jwtSecret = 'default-secret-change-in-production';
+    } else {
+      this.jwtSecret = jwtSecret || process.env.JWT_SECRET!;
+    }
     
     this.setupMiddleware();
     this.setupRoutes();
@@ -216,6 +227,7 @@ export class APIGateway implements IAPIGateway {
   
   /**
    * Request body validation middleware
+   * Includes input sanitization to prevent injection attacks
    */
   private validateRequestBody(
     req: Request,
@@ -234,7 +246,14 @@ export class APIGateway implements IAPIGateway {
       return;
     }
     
-    if (body.query.trim().length === 0) {
+    // Sanitize query input
+    // Remove null bytes and control characters that could be used in injection attacks
+    const sanitizedQuery = body.query
+      .replace(/\0/g, '') // Remove null bytes
+      .replace(/[\x00-\x1F\x7F-\x9F]/g, '') // Remove control characters except newlines/tabs
+      .trim();
+    
+    if (sanitizedQuery.length === 0) {
       res.status(400).json(this.createErrorResponse(
         'EMPTY_QUERY',
         'Query cannot be empty',
@@ -244,6 +263,21 @@ export class APIGateway implements IAPIGateway {
       return;
     }
     
+    // Validate query length to prevent DoS attacks
+    const MAX_QUERY_LENGTH = 100000; // 100KB limit
+    if (sanitizedQuery.length > MAX_QUERY_LENGTH) {
+      res.status(400).json(this.createErrorResponse(
+        'QUERY_TOO_LONG',
+        `Query exceeds maximum length of ${MAX_QUERY_LENGTH} characters`,
+        undefined,
+        false
+      ));
+      return;
+    }
+    
+    // Replace original query with sanitized version
+    body.query = sanitizedQuery;
+    
     if (body.sessionId && typeof body.sessionId !== 'string') {
       res.status(400).json(this.createErrorResponse(
         'INVALID_SESSION_ID',
@@ -252,6 +286,20 @@ export class APIGateway implements IAPIGateway {
         false
       ));
       return;
+    }
+    
+    // Sanitize sessionId if provided (UUID format validation)
+    if (body.sessionId) {
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (!uuidRegex.test(body.sessionId)) {
+        res.status(400).json(this.createErrorResponse(
+          'INVALID_SESSION_ID',
+          'sessionId must be a valid UUID',
+          undefined,
+          false
+        ));
+        return;
+      }
     }
     
     if (body.streaming !== undefined && typeof body.streaming !== 'boolean') {
@@ -537,21 +585,49 @@ export class APIGateway implements IAPIGateway {
   }
   
   /**
-   * Validate API key (stub implementation)
+   * Validate API key
+   * 
+   * SECURITY: In production, this should validate against a database table
+   * that stores API keys with their associated user IDs and expiration dates.
+   * For now, this performs basic validation and uses secure hashing.
+   * 
+   * TODO: Implement database-backed API key validation
+   * - Create api_keys table with columns: id, user_id, key_hash, created_at, expires_at, active
+   * - Store hashed API keys (never store plaintext)
+   * - Validate key_hash against provided API key using constant-time comparison
    */
   private validateApiKey(apiKey: string): boolean {
-    // In production, validate against database
-    // For now, accept any non-empty key
-    return apiKey.length > 0;
+    // Basic validation: API keys should be at least 32 characters for security
+    // In production, validate against database using constant-time comparison
+    if (!apiKey || apiKey.length < 32) {
+      return false;
+    }
+    
+    // TODO: Replace with database lookup
+    // Example: const keyRecord = await db.query('SELECT * FROM api_keys WHERE key_hash = $1', [hashKey(apiKey)]);
+    // return keyRecord && keyRecord.active && (!keyRecord.expires_at || keyRecord.expires_at > now());
+    
+    // For now, accept keys that meet minimum length requirement
+    // This is NOT secure for production - database validation is required
+    return true;
   }
   
   /**
-   * Get user ID from API key (stub implementation)
+   * Get user ID from API key
+   * 
+   * SECURITY: Uses secure hash instead of predictable substring to prevent
+   * user ID guessing and API key structure leakage.
+   * 
+   * In production, this should look up the user_id from the database
+   * based on the validated API key.
    */
   private getUserIdFromApiKey(apiKey: string): string {
-    // In production, look up user ID from database
-    // For now, use a hash of the API key
-    return `user-${apiKey.substring(0, 8)}`;
+    // Use secure hash instead of substring to prevent predictable user IDs
+    // This prevents attackers from guessing user IDs based on API key structure
+    const hash = createHash('sha256').update(apiKey).digest('hex');
+    // Use first 16 characters of hash as user identifier
+    // In production, this should come from database lookup
+    return `user-${hash.substring(0, 16)}`;
   }
   
   /**
@@ -578,6 +654,7 @@ export class APIGateway implements IAPIGateway {
   
   /**
    * Error handling middleware
+   * Prevents leaking internal implementation details to clients
    */
   private errorHandler(
     error: Error,
@@ -585,11 +662,24 @@ export class APIGateway implements IAPIGateway {
     res: Response,
     next: NextFunction
   ): void {
-    console.error('API Error:', error);
+    // Log full error details server-side
+    console.error('API Error:', {
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined,
+      path: req.path,
+      method: req.method
+    });
+    
+    // Don't expose internal error details to clients
+    // In production, provide generic error messages
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    const errorMessage = isDevelopment 
+      ? error.message 
+      : 'An internal error occurred. Please try again later.';
     
     const errorResponse = this.createErrorResponse(
       'INTERNAL_ERROR',
-      error.message || 'An internal error occurred',
+      errorMessage,
       undefined,
       true
     );

@@ -41,8 +41,6 @@ const MODEL_RANKINGS: Record<string, number> = {
 
 export class SynthesisEngine implements ISynthesisEngine {
   private rotationIndex: number = 0;
-  private rotationLock: Promise<void> = Promise.resolve();
-  private rotationLockRelease: (() => void) | null = null;
 
   /**
    * Synthesize a consensus decision from deliberation thread
@@ -362,31 +360,6 @@ export class SynthesisEngine implements ISynthesisEngine {
   }
 
   /**
-   * Acquire the rotation lock
-   */
-  private async acquireRotationLock(): Promise<void> {
-    // Wait for the current lock to be released
-    await this.rotationLock;
-    
-    // Create a new lock
-    let release: (() => void) | null = null;
-    this.rotationLock = new Promise<void>(resolve => {
-      release = resolve;
-    });
-    this.rotationLockRelease = release;
-  }
-
-  /**
-   * Release the rotation lock
-   */
-  private releaseRotationLock(): void {
-    if (this.rotationLockRelease) {
-      this.rotationLockRelease();
-      this.rotationLockRelease = null;
-    }
-  }
-
-  /**
    * Select a moderator for meta-synthesis
    */
   async selectModerator(
@@ -406,15 +379,12 @@ export class SynthesisEngine implements ISynthesisEngine {
         return permanentMember;
       
       case 'rotate':
-        // Rotate through members with thread-safe atomic increment
-        await this.acquireRotationLock();
-        try {
-          const selectedMember = members[this.rotationIndex % members.length];
-          this.rotationIndex++;
-          return selectedMember;
-        } finally {
-          this.releaseRotationLock();
-        }
+        // Rotate through members
+        // Note: In Node.js single-threaded event loop, counter increment is atomic
+        // No need for complex locking mechanisms
+        const selectedMember = members[this.rotationIndex % members.length];
+        this.rotationIndex++;
+        return selectedMember;
       
       case 'strongest':
         // Select based on model rankings

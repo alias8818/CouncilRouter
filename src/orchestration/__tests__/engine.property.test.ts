@@ -8,6 +8,7 @@ import { OrchestrationEngine } from '../engine';
 import { IProviderPool } from '../../interfaces/IProviderPool';
 import { IConfigurationManager } from '../../interfaces/IConfigurationManager';
 import { ISynthesisEngine } from '../../interfaces/ISynthesisEngine';
+import { ProviderHealthTracker, getSharedHealthTracker } from '../../providers/health-tracker';
 import {
   UserRequest,
   CouncilMember,
@@ -33,6 +34,11 @@ class MockProviderPool implements IProviderPool {
   private healthStatuses: Map<string, ProviderHealth> = new Map();
   private disabledProviders: Set<string> = new Set();
   private requestLog: Array<{ member: CouncilMember; prompt: string }> = [];
+  private healthTracker: ProviderHealthTracker;
+  
+  constructor(healthTracker?: ProviderHealthTracker) {
+    this.healthTracker = healthTracker || getSharedHealthTracker();
+  }
   
   // Track which members received requests
   getRequestLog(): Array<{ member: CouncilMember; prompt: string }> {
@@ -61,13 +67,24 @@ class MockProviderPool implements IProviderPool {
     
     const response = this.responses.get(member.id);
     if (!response) {
-      return {
+      const successResponse: ProviderResponse = {
         content: `Response from ${member.id}`,
         tokenUsage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 },
         latency: 100,
         success: true
       };
+      // Record success in health tracker (mimicking ProviderPool behavior)
+      this.healthTracker.recordSuccess(member.provider);
+      return successResponse;
     }
+    
+    // Record failure/success in health tracker (mimicking ProviderPool.updateHealthTracking)
+    if (response.success) {
+      this.healthTracker.recordSuccess(member.provider);
+    } else {
+      this.healthTracker.recordFailure(member.provider);
+    }
+    
     return response;
   }
   
@@ -473,7 +490,10 @@ describe('Property Test: Automatic Member Disabling', () => {
           
           // Property assertions:
           // After threshold failures (5), the provider should be marked as disabled
+          // Note: The engine uses a health tracker to track failures, and trackFailure()
+          // checks if disabling is needed and calls markProviderDisabled on the pool
           if (numFailures >= 5) {
+            // Check both the mock pool's disabled set and verify the provider was marked disabled
             const isDisabled = mockProviderPool.isProviderDisabled(failingMember.provider);
             expect(isDisabled).toBe(true);
           }

@@ -232,9 +232,10 @@ export class SessionManager implements ISessionManager {
       [thresholdDate]
     );
 
-    // Remove expired sessions from cache
+    // Remove expired sessions from cache (both metadata and history)
     for (const row of result.rows) {
       await this.redis.del(`session:${row.id}`);
+      await this.redis.del(`session:${row.id}:history`);
     }
 
     return result.rowCount || 0;
@@ -242,19 +243,27 @@ export class SessionManager implements ISessionManager {
 
   /**
    * Get session from Redis cache
+   * Reconstructs session from metadata and incremental history entries
    */
   private async getSessionFromCache(sessionId: string): Promise<Session | null> {
     const key = `session:${sessionId}`;
+    const historyKey = `session:${sessionId}:history`;
+    
+    // Get session metadata
     const data = await this.redis.hGetAll(key);
     
     if (!data || Object.keys(data).length === 0) {
       return null;
     }
 
+    // Get history entries from list (incremental storage)
+    const historyEntries = await this.redis.lRange(historyKey, 0, -1).catch(() => []);
+    const history: HistoryEntry[] = historyEntries.map(entry => JSON.parse(entry));
+
     return {
       id: sessionId,
       userId: data.userId,
-      history: JSON.parse(data.history),
+      history,
       createdAt: new Date(data.createdAt),
       lastActivityAt: new Date(data.lastActivityAt),
       contextWindowUsed: parseInt(data.contextWindowUsed, 10)
@@ -309,19 +318,48 @@ export class SessionManager implements ISessionManager {
 
   /**
    * Cache session in Redis
+   * Uses incremental updates: stores history entries separately to avoid O(N^2) behavior
    */
   private async cacheSession(session: Session): Promise<void> {
     const key = `session:${session.id}`;
+    const historyKey = `session:${session.id}:history`;
     
-    await this.redis.hSet(key, {
+    // Use pipeline for atomic operations
+    const pipeline = this.redis.multi();
+    
+    // Update session metadata (small, changes frequently)
+    pipeline.hSet(key, {
       userId: session.userId,
-      history: JSON.stringify(session.history),
       createdAt: session.createdAt.toISOString(),
       lastActivityAt: session.lastActivityAt.toISOString(),
-      contextWindowUsed: session.contextWindowUsed.toString()
+      contextWindowUsed: session.contextWindowUsed.toString(),
+      historyLength: session.history.length.toString() // Track length for quick checks
     });
-
-    await this.redis.expire(key, this.SESSION_TTL);
+    
+    // Store history entries incrementally in a list
+    // Only update if history length changed (indicates new entries)
+    const existingLength = await this.redis.lLen(historyKey).catch(() => 0);
+    
+    if (session.history.length > existingLength) {
+      // Append only new entries (incremental update)
+      const newEntries = session.history.slice(existingLength);
+      for (const entry of newEntries) {
+        pipeline.rPush(historyKey, JSON.stringify(entry));
+      }
+    } else if (session.history.length < existingLength) {
+      // History was truncated (e.g., after summarization) - rebuild
+      await this.redis.del(historyKey);
+      for (const entry of session.history) {
+        pipeline.rPush(historyKey, JSON.stringify(entry));
+      }
+    }
+    // If lengths match, no need to update history
+    
+    // Set TTL on both keys
+    pipeline.expire(key, this.SESSION_TTL);
+    pipeline.expire(historyKey, this.SESSION_TTL);
+    
+    await pipeline.exec();
   }
 
   /**
@@ -334,12 +372,61 @@ export class SessionManager implements ISessionManager {
 
   /**
    * Summarize older messages
-   * Simple implementation: extract key points
+   * Extracts key information from conversation history to preserve context
    */
   private summarizeMessages(messages: HistoryEntry[]): string {
-    const userMessages = messages.filter(m => m.role === 'user').length;
-    const assistantMessages = messages.filter(m => m.role === 'assistant').length;
+    if (messages.length === 0) {
+      return 'No previous conversation history.';
+    }
     
-    return `${userMessages} user messages and ${assistantMessages} assistant responses covering earlier conversation topics`;
+    // Extract user queries to identify topics
+    const userQueries = messages
+      .filter(m => m.role === 'user')
+      .map(m => m.content)
+      .slice(0, 10); // Limit to first 10 queries
+    
+    // Extract key assistant responses (first and last few)
+    const assistantResponses = messages
+      .filter(m => m.role === 'assistant')
+      .map(m => m.content);
+    
+    // Build summary with actual content
+    let summary = 'Previous conversation summary:\n\n';
+    
+    if (userQueries.length > 0) {
+      summary += 'Topics discussed:\n';
+      userQueries.forEach((query, idx) => {
+        // Truncate long queries
+        const truncatedQuery = query.length > 200 
+          ? query.substring(0, 200) + '...' 
+          : query;
+        summary += `${idx + 1}. ${truncatedQuery}\n`;
+      });
+      summary += '\n';
+    }
+    
+    // Include key points from assistant responses
+    if (assistantResponses.length > 0) {
+      summary += 'Key points from responses:\n';
+      // Take first response and last response if multiple
+      const keyResponses = assistantResponses.length === 1
+        ? [assistantResponses[0]]
+        : [assistantResponses[0], assistantResponses[assistantResponses.length - 1]];
+      
+      keyResponses.forEach((response, idx) => {
+        // Extract first sentence or first 150 chars
+        const firstSentence = response.split(/[.!?]/)[0];
+        const excerpt = firstSentence.length > 150 
+          ? response.substring(0, 150) + '...' 
+          : firstSentence || response.substring(0, 150);
+        summary += `- ${excerpt}\n`;
+      });
+    }
+    
+    // Add metadata
+    const totalMessages = messages.length;
+    summary += `\n(Total: ${totalMessages} messages in earlier conversation)`;
+    
+    return summary;
   }
 }

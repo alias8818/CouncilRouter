@@ -177,16 +177,14 @@ export class ProviderPool implements IProviderPool {
       };
     }
     
-    const successRate = latency.totalRequests > 0
-      ? latency.successCount / latency.totalRequests
-      : 0;
+    // Use rolling window success rate from health tracker for accurate metrics
+    // This provides more responsive metrics that reflect recent performance
+    const successRate = this.healthTracker.getSuccessRate(providerId);
     
     const avgLatency = this.calculateAverageLatency(latency.latencies);
     
-    // Get lastFailure from shared tracker if available
-    // Note: ProviderHealthTracker doesn't expose lastFailure directly,
-    // but we can infer it from the status
-    const lastFailure = status === 'disabled' || status === 'degraded' ? new Date() : undefined;
+    // Get actual last failure timestamp from health tracker
+    const lastFailure = this.healthTracker.getLastFailure(providerId);
     
     return {
       providerId,

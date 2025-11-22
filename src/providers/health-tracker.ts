@@ -17,6 +17,11 @@ export function getSharedHealthTracker(): ProviderHealthTracker {
   return sharedHealthTracker;
 }
 
+interface RequestRecord {
+  timestamp: Date;
+  success: boolean;
+}
+
 interface ProviderHealthState {
   status: 'healthy' | 'degraded' | 'disabled';
   consecutiveFailures: number;
@@ -24,6 +29,8 @@ interface ProviderHealthState {
   totalRequests: number;
   lastFailure?: Date;
   disabledReason?: string;
+  // Rolling window for success rate calculation
+  requestHistory: RequestRecord[];
 }
 
 /**
@@ -33,9 +40,12 @@ interface ProviderHealthState {
 export class ProviderHealthTracker {
   private healthState: Map<string, ProviderHealthState> = new Map();
   private readonly failureThreshold: number;
+  // Rolling window: track requests from last N minutes
+  private readonly rollingWindowMs: number = 15 * 60 * 1000; // 15 minutes default
 
-  constructor(failureThreshold: number = 5) {
+  constructor(failureThreshold: number = 5, rollingWindowMinutes: number = 15) {
     this.failureThreshold = failureThreshold;
+    this.rollingWindowMs = rollingWindowMinutes * 60 * 1000;
   }
 
   /**
@@ -47,8 +57,28 @@ export class ProviderHealthTracker {
         status: 'healthy',
         consecutiveFailures: 0,
         successCount: 0,
-        totalRequests: 0
+        totalRequests: 0,
+        requestHistory: []
       });
+    }
+  }
+  
+  /**
+   * Clean up old request records outside the rolling window
+   */
+  private cleanupOldRecords(state: ProviderHealthState): void {
+    const cutoffTime = new Date(Date.now() - this.rollingWindowMs);
+    const initialLength = state.requestHistory.length;
+    
+    // Remove records older than the rolling window
+    state.requestHistory = state.requestHistory.filter(record => record.timestamp >= cutoffTime);
+    
+    // Recalculate counts based on remaining records
+    const remainingRecords = state.requestHistory.length;
+    if (remainingRecords < initialLength) {
+      // Recalculate success count from remaining records
+      state.successCount = state.requestHistory.filter(r => r.success).length;
+      state.totalRequests = remainingRecords;
     }
   }
 
@@ -59,11 +89,20 @@ export class ProviderHealthTracker {
     const state = this.healthState.get(providerId);
     if (!state) {
       this.initializeProvider(providerId);
+      const newState = this.healthState.get(providerId)!;
+      newState.requestHistory.push({ timestamp: new Date(), success: true });
+      newState.totalRequests = 1;
+      newState.successCount = 1;
       return;
     }
 
-    state.totalRequests++;
-    state.successCount++;
+    // Clean up old records first
+    this.cleanupOldRecords(state);
+
+    // Add new success record
+    state.requestHistory.push({ timestamp: new Date(), success: true });
+    state.totalRequests = state.requestHistory.length;
+    state.successCount = state.requestHistory.filter(r => r.success).length;
     state.consecutiveFailures = 0; // Reset consecutive failure count
 
     // Update status based on current state
@@ -81,20 +120,29 @@ export class ProviderHealthTracker {
    * Returns true if provider should be disabled after this failure
    */
   recordFailure(providerId: string): boolean {
+    const failureTime = new Date();
     const state = this.healthState.get(providerId);
     if (!state) {
       this.initializeProvider(providerId);
       const newState = this.healthState.get(providerId)!;
-      newState.totalRequests++;
+      newState.requestHistory.push({ timestamp: failureTime, success: false });
+      newState.totalRequests = 1;
+      newState.successCount = 0;
       newState.consecutiveFailures = 1;
-      newState.lastFailure = new Date();
+      newState.lastFailure = failureTime;
       newState.status = 'degraded';
       return newState.consecutiveFailures >= this.failureThreshold;
     }
 
-    state.totalRequests++;
+    // Clean up old records first
+    this.cleanupOldRecords(state);
+
+    // Add new failure record
+    state.requestHistory.push({ timestamp: failureTime, success: false });
+    state.totalRequests = state.requestHistory.length;
+    state.successCount = state.requestHistory.filter(r => r.success).length;
     state.consecutiveFailures++;
-    state.lastFailure = new Date();
+    state.lastFailure = failureTime; // Track actual failure time
 
     // Check if we should disable this provider
     if (state.consecutiveFailures >= this.failureThreshold) {
@@ -167,6 +215,33 @@ export class ProviderHealthTracker {
   getHealthStatus(providerId: string): 'healthy' | 'degraded' | 'disabled' {
     const state = this.healthState.get(providerId);
     return state?.status || 'healthy';
+  }
+  
+  /**
+   * Get the last failure timestamp for a provider
+   */
+  getLastFailure(providerId: string): Date | undefined {
+    const state = this.healthState.get(providerId);
+    return state?.lastFailure;
+  }
+  
+  /**
+   * Calculate success rate based on rolling window
+   */
+  getSuccessRate(providerId: string): number {
+    const state = this.healthState.get(providerId);
+    if (!state || state.requestHistory.length === 0) {
+      return 0;
+    }
+    
+    // Clean up old records
+    this.cleanupOldRecords(state);
+    
+    if (state.requestHistory.length === 0) {
+      return 0;
+    }
+    
+    return state.successCount / state.requestHistory.length;
   }
 
   /**
