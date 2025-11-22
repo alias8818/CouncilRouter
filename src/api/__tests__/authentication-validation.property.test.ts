@@ -36,21 +36,21 @@ class MockOrchestrationEngine implements IOrchestrationEngine {
       timestamp: new Date()
     };
   }
-  
+
   async distributeToCouncil(
     request: UserRequest,
     councilMembers: CouncilMember[]
   ): Promise<InitialResponse[]> {
     return [];
   }
-  
+
   async conductDeliberation(
     initialResponses: InitialResponse[],
     rounds: number
   ): Promise<DeliberationThread> {
     return { rounds: [], totalDuration: 0 };
   }
-  
+
   async handleTimeout(
     partialResponses: ProviderResponse[]
   ): Promise<ConsensusDecision> {
@@ -76,7 +76,7 @@ class MockSessionManager implements ISessionManager {
       contextWindowUsed: 0
     };
   }
-  
+
   async createSession(userId: string): Promise<Session> {
     return {
       id: 'new-session-id',
@@ -87,11 +87,11 @@ class MockSessionManager implements ISessionManager {
       contextWindowUsed: 0
     };
   }
-  
+
   async addToHistory(sessionId: string, entry: HistoryEntry): Promise<void> {
     // No-op for mock
   }
-  
+
   async getContextForRequest(
     sessionId: string,
     maxTokens: number
@@ -102,19 +102,19 @@ class MockSessionManager implements ISessionManager {
       summarized: false
     };
   }
-  
+
   async expireInactiveSessions(inactivityThreshold: number): Promise<number> {
     return 0;
   }
 }
 
 class MockEventLogger implements IEventLogger {
-  async logRequest(request: UserRequest): Promise<void> {}
-  async logCouncilResponse(requestId: string, response: InitialResponse): Promise<void> {}
-  async logDeliberationRound(requestId: string, round: any): Promise<void> {}
-  async logConsensusDecision(requestId: string, decision: ConsensusDecision): Promise<void> {}
-  async logCost(requestId: string, cost: any): Promise<void> {}
-  async logProviderFailure(providerId: string, error: Error): Promise<void> {}
+  async logRequest(request: UserRequest): Promise<void> { }
+  async logCouncilResponse(requestId: string, response: InitialResponse): Promise<void> { }
+  async logDeliberationRound(requestId: string, round: any): Promise<void> { }
+  async logConsensusDecision(requestId: string, decision: ConsensusDecision): Promise<void> { }
+  async logCost(requestId: string, cost: any): Promise<void> { }
+  async logProviderFailure(providerId: string, error: Error): Promise<void> { }
 }
 
 describe('Property 19: Authentication validation', () => {
@@ -123,16 +123,26 @@ describe('Property 19: Authentication validation', () => {
   let mockSession: MockSessionManager;
   let mockLogger: MockEventLogger;
   let port: number;
-  
+
   beforeAll(async () => {
     mockOrchestration = new MockOrchestrationEngine();
     mockSession = new MockSessionManager();
     mockLogger = new MockEventLogger();
-    gateway = new APIGateway(mockOrchestration, mockSession, mockLogger, 'test-secret');
+    const mockRedis = {
+      set: jest.fn().mockResolvedValue('OK'),
+      get: jest.fn().mockResolvedValue(null),
+      expire: jest.fn().mockResolvedValue(true)
+    } as any;
+
+    const mockDbPool = {
+      query: jest.fn().mockResolvedValue({ rows: [] })
+    } as any;
+
+    gateway = new APIGateway(mockOrchestration, mockSession, mockLogger, mockRedis, mockDbPool, 'test-secret');
     port = 3700; // Use different port from other tests
     await gateway.start(port);
   });
-  
+
   afterAll(async () => {
     try {
       await gateway.stop();
@@ -140,13 +150,13 @@ describe('Property 19: Authentication validation', () => {
       // Ignore errors on stop
     }
   });
-  
+
   test('Requests without authentication header should be rejected with 401', async () => {
     await fc.assert(
       fc.asyncProperty(
         // Generate random query strings
         fc.string({ minLength: 1, maxLength: 200 }),
-        
+
         async (query) => {
           // Make request without Authorization header
           const response = await fetch(`http://localhost:${port}/api/v1/requests`, {
@@ -157,10 +167,10 @@ describe('Property 19: Authentication validation', () => {
             },
             body: JSON.stringify({ query })
           });
-          
+
           // Should return 401 Unauthorized
           expect(response.status).toBe(401);
-          
+
           const data = await response.json() as any;
           expect(data).toHaveProperty('error');
           expect(data.error.code).toBe('AUTHENTICATION_REQUIRED');
@@ -170,7 +180,7 @@ describe('Property 19: Authentication validation', () => {
       { numRuns: 20 }
     );
   }, 120000);
-  
+
   test('Requests with invalid Bearer token should be rejected with 401', async () => {
     await fc.assert(
       fc.asyncProperty(
@@ -178,7 +188,7 @@ describe('Property 19: Authentication validation', () => {
         fc.string({ minLength: 1, maxLength: 200 }),
         // Generate random invalid tokens
         fc.string({ minLength: 10, maxLength: 100 }),
-        
+
         async (query, invalidToken) => {
           // Make request with invalid Bearer token
           const response = await fetch(`http://localhost:${port}/api/v1/requests`, {
@@ -189,10 +199,10 @@ describe('Property 19: Authentication validation', () => {
             },
             body: JSON.stringify({ query })
           });
-          
+
           // Should return 401 Unauthorized
           expect(response.status).toBe(401);
-          
+
           const data = await response.json() as any;
           expect(data).toHaveProperty('error');
           expect(data.error.code).toBe('INVALID_TOKEN');
@@ -202,7 +212,7 @@ describe('Property 19: Authentication validation', () => {
       { numRuns: 20 }
     );
   }, 120000);
-  
+
   test('Requests with malformed Authorization header should be rejected with 401', async () => {
     await fc.assert(
       fc.asyncProperty(
@@ -210,7 +220,7 @@ describe('Property 19: Authentication validation', () => {
         fc.string({ minLength: 1, maxLength: 200 }),
         // Generate random malformed auth headers (not starting with Bearer or ApiKey)
         fc.string({ minLength: 1, maxLength: 100 }).filter(s => !s.startsWith('Bearer ') && !s.startsWith('ApiKey ')),
-        
+
         async (query, malformedAuth) => {
           // Make request with malformed Authorization header
           const response = await fetch(`http://localhost:${port}/api/v1/requests`, {
@@ -221,10 +231,10 @@ describe('Property 19: Authentication validation', () => {
             },
             body: JSON.stringify({ query })
           });
-          
+
           // Should return 401 Unauthorized
           expect(response.status).toBe(401);
-          
+
           const data = await response.json() as any;
           expect(data).toHaveProperty('error');
           expect(data.error.code).toBe('INVALID_AUTH_FORMAT');
@@ -234,7 +244,7 @@ describe('Property 19: Authentication validation', () => {
       { numRuns: 20 }
     );
   }, 120000);
-  
+
   test('Requests with valid ApiKey should be accepted', async () => {
     await fc.assert(
       fc.asyncProperty(
@@ -242,7 +252,7 @@ describe('Property 19: Authentication validation', () => {
         fc.string({ minLength: 1, maxLength: 200 }),
         // Generate random API keys (any non-empty string is valid in our mock)
         fc.string({ minLength: 1, maxLength: 100 }),
-        
+
         async (query, apiKey) => {
           // Make request with valid ApiKey
           const response = await fetch(`http://localhost:${port}/api/v1/requests`, {
@@ -253,15 +263,15 @@ describe('Property 19: Authentication validation', () => {
             },
             body: JSON.stringify({ query })
           });
-          
+
           if (response.status === 429) {
             // Rate limited - skip this test case
             return true;
           }
-          
+
           // Should return 202 Accepted (not 401)
           expect(response.status).toBe(202);
-          
+
           const data = await response.json() as any;
           expect(data).toHaveProperty('requestId');
           expect(data.status).toBe('processing');
@@ -270,13 +280,13 @@ describe('Property 19: Authentication validation', () => {
       { numRuns: 10 } // Reduced to avoid rate limiting
     );
   }, 120000);
-  
+
   test('GET requests without authentication should be rejected with 401', async () => {
     await fc.assert(
       fc.asyncProperty(
         // Generate random UUIDs
         fc.uuid(),
-        
+
         async (requestId) => {
           // Make GET request without Authorization header
           const response = await fetch(`http://localhost:${port}/api/v1/requests/${requestId}`, {
@@ -286,10 +296,10 @@ describe('Property 19: Authentication validation', () => {
               // No Authorization header
             }
           });
-          
+
           // Should return 401 Unauthorized
           expect(response.status).toBe(401);
-          
+
           const data = await response.json() as any;
           expect(data).toHaveProperty('error');
           expect(data.error.code).toBe('AUTHENTICATION_REQUIRED');

@@ -36,7 +36,15 @@ describe('SessionManager Property-Based Tests', () => {
       hGetAll: jest.fn(),
       hSet: jest.fn().mockResolvedValue(0),
       expire: jest.fn().mockResolvedValue(true),
-      del: jest.fn().mockResolvedValue(1)
+      del: jest.fn().mockResolvedValue(1),
+      lRange: jest.fn().mockResolvedValue([]),
+      lLen: jest.fn().mockResolvedValue(0),
+      multi: jest.fn().mockReturnValue({
+        hSet: jest.fn().mockReturnThis(),
+        rPush: jest.fn().mockReturnThis(),
+        expire: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([])
+      })
     } as any;
 
     sessionManager = new SessionManager(mockDb, mockRedis);
@@ -82,7 +90,7 @@ describe('SessionManager Property-Based Tests', () => {
           async (sessionData) => {
             // Reset mocks for each property test run
             jest.clearAllMocks();
-            
+
             // Setup: Mock database to return session data
             (mockDb.query as jest.Mock)
               .mockResolvedValueOnce({
@@ -117,7 +125,7 @@ describe('SessionManager Property-Based Tests', () => {
             expect(retrievedSession?.id).toBe(sessionData.sessionId);
             expect(retrievedSession?.userId).toBe(sessionData.userId);
             expect(retrievedSession?.history).toHaveLength(sessionData.history.length);
-            
+
             // Verify all history entries are present
             retrievedSession?.history.forEach((entry, index) => {
               expect(entry.role).toBe(sessionData.history[index].role);
@@ -159,7 +167,7 @@ describe('SessionManager Property-Based Tests', () => {
           async (testData) => {
             // Reset mocks for each property test run
             jest.clearAllMocks();
-            
+
             // Calculate total tokens (rough estimate: content.length / 4)
             const totalTokens = testData.history.reduce(
               (sum, entry) => sum + Math.ceil(entry.content.length / 4),
@@ -249,7 +257,7 @@ describe('SessionManager Property-Based Tests', () => {
           async (testData) => {
             // Reset mocks for each property test run
             jest.clearAllMocks();
-            
+
             // Create mock client for this test
             const mockClient = {
               query: jest.fn().mockResolvedValue({ rows: [], rowCount: 1 }),
@@ -262,12 +270,12 @@ describe('SessionManager Property-Based Tests', () => {
 
             // Assert: Client query should be called (BEGIN, INSERT, UPDATE, etc.)
             expect(mockClient.query).toHaveBeenCalled();
-            
+
             // Find the insert call
             const calls = (mockClient.query as jest.Mock).mock.calls;
             const insertCall = calls.find(call => typeof call[0] === 'string' && call[0].includes('INSERT INTO session_history'));
             expect(insertCall).toBeDefined();
-            
+
             // Verify the insert call contains correct data
             expect(insertCall[1]).toEqual(
               expect.arrayContaining([
@@ -279,11 +287,11 @@ describe('SessionManager Property-Based Tests', () => {
                 testData.response.timestamp
               ])
             );
-            
+
             // Find the update call
             const updateCall = calls.find(call => typeof call[0] === 'string' && call[0].includes('UPDATE sessions'));
             expect(updateCall).toBeDefined();
-            
+
             // Verify the update call contains session ID
             expect(updateCall[1]).toEqual(
               expect.arrayContaining([
@@ -302,7 +310,7 @@ describe('SessionManager Property-Based Tests', () => {
         { numRuns: 100 }
       );
     });
-    
+
     it('should store multiple responses in order', async () => {
       await fc.assert(
         fc.asyncProperty(
@@ -322,7 +330,7 @@ describe('SessionManager Property-Based Tests', () => {
           async (testData) => {
             // Reset mocks for each property test run
             jest.clearAllMocks();
-            
+
             // Track all insert calls across multiple transactions
             const allInsertCalls: any[] = [];
 
@@ -347,7 +355,7 @@ describe('SessionManager Property-Based Tests', () => {
 
             // Assert: Should have one insert call per response
             expect(allInsertCalls.length).toBe(testData.responses.length);
-            
+
             // Verify each response was inserted with correct data
             for (let i = 0; i < testData.responses.length; i++) {
               expect(allInsertCalls[i][1]).toEqual(
@@ -398,7 +406,7 @@ describe('SessionManager Property-Based Tests', () => {
           async (testData) => {
             // Reset mocks for each property test run
             jest.clearAllMocks();
-            
+
             const now = Date.now();
             const thresholdDate = new Date(now - testData.inactivityThresholdMs);
 
@@ -445,7 +453,7 @@ describe('SessionManager Property-Based Tests', () => {
           async (testData) => {
             // Reset mocks for each property test run
             jest.clearAllMocks();
-            
+
             // Create a session with recent activity (within threshold)
             const recentActivity = new Date(Date.now() - testData.inactivityThresholdMs / 2);
 

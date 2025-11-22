@@ -34,7 +34,15 @@ describe('SessionManager', () => {
       hGetAll: jest.fn().mockResolvedValue({}),
       hSet: jest.fn().mockResolvedValue(0),
       expire: jest.fn().mockResolvedValue(true),
-      del: jest.fn().mockResolvedValue(1)
+      del: jest.fn().mockResolvedValue(1),
+      lRange: jest.fn().mockResolvedValue([]),
+      lLen: jest.fn().mockResolvedValue(0),
+      multi: jest.fn().mockReturnValue({
+        hSet: jest.fn().mockReturnThis(),
+        rPush: jest.fn().mockReturnThis(),
+        expire: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([])
+      })
     } as any;
 
     sessionManager = new SessionManager(mockDb, mockRedis);

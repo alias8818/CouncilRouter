@@ -36,21 +36,21 @@ class MockOrchestrationEngine implements IOrchestrationEngine {
       timestamp: new Date()
     };
   }
-  
+
   async distributeToCouncil(
     request: UserRequest,
     councilMembers: CouncilMember[]
   ): Promise<InitialResponse[]> {
     return [];
   }
-  
+
   async conductDeliberation(
     initialResponses: InitialResponse[],
     rounds: number
   ): Promise<DeliberationThread> {
     return { rounds: [], totalDuration: 0 };
   }
-  
+
   async handleTimeout(
     partialResponses: ProviderResponse[]
   ): Promise<ConsensusDecision> {
@@ -76,7 +76,7 @@ class MockSessionManager implements ISessionManager {
       contextWindowUsed: 0
     };
   }
-  
+
   async createSession(userId: string): Promise<Session> {
     return {
       id: 'new-session-id',
@@ -87,11 +87,11 @@ class MockSessionManager implements ISessionManager {
       contextWindowUsed: 0
     };
   }
-  
+
   async addToHistory(sessionId: string, entry: HistoryEntry): Promise<void> {
     // No-op for mock
   }
-  
+
   async getContextForRequest(
     sessionId: string,
     maxTokens: number
@@ -102,19 +102,19 @@ class MockSessionManager implements ISessionManager {
       summarized: false
     };
   }
-  
+
   async expireInactiveSessions(inactivityThreshold: number): Promise<number> {
     return 0;
   }
 }
 
 class MockEventLogger implements IEventLogger {
-  async logRequest(request: UserRequest): Promise<void> {}
-  async logCouncilResponse(requestId: string, response: InitialResponse): Promise<void> {}
-  async logDeliberationRound(requestId: string, round: any): Promise<void> {}
-  async logConsensusDecision(requestId: string, decision: ConsensusDecision): Promise<void> {}
-  async logCost(requestId: string, cost: any): Promise<void> {}
-  async logProviderFailure(providerId: string, error: Error): Promise<void> {}
+  async logRequest(request: UserRequest): Promise<void> { }
+  async logCouncilResponse(requestId: string, response: InitialResponse): Promise<void> { }
+  async logDeliberationRound(requestId: string, round: any): Promise<void> { }
+  async logConsensusDecision(requestId: string, decision: ConsensusDecision): Promise<void> { }
+  async logCost(requestId: string, cost: any): Promise<void> { }
+  async logProviderFailure(providerId: string, error: Error): Promise<void> { }
 }
 
 describe('Property 17: Request identifier generation', () => {
@@ -123,16 +123,27 @@ describe('Property 17: Request identifier generation', () => {
   let mockSession: MockSessionManager;
   let mockLogger: MockEventLogger;
   let port: number;
-  
+
   beforeAll(async () => {
     mockOrchestration = new MockOrchestrationEngine();
     mockSession = new MockSessionManager();
     mockLogger = new MockEventLogger();
-    gateway = new APIGateway(mockOrchestration, mockSession, mockLogger, 'test-secret');
+
+    const mockRedis = {
+      set: jest.fn().mockResolvedValue('OK'),
+      get: jest.fn().mockResolvedValue(null),
+      expire: jest.fn().mockResolvedValue(true)
+    } as any;
+
+    const mockDbPool = {
+      query: jest.fn().mockResolvedValue({ rows: [] })
+    } as any;
+
+    gateway = new APIGateway(mockOrchestration, mockSession, mockLogger, mockRedis, mockDbPool, 'test-secret');
     port = 3500; // Use fixed port for all tests
     await gateway.start(port);
   });
-  
+
   afterAll(async () => {
     try {
       await gateway.stop();
@@ -140,7 +151,7 @@ describe('Property 17: Request identifier generation', () => {
       // Ignore errors on stop
     }
   });
-  
+
   test('For any valid POST request, a unique request identifier should be returned', async () => {
     await fc.assert(
       fc.asyncProperty(
@@ -150,7 +161,7 @@ describe('Property 17: Request identifier generation', () => {
         fc.option(fc.uuid(), { nil: undefined }),
         // Generate optional streaming flags
         fc.option(fc.boolean(), { nil: undefined }),
-        
+
         async (query, sessionId, streaming) => {
           // Make POST request
           const response = await fetch(`http://localhost:${port}/api/v1/requests`, {
@@ -165,26 +176,26 @@ describe('Property 17: Request identifier generation', () => {
               streaming
             })
           });
-          
+
           // Should return 202 Accepted or 429 (rate limited)
           if (response.status === 429) {
             // Rate limited - skip this test case
             return true;
           }
-          
+
           expect(response.status).toBe(202);
-          
+
           const data = await response.json() as any;
-          
+
           // Should have a requestId
           expect(data).toHaveProperty('requestId');
           expect(typeof data.requestId).toBe('string');
           expect(data.requestId.length).toBeGreaterThan(0);
-          
+
           // Should have status
           expect(data).toHaveProperty('status');
           expect(data.status).toBe('processing');
-          
+
           // Should have createdAt
           expect(data).toHaveProperty('createdAt');
         }
@@ -192,16 +203,16 @@ describe('Property 17: Request identifier generation', () => {
       { numRuns: 20 } // Reduced to avoid rate limiting
     );
   }, 120000);
-  
+
   test('Request identifiers should be unique across multiple requests', async () => {
     await fc.assert(
       fc.asyncProperty(
         // Generate array of queries (smaller to avoid rate limiting)
         fc.array(fc.string({ minLength: 1, maxLength: 100 }), { minLength: 2, maxLength: 5 }),
-        
+
         async (queries) => {
           const requestIds = new Set<string>();
-          
+
           // Submit multiple requests
           for (const query of queries) {
             const response = await fetch(`http://localhost:${port}/api/v1/requests`, {
@@ -212,19 +223,19 @@ describe('Property 17: Request identifier generation', () => {
               },
               body: JSON.stringify({ query })
             });
-            
+
             if (response.status === 429) {
               // Rate limited - wait a bit
               await new Promise(resolve => setTimeout(resolve, 100));
               continue;
             }
-            
+
             const data = await response.json() as any;
             if (data.requestId) {
               requestIds.add(data.requestId);
             }
           }
-          
+
           // All request IDs should be unique (at least the ones we got)
           // We may have fewer due to rate limiting
           expect(requestIds.size).toBeGreaterThan(0);

@@ -68,7 +68,7 @@ describe('Property 48: Security warning generation', () => {
                 total_tests: 100,
                 resisted: Math.floor(100 * (1 - m.failureRate))
               }));
-              
+
               return Promise.resolve({ rows } as any);
             }
             return Promise.resolve({ rows: [] } as any);
@@ -79,14 +79,14 @@ describe('Property 48: Security warning generation', () => {
           // Property: Members with failure rate >= 30% should have warnings
           for (const member of members) {
             const hasWarning = warnings.has(member.memberId);
-            
+
             if (member.failureRate > 0.3) {
               expect(hasWarning).toBe(true);
-              
+
               // Property: Warning message should mention the member ID
               const warning = warnings.get(member.memberId);
               expect(warning).toContain(member.memberId);
-              
+
               // Property: Warning should indicate it's a security warning
               expect(warning?.toLowerCase()).toContain('security warning');
             } else {
@@ -112,10 +112,24 @@ describe('Property 48: Security warning generation', () => {
         async ([memberId, failureRate]) => {
           // Mock database to return specific failure rate
           mockDb.query.mockImplementation((query: string) => {
+            if (query.includes('GROUP BY council_member_id, attack_category')) {
+              const totalTests = 100;
+              const resisted = Math.floor(totalTests * (1 - failureRate));
+
+              return Promise.resolve({
+                rows: [{
+                  council_member_id: memberId,
+                  attack_category: 'jailbreak', // Add attack_category
+                  total_tests: totalTests,
+                  resisted: resisted
+                }]
+              } as any);
+            }
+
             if (query.includes('GROUP BY council_member_id')) {
               const totalTests = 100;
               const resisted = Math.floor(totalTests * (1 - failureRate));
-              
+
               return Promise.resolve({
                 rows: [{
                   council_member_id: memberId,
@@ -133,7 +147,7 @@ describe('Property 48: Security warning generation', () => {
           expect(warnings.has(memberId)).toBe(true);
 
           const warning = warnings.get(memberId);
-          
+
           // Property: Warning should be a non-empty string
           expect(warning).toBeDefined();
           expect(warning!.length).toBeGreaterThan(0);
@@ -162,7 +176,7 @@ describe('Property 48: Security warning generation', () => {
             if (query.includes('GROUP BY council_member_id')) {
               const totalTests = 100;
               const resisted = Math.floor(totalTests * (1 - failureRate));
-              
+
               return Promise.resolve({
                 rows: [{
                   council_member_id: memberId,
@@ -206,7 +220,7 @@ describe('Property 48: Security warning generation', () => {
                 total_tests: 100,
                 resisted: Math.floor(100 * m.resistanceRate)
               }));
-              
+
               return Promise.resolve({ rows } as any);
             }
             return Promise.resolve({ rows: [] } as any);

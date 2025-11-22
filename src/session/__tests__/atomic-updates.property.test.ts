@@ -43,7 +43,15 @@ describe('SessionManager Atomic Updates Property Test', () => {
       hGetAll: jest.fn().mockResolvedValue({}),
       hSet: jest.fn().mockResolvedValue(0),
       expire: jest.fn().mockResolvedValue(true),
-      del: jest.fn().mockResolvedValue(1)
+      del: jest.fn().mockResolvedValue(1),
+      lRange: jest.fn().mockResolvedValue([]),
+      lLen: jest.fn().mockResolvedValue(0),
+      multi: jest.fn().mockReturnValue({
+        hSet: jest.fn().mockReturnThis(),
+        rPush: jest.fn().mockReturnThis(),
+        expire: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([])
+      })
     } as any;
 
     sessionManager = new SessionManager(mockDb, mockRedis);
@@ -91,20 +99,20 @@ describe('SessionManager Atomic Updates Property Test', () => {
 
           // Setup: Mock transaction behavior
           let transactionCallCount = 0;
-          
+
           (mockClient.query as jest.Mock).mockImplementation(async (query: string, params?: any[]) => {
             if (query === 'BEGIN') {
               return { rows: [], rowCount: 0 };
             }
-            
+
             if (query === 'COMMIT') {
               return { rows: [], rowCount: 0 };
             }
-            
+
             if (query === 'ROLLBACK') {
               return { rows: [], rowCount: 0 };
             }
-            
+
             if (query.includes('INSERT INTO session_history')) {
               // Track inserted history entry
               const [id, sessionId, role, content, requestId, timestamp] = params || [];
@@ -116,14 +124,14 @@ describe('SessionManager Atomic Updates Property Test', () => {
               });
               return { rows: [], rowCount: 1 };
             }
-            
+
             if (query.includes('UPDATE sessions')) {
               // Track context window update
               const [lastActivityAt, tokenEstimate, sessionId] = params || [];
               expectedContextWindowUsed += tokenEstimate;
               return { rows: [], rowCount: 1 };
             }
-            
+
             if (query.includes('SELECT') && query.includes('FOR UPDATE')) {
               // Return session with current state
               return {
@@ -138,7 +146,7 @@ describe('SessionManager Atomic Updates Property Test', () => {
                 rowCount: 1
               };
             }
-            
+
             if (query.includes('SELECT') && query.includes('session_history')) {
               // Return all history entries added so far
               return {
@@ -151,7 +159,7 @@ describe('SessionManager Atomic Updates Property Test', () => {
                 rowCount: expectedHistory.length
               };
             }
-            
+
             return { rows: [], rowCount: 0 };
           });
 
@@ -239,20 +247,20 @@ describe('SessionManager Atomic Updates Property Test', () => {
             if (query === 'BEGIN') {
               return { rows: [], rowCount: 0 };
             }
-            
+
             if (query === 'ROLLBACK') {
               return { rows: [], rowCount: 0 };
             }
-            
+
             if (query.includes('INSERT INTO session_history')) {
               return { rows: [], rowCount: 1 };
             }
-            
+
             if (query.includes('UPDATE sessions')) {
               // Simulate error during update
               throw new Error('Database error during update');
             }
-            
+
             return { rows: [], rowCount: 0 };
           });
 
@@ -329,15 +337,15 @@ describe('SessionManager Atomic Updates Property Test', () => {
             if (query === 'BEGIN' || query === 'COMMIT' || query === 'ROLLBACK') {
               return { rows: [], rowCount: 0 };
             }
-            
+
             if (query.includes('INSERT INTO session_history')) {
               return { rows: [], rowCount: 1 };
             }
-            
+
             if (query.includes('UPDATE sessions')) {
               return { rows: [], rowCount: 1 };
             }
-            
+
             if (query.includes('SELECT') && query.includes('FOR UPDATE')) {
               return {
                 rows: [{
@@ -351,7 +359,7 @@ describe('SessionManager Atomic Updates Property Test', () => {
                 rowCount: 1
               };
             }
-            
+
             if (query.includes('SELECT') && query.includes('session_history')) {
               return {
                 rows: finalHistory.map(entry => ({
@@ -363,7 +371,7 @@ describe('SessionManager Atomic Updates Property Test', () => {
                 rowCount: finalHistory.length
               };
             }
-            
+
             return { rows: [], rowCount: 0 };
           });
 
@@ -372,18 +380,18 @@ describe('SessionManager Atomic Updates Property Test', () => {
 
           // Assert: Verify cache was updated with correct data
           expect(mockRedis.hSet).toHaveBeenCalledTimes(1);
-          
+
           const cacheCall = (mockRedis.hSet as jest.Mock).mock.calls[0];
           expect(cacheCall[0]).toBe(`session:${testData.sessionId}`);
-          
+
           const cachedData = cacheCall[1];
           expect(cachedData.userId).toBe(testData.userId);
           expect(cachedData.contextWindowUsed).toBe(expectedContextWindow.toString());
-          
+
           // Verify cached history includes all entries
           const cachedHistory = JSON.parse(cachedData.history);
           expect(cachedHistory.length).toBe(finalHistory.length);
-          
+
           // Verify the new entry is in the cached history
           const lastCachedEntry = cachedHistory[cachedHistory.length - 1];
           expect(lastCachedEntry.role).toBe(testData.newEntry.role);

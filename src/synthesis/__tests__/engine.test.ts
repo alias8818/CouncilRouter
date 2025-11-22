@@ -15,9 +15,31 @@ import {
 
 describe('SynthesisEngine', () => {
   let engine: SynthesisEngine;
+  let mockProviderPool: any;
+  let mockConfigManager: any;
 
   beforeEach(() => {
-    engine = new SynthesisEngine();
+    mockProviderPool = {
+      sendRequest: jest.fn().mockResolvedValue({
+        success: true,
+        content: 'Meta-synthesis result including member1, member2, member3',
+        tokenUsage: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
+        latencyMs: 500,
+        cost: 0.01
+      })
+    };
+
+    mockConfigManager = {
+      getCouncilConfig: jest.fn().mockResolvedValue({
+        members: [
+          { id: 'member1', model: 'gpt-4' },
+          { id: 'member2', model: 'claude-3-opus' },
+          { id: 'member3', model: 'gemini-pro' }
+        ]
+      })
+    };
+
+    engine = new SynthesisEngine(mockProviderPool, mockConfigManager);
   });
 
   afterAll(() => {
@@ -228,15 +250,15 @@ describe('SynthesisEngine', () => {
 
     it('should select permanent moderator', async () => {
       const strategy: ModeratorStrategy = { type: 'permanent', memberId: 'member2' };
-      
+
       const result = await engine.selectModerator(members, strategy);
-      
+
       expect(result.id).toBe('member2');
     });
 
     it('should throw error if permanent moderator not found', async () => {
       const strategy: ModeratorStrategy = { type: 'permanent', memberId: 'nonexistent' };
-      
+
       await expect(engine.selectModerator(members, strategy)).rejects.toThrow(
         'Permanent moderator nonexistent not found'
       );
@@ -244,12 +266,12 @@ describe('SynthesisEngine', () => {
 
     it('should rotate moderator selection', async () => {
       const strategy: ModeratorStrategy = { type: 'rotate' };
-      
+
       const result1 = await engine.selectModerator(members, strategy);
       const result2 = await engine.selectModerator(members, strategy);
       const result3 = await engine.selectModerator(members, strategy);
       const result4 = await engine.selectModerator(members, strategy);
-      
+
       // Should rotate through members
       expect(result1.id).toBe('member1');
       expect(result2.id).toBe('member2');
@@ -259,9 +281,9 @@ describe('SynthesisEngine', () => {
 
     it('should select strongest moderator', async () => {
       const strategy: ModeratorStrategy = { type: 'strongest' };
-      
+
       const result = await engine.selectModerator(members, strategy);
-      
+
       // gpt-4o would be strongest, but we have gpt-4 (95) and claude-3-opus (98)
       // claude-3-opus should be selected
       expect(result.id).toBe('member2'); // claude-3-opus
@@ -270,15 +292,15 @@ describe('SynthesisEngine', () => {
     it('should handle single member', async () => {
       const singleMember = [createMember('only', 'openai', 'gpt-3.5-turbo')];
       const strategy: ModeratorStrategy = { type: 'strongest' };
-      
+
       const result = await engine.selectModerator(singleMember, strategy);
-      
+
       expect(result.id).toBe('only');
     });
 
     it('should throw error with no members', async () => {
       const strategy: ModeratorStrategy = { type: 'strongest' };
-      
+
       await expect(engine.selectModerator([], strategy)).rejects.toThrow(
         'No council members available for moderator selection'
       );
@@ -290,9 +312,9 @@ describe('SynthesisEngine', () => {
         createMember('member2', 'custom', 'unknown-model-2')
       ];
       const strategy: ModeratorStrategy = { type: 'strongest' };
-      
+
       const result = await engine.selectModerator(unknownMembers, strategy);
-      
+
       // Should still select one (first one with default score)
       expect(result.id).toBe('member1');
     });

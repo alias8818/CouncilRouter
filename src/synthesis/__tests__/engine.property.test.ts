@@ -19,7 +19,28 @@ describe('SynthesisEngine - Property-Based Tests', () => {
   let engine: SynthesisEngine;
 
   beforeEach(() => {
-    engine = new SynthesisEngine();
+    const mockProviderPool = {
+      sendRequest: jest.fn().mockResolvedValue({
+        success: true,
+        content: 'Synthesized content',
+        tokenUsage: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
+        latencyMs: 500,
+        cost: 0.01
+      })
+    } as any;
+
+    const mockConfigManager = {
+      getCouncilConfig: jest.fn().mockResolvedValue({
+        members: [
+          { id: 'member1', model: 'gpt-4' },
+          { id: 'member2', model: 'claude-3-opus' },
+          { id: 'member3', model: 'gemini-pro' },
+          { id: 'member4', model: 'gpt-3.5-turbo' }
+        ]
+      })
+    } as any;
+
+    engine = new SynthesisEngine(mockProviderPool, mockConfigManager);
   });
 
   // Arbitraries for generating test data
@@ -125,13 +146,13 @@ describe('SynthesisEngine - Property-Based Tests', () => {
         synthesisStrategyArb,
         async (thread, strategy) => {
           const result = await engine.synthesize(thread, strategy);
-          
+
           // Should produce exactly one consensus decision
           expect(result).toBeDefined();
           expect(result.content).toBeDefined();
           expect(typeof result.content).toBe('string');
           expect(result.content.length).toBeGreaterThan(0);
-          
+
           // Should have all required fields
           expect(result.confidence).toMatch(/^(high|medium|low)$/);
           expect(result.agreementLevel).toBeGreaterThanOrEqual(0);
@@ -166,20 +187,20 @@ describe('SynthesisEngine - Property-Based Tests', () => {
           const uniqueMembers = Array.from(
             new Map(members.map((m: CouncilMember) => [m.id, m])).values()
           );
-          
+
           // Only test if the designated member is in the list
           const hasMember = uniqueMembers.some((m: CouncilMember) => m.id === designatedMemberId);
           if (!hasMember) {
             return; // Skip this test case
           }
-          
+
           const strategy: ModeratorStrategy = {
             type: 'permanent',
             memberId: designatedMemberId
           };
-          
+
           const selectedModerator = await engine.selectModerator(uniqueMembers, strategy);
-          
+
           // The selected moderator should be the designated one
           expect(selectedModerator.id).toBe(designatedMemberId);
         }
@@ -209,28 +230,28 @@ describe('SynthesisEngine - Property-Based Tests', () => {
         ),
         async (thread, weightsDict) => {
           const weights = new Map(Object.entries(weightsDict));
-          
+
           // Skip if no weights
           if (weights.size === 0) {
             return;
           }
-          
+
           const strategy: SynthesisStrategy = {
             type: 'weighted-fusion',
             weights
           };
-          
+
           const result = await engine.synthesize(thread, strategy);
-          
+
           // Result should contain weighted synthesis indicator
           expect(result.content).toContain('Weighted synthesis');
-          
+
           // For each weight in the configuration, check if it appears in the output
           weights.forEach((weight, memberId) => {
             // Check if this member contributed to the thread
             const allExchanges = thread.rounds.flatMap(r => r.exchanges);
             const memberContributed = allExchanges.some(e => e.councilMemberId === memberId);
-            
+
             if (memberContributed) {
               // The weight should appear in the output
               const weightStr = `[Weight: ${weight.toFixed(2)}]`;
@@ -259,17 +280,17 @@ describe('SynthesisEngine - Property-Based Tests', () => {
           const uniqueMembers = Array.from(
             new Map(members.map((m: CouncilMember) => [m.id, m])).values()
           );
-          
+
           if (uniqueMembers.length < 2) {
             return; // Skip if not enough unique members
           }
-          
+
           const strategy: ModeratorStrategy = {
             type: 'strongest'
           };
-          
+
           const selectedModerator = await engine.selectModerator(uniqueMembers, strategy);
-          
+
           // Model rankings from the engine
           const MODEL_RANKINGS: Record<string, number> = {
             'gpt-4': 95,
@@ -285,7 +306,7 @@ describe('SynthesisEngine - Property-Based Tests', () => {
             'palm-2': 80,
             'default': 50
           };
-          
+
           const getScore = (member: CouncilMember): number => {
             if (MODEL_RANKINGS[member.model]) {
               return MODEL_RANKINGS[member.model];
@@ -297,11 +318,11 @@ describe('SynthesisEngine - Property-Based Tests', () => {
             }
             return MODEL_RANKINGS['default'];
           };
-          
+
           // Find the expected strongest member
           let expectedStrongest = uniqueMembers[0];
           let highestScore = getScore(expectedStrongest);
-          
+
           for (const member of uniqueMembers) {
             const score = getScore(member);
             if (score > highestScore) {
@@ -309,7 +330,7 @@ describe('SynthesisEngine - Property-Based Tests', () => {
               expectedStrongest = member;
             }
           }
-          
+
           // The selected moderator should be the strongest
           expect(selectedModerator.id).toBe(expectedStrongest.id);
           expect(getScore(selectedModerator)).toBe(highestScore);
@@ -332,13 +353,13 @@ describe('SynthesisEngine - Property-Based Tests', () => {
         synthesisStrategyArb,
         async (thread, strategy) => {
           const result = await engine.synthesize(thread, strategy);
-          
+
           // The consensus decision should record the synthesis strategy used
           expect(result.synthesisStrategy).toEqual(strategy);
-          
+
           // Verify the strategy type is preserved
           expect(result.synthesisStrategy.type).toBe(strategy.type);
-          
+
           // For weighted fusion, verify weights are preserved
           if (strategy.type === 'weighted-fusion') {
             expect(result.synthesisStrategy.type).toBe('weighted-fusion');
@@ -346,14 +367,14 @@ describe('SynthesisEngine - Property-Based Tests', () => {
               // Compare the weights maps
               const resultWeights = result.synthesisStrategy.weights;
               const strategyWeights = strategy.weights;
-              
+
               expect(resultWeights.size).toBe(strategyWeights.size);
               strategyWeights.forEach((value, key) => {
                 expect(resultWeights.get(key)).toBe(value);
               });
             }
           }
-          
+
           // For meta-synthesis, verify moderator strategy is preserved
           if (strategy.type === 'meta-synthesis') {
             expect(result.synthesisStrategy.type).toBe('meta-synthesis');
