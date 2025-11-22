@@ -12,6 +12,8 @@ import { APIGateway } from '../api/gateway';
 import { OrchestrationEngine } from '../orchestration/engine';
 import { SessionManager } from '../session/manager';
 import { EventLogger } from '../logging/logger';
+import { ProviderPool } from '../providers/pool';
+import { SynthesisEngine } from '../synthesis/engine';
 
 async function startServers() {
   // Initialize database connection
@@ -33,16 +35,27 @@ async function startServers() {
   const configManager = new ConfigurationManager(pool, redis as any);
   const sessionManager = new SessionManager(pool, redis as any);
   const eventLogger = new EventLogger(pool);
-  
-  // Note: In a real implementation, you would initialize the full orchestration engine
-  // with provider pool, synthesis engine, etc.
-  // For this example, we're showing the structure
-  
+
+  // Initialize Provider Pool
+  const providerPool = new ProviderPool();
+
+  // Initialize Synthesis Engine
+  const synthesisEngine = new SynthesisEngine(providerPool, configManager);
+
+  // Initialize Orchestration Engine
+  const orchestrationEngine = new OrchestrationEngine(
+    providerPool,
+    configManager,
+    synthesisEngine
+  );
+
   // Start API Gateway on port 3000
   const apiGateway = new APIGateway(
-    {} as any, // orchestrationEngine placeholder
+    orchestrationEngine,
     sessionManager,
-    eventLogger
+    eventLogger,
+    redis as any,
+    pool
   );
   await apiGateway.start(3000);
   console.log('API Gateway started on http://localhost:3000');
