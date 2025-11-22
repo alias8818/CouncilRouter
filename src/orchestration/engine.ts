@@ -7,6 +7,7 @@ import { IOrchestrationEngine } from '../interfaces/IOrchestrationEngine';
 import { IProviderPool } from '../interfaces/IProviderPool';
 import { IConfigurationManager } from '../interfaces/IConfigurationManager';
 import { ISynthesisEngine } from '../interfaces/ISynthesisEngine';
+import { ProviderHealthTracker, getSharedHealthTracker } from '../providers/health-tracker';
 import {
   UserRequest,
   CouncilMember,
@@ -29,6 +30,15 @@ interface CouncilMemberResult {
 }
 
 /**
+ * Tracked response with member ID for timeout handling
+ */
+interface TrackedResponse {
+  memberId: string;
+  response: ProviderResponse;
+  initialResponse: InitialResponse;
+}
+
+/**
  * Orchestration Engine implementation
  */
 export class OrchestrationEngine implements IOrchestrationEngine {
@@ -36,18 +46,19 @@ export class OrchestrationEngine implements IOrchestrationEngine {
   private configManager: IConfigurationManager;
   private synthesisEngine: ISynthesisEngine;
   
-  // Failure tracking for automatic member disabling
-  private consecutiveFailures: Map<string, number> = new Map();
-  private readonly FAILURE_THRESHOLD = 5; // consecutive failures before disabling
+  private healthTracker: ProviderHealthTracker;
   
   constructor(
     providerPool: IProviderPool,
     configManager: IConfigurationManager,
-    synthesisEngine: ISynthesisEngine
+    synthesisEngine: ISynthesisEngine,
+    healthTracker?: ProviderHealthTracker
   ) {
     this.providerPool = providerPool;
     this.configManager = configManager;
     this.synthesisEngine = synthesisEngine;
+    // Use shared tracker for consistent failure tracking across components
+    this.healthTracker = healthTracker || getSharedHealthTracker();
   }
   
   /**
@@ -87,9 +98,10 @@ export class OrchestrationEngine implements IOrchestrationEngine {
       
       // Check if we hit global timeout
       if (initialResponses === 'GLOBAL_TIMEOUT') {
-        // Get partial responses collected so far
+        // Get partial responses collected so far (with member IDs)
+        // Wait a bit to ensure all pending callbacks have executed
         const partialResults = await this.getPartialResults(distributionPromise);
-        return await this.handleTimeout(partialResults);
+        return await this.handleTimeout(partialResults as any);
       }
       
       // Conduct deliberation if configured
@@ -111,6 +123,9 @@ export class OrchestrationEngine implements IOrchestrationEngine {
     }
   }
   
+  // Track partial responses for global timeout handling
+  private partialResponses: TrackedResponse[] = [];
+  
   /**
    * Distribute a request to all configured council members in parallel
    */
@@ -118,9 +133,22 @@ export class OrchestrationEngine implements IOrchestrationEngine {
     request: UserRequest,
     councilMembers: CouncilMember[]
   ): Promise<InitialResponse[]> {
+    // Reset partial responses tracking
+    this.partialResponses = [];
+    
     // Create promises for all council member requests
     const requestPromises = councilMembers.map(member =>
-      this.sendRequestToMember(request, member)
+      this.sendRequestToMember(request, member).then(result => {
+        // Track this response for potential global timeout handling
+        if (result.response.success) {
+          this.partialResponses.push({
+            memberId: result.memberId,
+            response: result.response,
+            initialResponse: result.initialResponse
+          });
+        }
+        return result;
+      })
     );
     
     // Wait for all requests to complete (or timeout individually)
@@ -136,9 +164,10 @@ export class OrchestrationEngine implements IOrchestrationEngine {
       if (result.status === 'fulfilled' && result.value.response.success) {
         // Successful response
         initialResponses.push(result.value.initialResponse);
-        this.resetFailureCount(member.id);
+        this.resetFailureCount(member);
       } else {
         // Failed response - track failure
+        // Handle both rejected promises and failed responses
         this.trackFailure(member);
       }
     }
@@ -309,27 +338,38 @@ export class OrchestrationEngine implements IOrchestrationEngine {
   
   /**
    * Handle timeout by synthesizing partial responses
+   * 
+   * Uses the partialResponses parameter passed from getPartialResults, which ensures
+   * we use the complete set of responses that were successfully collected before the timeout.
+   * This fixes the bug where this.partialResponses may be incomplete if the global timeout
+   * occurs before all successful response callbacks have executed.
    */
   async handleTimeout(
-    partialResponses: ProviderResponse[]
+    partialResponses: ProviderResponse[] | TrackedResponse[]
   ): Promise<ConsensusDecision> {
-    // Filter successful responses
-    const successfulResponses = partialResponses.filter(r => r.success);
+    // Use the partial responses passed as parameter (collected from getPartialResults)
+    // This ensures we use the complete set of responses that were successfully collected
+    // before the timeout, rather than relying on this.partialResponses which may be incomplete
+    // if the timeout occurred before all callbacks executed
     
-    if (successfulResponses.length === 0) {
+    // getPartialResults now returns TrackedResponse[], so we can safely cast
+    // The interface allows ProviderResponse[] for backward compatibility, but internally
+    // we always pass TrackedResponse[] from getPartialResults
+    const trackedResponses = partialResponses as TrackedResponse[];
+    
+    if (trackedResponses.length === 0) {
       throw new Error('Global timeout reached with no successful responses');
     }
     
-    // Convert to InitialResponse format (we need member IDs, but they're not in ProviderResponse)
-    // For now, create a simple deliberation thread
+    // Convert to deliberation thread with actual member IDs
     const deliberationThread: DeliberationThread = {
       rounds: [{
         roundNumber: 0,
-        exchanges: successfulResponses.map((response, index) => ({
-          councilMemberId: `member-${index}`, // Placeholder - will be fixed when we have proper tracking
-          content: response.content,
+        exchanges: trackedResponses.map((tracked) => ({
+          councilMemberId: tracked.memberId, // Use actual member ID
+          content: tracked.response.content,
           referencesTo: [],
-          tokenUsage: response.tokenUsage
+          tokenUsage: tracked.response.tokenUsage
         }))
       }],
       totalDuration: 0
@@ -357,7 +397,7 @@ export class OrchestrationEngine implements IOrchestrationEngine {
   private async sendRequestToMember(
     request: UserRequest,
     member: CouncilMember
-  ): Promise<{ response: ProviderResponse; initialResponse: InitialResponse }> {
+  ): Promise<{ response: ProviderResponse; initialResponse: InitialResponse; memberId: string }> {
     const startTime = Date.now();
     
     // Create timeout promise for this specific member
@@ -392,7 +432,7 @@ export class OrchestrationEngine implements IOrchestrationEngine {
       timestamp: new Date()
     };
     
-    return { response, initialResponse };
+    return { response, initialResponse, memberId: member.id };
   }
   
   /**
@@ -414,27 +454,28 @@ export class OrchestrationEngine implements IOrchestrationEngine {
   
   /**
    * Track failure for a council member
+   * Uses shared ProviderHealthTracker for consistent failure tracking
    */
   private trackFailure(member: CouncilMember): void {
-    const currentFailures = this.consecutiveFailures.get(member.id) || 0;
-    const newFailures = currentFailures + 1;
+    // Use shared tracker to record failure (tracks by provider, not member)
+    const shouldDisable = this.healthTracker.recordFailure(member.provider);
     
-    this.consecutiveFailures.set(member.id, newFailures);
-    
-    // Check if we should disable this member
-    if (newFailures >= this.FAILURE_THRESHOLD) {
+    // If threshold reached, mark provider as disabled
+    if (shouldDisable) {
       this.providerPool.markProviderDisabled(
         member.provider,
-        `Council member ${member.id} failed ${this.FAILURE_THRESHOLD} consecutive times`
+        `Provider ${member.provider} failed ${this.healthTracker.getFailureCount(member.provider)} consecutive times`
       );
     }
   }
   
   /**
    * Reset failure count for a council member
+   * Uses shared ProviderHealthTracker for consistent state
    */
-  private resetFailureCount(memberId: string): void {
-    this.consecutiveFailures.set(memberId, 0);
+  private resetFailureCount(member: CouncilMember): void {
+    // Reset failure count in shared tracker (by provider)
+    this.healthTracker.resetFailureCount(member.provider);
   }
   
   /**
@@ -449,27 +490,23 @@ export class OrchestrationEngine implements IOrchestrationEngine {
   }
   
   /**
-   * Get partial results from a distribution promise that may still be running
+   * Get partial results collected so far when global timeout occurs
+   * Returns the tracked responses with member IDs that have been successfully collected
+   * 
+   * Waits a short time to allow any pending callbacks to complete, ensuring we capture
+   * all responses that were successfully received before the timeout, even if their
+   * callbacks haven't finished executing yet.
    */
   private async getPartialResults(
     distributionPromise: Promise<InitialResponse[]>
-  ): Promise<ProviderResponse[]> {
-    // This is a simplified implementation
-    // In a real system, we'd track individual member responses as they come in
-    try {
-      const responses = await Promise.race([
-        distributionPromise,
-        new Promise<InitialResponse[]>((resolve) => setTimeout(() => resolve([]), 100))
-      ]);
-      
-      return responses.map(r => ({
-        content: r.content,
-        tokenUsage: r.tokenUsage,
-        latency: r.latency,
-        success: true
-      }));
-    } catch {
-      return [];
-    }
+  ): Promise<TrackedResponse[]> {
+    // Wait a short time to allow any pending callbacks to complete
+    // This ensures we capture all responses that were successfully received
+    // before the timeout, even if their callbacks haven't finished executing yet
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
+    // Return a copy of the tracked partial responses with member IDs
+    // These are populated asynchronously as responses come in via callbacks
+    return [...this.partialResponses];
   }
 }

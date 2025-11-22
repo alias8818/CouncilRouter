@@ -19,9 +19,16 @@ describe('SessionManager Property-Based Tests', () => {
   let mockRedis: jest.Mocked<RedisClientType>;
 
   beforeEach(() => {
+    // Create mock client for transactions
+    const mockClient = {
+      query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
+      release: jest.fn()
+    };
+
     // Create mock database
     mockDb = {
-      query: jest.fn()
+      query: jest.fn(),
+      connect: jest.fn().mockResolvedValue(mockClient)
     } as any;
 
     // Create mock Redis client
@@ -243,21 +250,22 @@ describe('SessionManager Property-Based Tests', () => {
             // Reset mocks for each property test run
             jest.clearAllMocks();
             
-            // Setup: Mock database insert and update
-            (mockDb.query as jest.Mock).mockResolvedValue({
-              rows: [],
-              rowCount: 1
-            });
+            // Create mock client for this test
+            const mockClient = {
+              query: jest.fn().mockResolvedValue({ rows: [], rowCount: 1 }),
+              release: jest.fn()
+            };
+            (mockDb.connect as jest.Mock).mockResolvedValueOnce(mockClient);
 
             // Act: Add response to history
             await sessionManager.addToHistory(testData.sessionId, testData.response);
 
-            // Assert: Database should be called at least twice (insert + update)
-            expect(mockDb.query).toHaveBeenCalled();
+            // Assert: Client query should be called (BEGIN, INSERT, UPDATE, etc.)
+            expect(mockClient.query).toHaveBeenCalled();
             
             // Find the insert call
-            const calls = (mockDb.query as jest.Mock).mock.calls;
-            const insertCall = calls.find(call => call[0].includes('INSERT INTO session_history'));
+            const calls = (mockClient.query as jest.Mock).mock.calls;
+            const insertCall = calls.find(call => typeof call[0] === 'string' && call[0].includes('INSERT INTO session_history'));
             expect(insertCall).toBeDefined();
             
             // Verify the insert call contains correct data
@@ -273,7 +281,7 @@ describe('SessionManager Property-Based Tests', () => {
             );
             
             // Find the update call
-            const updateCall = calls.find(call => call[0].includes('UPDATE sessions'));
+            const updateCall = calls.find(call => typeof call[0] === 'string' && call[0].includes('UPDATE sessions'));
             expect(updateCall).toBeDefined();
             
             // Verify the update call contains session ID
@@ -284,6 +292,11 @@ describe('SessionManager Property-Based Tests', () => {
                 testData.sessionId
               ])
             );
+
+            // Verify transaction was committed
+            expect(mockClient.query).toHaveBeenCalledWith('BEGIN');
+            expect(mockClient.query).toHaveBeenCalledWith('COMMIT');
+            expect(mockClient.release).toHaveBeenCalled();
           }
         ),
         { numRuns: 100 }
@@ -310,30 +323,34 @@ describe('SessionManager Property-Based Tests', () => {
             // Reset mocks for each property test run
             jest.clearAllMocks();
             
-            // Setup: Mock database insert and update
-            (mockDb.query as jest.Mock).mockResolvedValue({
-              rows: [],
-              rowCount: 1
-            });
+            // Track all insert calls across multiple transactions
+            const allInsertCalls: any[] = [];
+
+            // Setup: Mock client for each transaction
+            for (let i = 0; i < testData.responses.length; i++) {
+              const mockClient = {
+                query: jest.fn().mockImplementation((query: string, params?: any[]) => {
+                  if (typeof query === 'string' && query.includes('INSERT INTO session_history')) {
+                    allInsertCalls.push([query, params]);
+                  }
+                  return Promise.resolve({ rows: [], rowCount: 1 });
+                }),
+                release: jest.fn()
+              };
+              (mockDb.connect as jest.Mock).mockResolvedValueOnce(mockClient);
+            }
 
             // Act: Add all responses to history
             for (const response of testData.responses) {
               await sessionManager.addToHistory(testData.sessionId, response);
             }
 
-            // Assert: Database should be called for each response
-            expect(mockDb.query).toHaveBeenCalled();
-            
-            // Find all insert calls
-            const calls = (mockDb.query as jest.Mock).mock.calls;
-            const insertCalls = calls.filter(call => call[0].includes('INSERT INTO session_history'));
-            
-            // Should have one insert call per response
-            expect(insertCalls.length).toBe(testData.responses.length);
+            // Assert: Should have one insert call per response
+            expect(allInsertCalls.length).toBe(testData.responses.length);
             
             // Verify each response was inserted with correct data
             for (let i = 0; i < testData.responses.length; i++) {
-              expect(insertCalls[i][1]).toEqual(
+              expect(allInsertCalls[i][1]).toEqual(
                 expect.arrayContaining([
                   expect.any(String), // id
                   testData.sessionId,
@@ -344,6 +361,9 @@ describe('SessionManager Property-Based Tests', () => {
                 ])
               );
             }
+
+            // Verify connect was called for each response
+            expect(mockDb.connect).toHaveBeenCalledTimes(testData.responses.length);
           }
         ),
         { numRuns: 100 }

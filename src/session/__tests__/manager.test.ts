@@ -17,9 +17,16 @@ describe('SessionManager', () => {
   let mockRedis: jest.Mocked<RedisClientType>;
 
   beforeEach(() => {
+    // Create mock client for transactions
+    const mockClient = {
+      query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
+      release: jest.fn()
+    };
+
     // Create mock database
     mockDb = {
-      query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 })
+      query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
+      connect: jest.fn().mockResolvedValue(mockClient)
     } as any;
 
     // Create mock Redis client
@@ -103,7 +110,13 @@ describe('SessionManager', () => {
   });
 
   describe('addToHistory', () => {
-    it('should add entry to database', async () => {
+    it('should add entry to database within transaction', async () => {
+      const mockClient = {
+        query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
+        release: jest.fn()
+      };
+      (mockDb.connect as jest.Mock).mockResolvedValueOnce(mockClient);
+
       const entry: HistoryEntry = {
         role: 'user',
         content: 'Hello',
@@ -112,13 +125,23 @@ describe('SessionManager', () => {
 
       await sessionManager.addToHistory('session-id', entry);
 
-      expect(mockDb.query).toHaveBeenCalledWith(
+      // Verify transaction was used
+      expect(mockClient.query).toHaveBeenCalledWith('BEGIN');
+      expect(mockClient.query).toHaveBeenCalledWith(
         expect.stringContaining('INSERT INTO session_history'),
         expect.arrayContaining(['session-id', 'user', 'Hello'])
       );
+      expect(mockClient.query).toHaveBeenCalledWith('COMMIT');
+      expect(mockClient.release).toHaveBeenCalled();
     });
 
-    it('should update session last activity', async () => {
+    it('should update session last activity within transaction', async () => {
+      const mockClient = {
+        query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
+        release: jest.fn()
+      };
+      (mockDb.connect as jest.Mock).mockResolvedValueOnce(mockClient);
+
       const entry: HistoryEntry = {
         role: 'user',
         content: 'Hello',
@@ -127,10 +150,32 @@ describe('SessionManager', () => {
 
       await sessionManager.addToHistory('session-id', entry);
 
-      expect(mockDb.query).toHaveBeenCalledWith(
+      expect(mockClient.query).toHaveBeenCalledWith(
         expect.stringContaining('UPDATE sessions'),
         expect.arrayContaining(['session-id'])
       );
+    });
+
+    it('should rollback transaction on error', async () => {
+      const mockClient = {
+        query: jest.fn()
+          .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // BEGIN
+          .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // INSERT
+          .mockRejectedValueOnce(new Error('Database error')), // UPDATE fails
+        release: jest.fn()
+      };
+      (mockDb.connect as jest.Mock).mockResolvedValueOnce(mockClient);
+
+      const entry: HistoryEntry = {
+        role: 'user',
+        content: 'Hello',
+        timestamp: new Date()
+      };
+
+      await expect(sessionManager.addToHistory('session-id', entry)).rejects.toThrow('Database error');
+
+      expect(mockClient.query).toHaveBeenCalledWith('ROLLBACK');
+      expect(mockClient.release).toHaveBeenCalled();
     });
   });
 

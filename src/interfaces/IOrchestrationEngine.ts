@@ -35,8 +35,10 @@ export interface IOrchestrationEngine {
   
   /**
    * Handle timeout by synthesizing partial responses
+   * Note: This is an internal method, partialResponses should contain TrackedResponse[]
+   * with member IDs for proper attribution
    */
   handleTimeout(
-    partialResponses: ProviderResponse[]
+    partialResponses: ProviderResponse[] | any[]
   ): Promise<ConsensusDecision>;
 }

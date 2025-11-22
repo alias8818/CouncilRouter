@@ -55,7 +55,22 @@ export class AnalyticsEngine implements IAnalyticsEngine {
     `;
 
     const result = await this.db.query(latencyQuery, [timeRange.start, timeRange.end]);
-    const latencies = result.rows.map(r => r.total_latency_ms).sort((a, b) => a - b);
+    
+    if (!result || !result.rows) {
+      return {
+        p50Latency: 0,
+        p95Latency: 0,
+        p99Latency: 0,
+        byCouncilSize: new Map(),
+        byDeliberationRounds: new Map(),
+        timeoutRate: 0
+      };
+    }
+    
+    const latencies = result.rows
+      .filter(r => r && r.total_latency_ms != null)
+      .map(r => r.total_latency_ms)
+      .sort((a, b) => a - b);
 
     if (latencies.length === 0) {
       return {
@@ -78,6 +93,11 @@ export class AnalyticsEngine implements IAnalyticsEngine {
     const councilSizeGroups = new Map<number, number[]>();
     
     for (const row of result.rows) {
+      // Skip rows with missing data
+      if (!row || row.total_latency_ms == null) {
+        continue;
+      }
+      
       const councilSize = Array.isArray(row.members) ? row.members.length : 0;
       if (!councilSizeGroups.has(councilSize)) {
         councilSizeGroups.set(councilSize, []);
@@ -100,6 +120,11 @@ export class AnalyticsEngine implements IAnalyticsEngine {
     const roundGroups = new Map<number, number[]>();
     
     for (const row of result.rows) {
+      // Skip rows with missing data
+      if (!row || row.total_latency_ms == null) {
+        continue;
+      }
+      
       const rounds = row.deliberation_rounds || 0;
       if (!roundGroups.has(rounds)) {
         roundGroups.set(rounds, []);
@@ -214,29 +239,32 @@ export class AnalyticsEngine implements IAnalyticsEngine {
 
         // Calculate disagreement: responses that differ significantly
         let disagreements = 0;
+        let validRows = 0;
         for (const row of pairResult.rows) {
-          // Skip rows with missing data
-          if (!row.consensus_decision || !row.member1_content || !row.member2_content) {
+          // Skip rows with missing data - defensive null checks
+          if (!row || 
+              !row.consensus_decision || 
+              !row.member1_content || 
+              !row.member2_content) {
             continue;
           }
 
-          // Simple heuristic: if one response appears in consensus and other doesn't
-          const consensus = row.consensus_decision.toLowerCase();
+          validRows++;
           const content1 = row.member1_content.toLowerCase();
           const content2 = row.member2_content.toLowerCase();
           
-          // Check if responses have significant overlap with consensus
-          const overlap1 = this.calculateOverlap(content1, consensus);
-          const overlap2 = this.calculateOverlap(content2, consensus);
+          // Compare member responses directly to each other
+          const memberOverlap = this.calculateOverlap(content1, content2);
           
-          // If one has high overlap and other has low, they disagreed
-          if (Math.abs(overlap1 - overlap2) > 0.3) {
+          // If members have low overlap, they disagreed
+          if (memberOverlap < 0.7) {
             disagreements++;
           }
         }
 
-        disagreementRates[i][j] = pairResult.rows.length > 0 
-          ? disagreements / pairResult.rows.length 
+        // Use validRows count instead of total rows for accurate rate
+        disagreementRates[i][j] = validRows > 0 
+          ? disagreements / validRows 
           : 0;
       }
     }
@@ -282,7 +310,7 @@ export class AnalyticsEngine implements IAnalyticsEngine {
 
     const result = await this.db.query(query);
     
-    if (result.rows.length === 0) {
+    if (!result || !result.rows || result.rows.length === 0) {
       return { scores: new Map() };
     }
 
@@ -290,9 +318,23 @@ export class AnalyticsEngine implements IAnalyticsEngine {
     const memberInfluence = new Map<string, { matches: number; total: number }>();
 
     for (const row of result.rows) {
+      // Skip rows with missing data - defensive null checks
+      if (!row || 
+          !row.council_member_id || 
+          !row.consensus_decision || 
+          !row.content) {
+        continue;
+      }
+
       const memberId = row.council_member_id;
-      const consensus = (row.consensus_decision || '').toLowerCase();
-      const content = (row.content || '').toLowerCase();
+      
+      // Skip rows with whitespace-only member IDs
+      if (typeof memberId !== 'string' || !memberId.trim()) {
+        continue;
+      }
+      
+      const consensus = row.consensus_decision.toLowerCase();
+      const content = row.content.toLowerCase();
 
       // Skip rows with empty or whitespace-only content
       if (!consensus.trim() || !content.trim()) {
@@ -373,18 +415,30 @@ export class AnalyticsEngine implements IAnalyticsEngine {
     const byMember = new Map<string, number>();
     let totalRequests = 0;
 
-    for (const row of result.rows) {
-      const cost = parseFloat(row.total_cost || '0');
-      totalCost += cost;
+    if (result && result.rows) {
+      for (const row of result.rows) {
+        // Skip rows with missing data
+        if (!row || !row.provider || !row.model) {
+          continue;
+        }
+        
+        const cost = parseFloat(row.total_cost || '0');
+        // Skip if cost is NaN
+        if (isNaN(cost)) {
+          continue;
+        }
+        
+        totalCost += cost;
 
-      // Aggregate by provider
-      const providerCost = byProvider.get(row.provider) || 0;
-      byProvider.set(row.provider, providerCost + cost);
+        // Aggregate by provider
+        const providerCost = byProvider.get(row.provider) || 0;
+        byProvider.set(row.provider, providerCost + cost);
 
-      // Aggregate by member (provider:model)
-      const memberId = `${row.provider}:${row.model}`;
-      const memberCost = byMember.get(memberId) || 0;
-      byMember.set(memberId, memberCost + cost);
+        // Aggregate by member (provider:model)
+        const memberId = `${row.provider}:${row.model}`;
+        const memberCost = byMember.get(memberId) || 0;
+        byMember.set(memberId, memberCost + cost);
+      }
     }
 
     // Get total request count
@@ -446,30 +500,66 @@ export class AnalyticsEngine implements IAnalyticsEngine {
 
     const result = await this.db.query(query, [timeRange.start, timeRange.end]);
 
-    return result.rows.map(row => ({
-      cost: parseFloat(row.cost),
-      quality: parseFloat(row.quality)
-    }));
+    if (!result || !result.rows) {
+      return [];
+    }
+
+    return result.rows
+      .filter(row => row && row.cost != null && row.quality != null)
+      .map(row => ({
+        cost: parseFloat(row.cost),
+        quality: parseFloat(row.quality)
+      }))
+      .filter(item => !isNaN(item.cost) && !isNaN(item.quality));
   }
 
   /**
-   * Calculate percentile from sorted array
+   * Calculate percentile from sorted array using linear interpolation
+   * Handles edge cases for small datasets (0, 1, 2 elements)
+   * Uses standard percentile calculation method
    */
   private calculatePercentile(sortedValues: number[], percentile: number): number {
     if (sortedValues.length === 0) return 0;
+    if (sortedValues.length === 1) return sortedValues[0];
     
-    const index = Math.ceil(sortedValues.length * percentile) - 1;
-    return sortedValues[Math.max(0, index)];
+    // Use linear interpolation method (nearest-rank with interpolation)
+    // Formula: position = (n - 1) * p + 1
+    // Then interpolate between floor and ceiling positions
+    const n = sortedValues.length;
+    const position = (n - 1) * percentile + 1;
+    const lowerIndex = Math.floor(position) - 1;
+    const upperIndex = Math.ceil(position) - 1;
+    
+    // Ensure indices are within bounds
+    const safeLowerIndex = Math.max(0, Math.min(lowerIndex, n - 1));
+    const safeUpperIndex = Math.max(0, Math.min(upperIndex, n - 1));
+    
+    if (safeLowerIndex === safeUpperIndex) {
+      return sortedValues[safeLowerIndex];
+    }
+    
+    // Linear interpolation
+    const weight = position - Math.floor(position);
+    return sortedValues[safeLowerIndex] * (1 - weight) + sortedValues[safeUpperIndex] * weight;
   }
 
   /**
    * Calculate overlap between two texts (simple word-based similarity)
    */
   private calculateOverlap(text1: string, text2: string): number {
-    const words1 = new Set(text1.trim().split(/\s+/).filter(w => w.length > 3));
-    const words2 = new Set(text2.trim().split(/\s+/).filter(w => w.length > 3));
+    const trimmed1 = text1.trim();
+    const trimmed2 = text2.trim();
     
-    // If either text has no meaningful words, return 0 (no overlap)
+    const words1 = new Set(trimmed1.split(/\s+/).filter(w => w.length > 3));
+    const words2 = new Set(trimmed2.split(/\s+/).filter(w => w.length > 3));
+    
+    // If both texts have no meaningful words, compare them directly
+    // Identical whitespace-only or empty strings should have full overlap
+    if (words1.size === 0 && words2.size === 0) {
+      return trimmed1 === trimmed2 ? 1.0 : 0;
+    }
+    
+    // If only one has no meaningful words, return 0 (no overlap)
     if (words1.size === 0 || words2.size === 0) return 0;
 
     let intersection = 0;

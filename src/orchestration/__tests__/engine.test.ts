@@ -190,7 +190,7 @@ class MockSynthesisEngine implements ISynthesisEngine {
     };
   }
   
-  selectModerator(members: CouncilMember[]): CouncilMember {
+  async selectModerator(members: CouncilMember[]): Promise<CouncilMember> {
     return members[0];
   }
 }

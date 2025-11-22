@@ -226,29 +226,29 @@ describe('SynthesisEngine', () => {
       createMember('member3', 'google', 'gemini-pro')
     ];
 
-    it('should select permanent moderator', () => {
+    it('should select permanent moderator', async () => {
       const strategy: ModeratorStrategy = { type: 'permanent', memberId: 'member2' };
       
-      const result = engine.selectModerator(members, strategy);
+      const result = await engine.selectModerator(members, strategy);
       
       expect(result.id).toBe('member2');
     });
 
-    it('should throw error if permanent moderator not found', () => {
+    it('should throw error if permanent moderator not found', async () => {
       const strategy: ModeratorStrategy = { type: 'permanent', memberId: 'nonexistent' };
       
-      expect(() => engine.selectModerator(members, strategy)).toThrow(
+      await expect(engine.selectModerator(members, strategy)).rejects.toThrow(
         'Permanent moderator nonexistent not found'
       );
     });
 
-    it('should rotate moderator selection', () => {
+    it('should rotate moderator selection', async () => {
       const strategy: ModeratorStrategy = { type: 'rotate' };
       
-      const result1 = engine.selectModerator(members, strategy);
-      const result2 = engine.selectModerator(members, strategy);
-      const result3 = engine.selectModerator(members, strategy);
-      const result4 = engine.selectModerator(members, strategy);
+      const result1 = await engine.selectModerator(members, strategy);
+      const result2 = await engine.selectModerator(members, strategy);
+      const result3 = await engine.selectModerator(members, strategy);
+      const result4 = await engine.selectModerator(members, strategy);
       
       // Should rotate through members
       expect(result1.id).toBe('member1');
@@ -257,41 +257,41 @@ describe('SynthesisEngine', () => {
       expect(result4.id).toBe('member1'); // Back to first
     });
 
-    it('should select strongest moderator', () => {
+    it('should select strongest moderator', async () => {
       const strategy: ModeratorStrategy = { type: 'strongest' };
       
-      const result = engine.selectModerator(members, strategy);
+      const result = await engine.selectModerator(members, strategy);
       
       // gpt-4o would be strongest, but we have gpt-4 (95) and claude-3-opus (98)
       // claude-3-opus should be selected
       expect(result.id).toBe('member2'); // claude-3-opus
     });
 
-    it('should handle single member', () => {
+    it('should handle single member', async () => {
       const singleMember = [createMember('only', 'openai', 'gpt-3.5-turbo')];
       const strategy: ModeratorStrategy = { type: 'strongest' };
       
-      const result = engine.selectModerator(singleMember, strategy);
+      const result = await engine.selectModerator(singleMember, strategy);
       
       expect(result.id).toBe('only');
     });
 
-    it('should throw error with no members', () => {
+    it('should throw error with no members', async () => {
       const strategy: ModeratorStrategy = { type: 'strongest' };
       
-      expect(() => engine.selectModerator([], strategy)).toThrow(
+      await expect(engine.selectModerator([], strategy)).rejects.toThrow(
         'No council members available for moderator selection'
       );
     });
 
-    it('should handle unknown model in strongest selection', () => {
+    it('should handle unknown model in strongest selection', async () => {
       const unknownMembers = [
         createMember('member1', 'custom', 'unknown-model-1'),
         createMember('member2', 'custom', 'unknown-model-2')
       ];
       const strategy: ModeratorStrategy = { type: 'strongest' };
       
-      const result = engine.selectModerator(unknownMembers, strategy);
+      const result = await engine.selectModerator(unknownMembers, strategy);
       
       // Should still select one (first one with default score)
       expect(result.id).toBe('member1');

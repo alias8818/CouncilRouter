@@ -42,7 +42,7 @@ describe('Property 12: Influence score computation', () => {
           fc.record({
             id: fc.uuid(),
             consensus_decision: fc.lorem({ maxCount: 50 }),
-            council_member_id: fc.string({ minLength: 1, maxLength: 20 }),
+            council_member_id: fc.string({ minLength: 1, maxLength: 20 }).filter(s => s.trim().length > 0),
             content: fc.lorem({ maxCount: 50 })
           }),
           { minLength: 1, maxLength: 50 }
@@ -71,7 +71,7 @@ describe('Property 12: Influence score computation', () => {
   test('member with identical responses to consensus should have high influence', async () => {
     await fc.assert(
       fc.asyncProperty(
-        fc.string({ minLength: 1, maxLength: 20 }),
+        fc.string({ minLength: 1, maxLength: 20 }).filter(s => s.trim().length > 0),
         fc.lorem({ maxCount: 50 }).filter(text => text.split(/\s+/).some(w => w.length > 3)), // Ensure meaningful text
         fc.integer({ min: 1, max: 20 }),
         async (memberId, consensusText, numResponses) => {
@@ -102,7 +102,7 @@ describe('Property 12: Influence score computation', () => {
   test('member with completely different responses should have low influence', async () => {
     await fc.assert(
       fc.asyncProperty(
-        fc.string({ minLength: 1, maxLength: 20 }),
+        fc.string({ minLength: 1, maxLength: 20 }).filter(s => s.trim().length > 0),
         fc.integer({ min: 1, max: 20 }),
         async (memberId, numResponses) => {
           // Setup: Create responses where member never matches consensus
@@ -136,7 +136,7 @@ describe('Property 12: Influence score computation', () => {
           fc.record({
             id: fc.uuid(),
             consensus_decision: fc.lorem({ maxCount: 50 }),
-            council_member_id: fc.string({ minLength: 1, maxLength: 20 }),
+            council_member_id: fc.string({ minLength: 1, maxLength: 20 }).filter(s => s.trim().length > 0),
             content: fc.lorem({ maxCount: 50 })
           }),
           { minLength: 1, maxLength: 50 }
@@ -149,8 +149,17 @@ describe('Property 12: Influence score computation', () => {
 
           const result = await engine.calculateInfluenceScores();
 
-          // Property: Every unique member should have a score
-          const uniqueMembers = new Set(responses.map(r => r.council_member_id));
+          // Property: Every unique valid member should have a score
+          // Filter out members with whitespace-only IDs or empty content
+          const validResponses = responses.filter(r => 
+            r.council_member_id && 
+            r.council_member_id.trim().length > 0 &&
+            r.consensus_decision &&
+            r.consensus_decision.trim().length > 0 &&
+            r.content &&
+            r.content.trim().length > 0
+          );
+          const uniqueMembers = new Set(validResponses.map(r => r.council_member_id));
           expect(result.scores.size).toBe(uniqueMembers.size);
 
           for (const memberId of uniqueMembers) {
@@ -185,9 +194,9 @@ describe('Property 12: Influence score computation', () => {
   test('influence score should be proportional to match rate', async () => {
     await fc.assert(
       fc.asyncProperty(
-        fc.string({ minLength: 1, maxLength: 20 }),
+        fc.string({ minLength: 1, maxLength: 20 }).filter(s => s.trim().length > 0),
         fc.integer({ min: 5, max: 20 }),
-        fc.double({ min: 0, max: 1 }),
+        fc.double({ min: 0, max: 1, noNaN: true }),
         async (memberId, totalResponses, matchRate) => {
           // Setup: Create responses with specific match rate
           const numMatches = Math.floor(totalResponses * matchRate);

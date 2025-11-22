@@ -9,26 +9,24 @@ import { BaseProviderAdapter } from './adapters/base';
 import { OpenAIAdapter } from './adapters/openai';
 import { AnthropicAdapter } from './adapters/anthropic';
 import { GoogleAdapter } from './adapters/google';
+import { ProviderHealthTracker, getSharedHealthTracker } from './health-tracker';
 
-interface ProviderHealthTracking {
-  status: 'healthy' | 'degraded' | 'disabled';
-  successCount: number;
-  failureCount: number;
-  totalRequests: number;
+interface ProviderLatencyTracking {
   latencies: number[];
-  lastFailure?: Date;
-  disabledReason?: string;
+  successCount: number;
+  totalRequests: number;
 }
 
 export class ProviderPool implements IProviderPool {
   private adapters: Map<string, BaseProviderAdapter>;
-  private healthTracking: Map<string, ProviderHealthTracking>;
+  private latencyTracking: Map<string, ProviderLatencyTracking>;
+  private healthTracker: ProviderHealthTracker;
   private readonly maxLatencyHistory = 100;
-  private readonly failureThreshold = 5; // consecutive failures before disabling
   
-  constructor() {
+  constructor(healthTracker?: ProviderHealthTracker) {
     this.adapters = new Map();
-    this.healthTracking = new Map();
+    this.latencyTracking = new Map();
+    this.healthTracker = healthTracker || getSharedHealthTracker();
     this.initializeAdapters();
   }
   
@@ -60,12 +58,11 @@ export class ProviderPool implements IProviderPool {
    * Initialize health tracking for a provider
    */
   private initializeHealthTracking(providerId: string): void {
-    this.healthTracking.set(providerId, {
-      status: 'healthy',
+    this.healthTracker.initializeProvider(providerId);
+    this.latencyTracking.set(providerId, {
+      latencies: [],
       successCount: 0,
-      failureCount: 0,
-      totalRequests: 0,
-      latencies: []
+      totalRequests: 0
     });
   }
   
@@ -89,14 +86,14 @@ export class ProviderPool implements IProviderPool {
       };
     }
     
-    const health = this.healthTracking.get(member.provider);
-    if (health?.status === 'disabled') {
+    if (this.healthTracker.isDisabled(member.provider)) {
+      const disabledReason = this.healthTracker.getDisabledReason(member.provider);
       return {
         content: '',
         tokenUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
         latency: 0,
         success: false,
-        error: new Error(`Provider ${member.provider} is disabled: ${health.disabledReason}`)
+        error: new Error(`Provider ${member.provider} is disabled: ${disabledReason || 'Unknown reason'}`)
       };
     }
     
@@ -121,39 +118,37 @@ export class ProviderPool implements IProviderPool {
    * Update health tracking based on request result
    */
   private updateHealthTracking(providerId: string, response: ProviderResponse): void {
-    const health = this.healthTracking.get(providerId);
-    if (!health) return;
+    const latency = this.latencyTracking.get(providerId);
+    if (!latency) {
+      this.initializeHealthTracking(providerId);
+      const newLatency = this.latencyTracking.get(providerId)!;
+      newLatency.totalRequests++;
+      if (response.success) {
+        newLatency.successCount++;
+        newLatency.latencies.push(response.latency);
+        this.healthTracker.recordSuccess(providerId);
+      } else {
+        this.healthTracker.recordFailure(providerId);
+      }
+      return;
+    }
     
-    health.totalRequests++;
+    latency.totalRequests++;
     
     if (response.success) {
-      health.successCount++;
-      health.failureCount = 0; // Reset consecutive failure count
+      latency.successCount++;
       
-      // Track latency
-      health.latencies.push(response.latency);
-      if (health.latencies.length > this.maxLatencyHistory) {
-        health.latencies.shift();
+      // Track latency locally (for ProviderHealth calculation)
+      latency.latencies.push(response.latency);
+      if (latency.latencies.length > this.maxLatencyHistory) {
+        latency.latencies.shift();
       }
       
-      // Update status based on latency
-      const avgLatency = this.calculateAverageLatency(health.latencies);
-      if (avgLatency > 10000) {
-        health.status = 'degraded';
-      } else if (health.status === 'degraded') {
-        health.status = 'healthy';
-      }
+      // Record success in shared tracker
+      this.healthTracker.recordSuccess(providerId);
     } else {
-      health.failureCount++;
-      health.lastFailure = new Date();
-      
-      // Check if we should disable this provider
-      if (health.failureCount >= this.failureThreshold) {
-        health.status = 'disabled';
-        health.disabledReason = `${this.failureThreshold} consecutive failures`;
-      } else {
-        health.status = 'degraded';
-      }
+      // Record failure in shared tracker
+      this.healthTracker.recordFailure(providerId);
     }
   }
   
@@ -170,29 +165,35 @@ export class ProviderPool implements IProviderPool {
    * Get health status of a provider
    */
   getProviderHealth(providerId: string): ProviderHealth {
-    const health = this.healthTracking.get(providerId);
+    const latency = this.latencyTracking.get(providerId);
+    const status = this.healthTracker.getHealthStatus(providerId);
     
-    if (!health) {
+    if (!latency) {
       return {
         providerId,
-        status: 'disabled',
+        status,
         successRate: 0,
         avgLatency: 0
       };
     }
     
-    const successRate = health.totalRequests > 0
-      ? health.successCount / health.totalRequests
+    const successRate = latency.totalRequests > 0
+      ? latency.successCount / latency.totalRequests
       : 0;
     
-    const avgLatency = this.calculateAverageLatency(health.latencies);
+    const avgLatency = this.calculateAverageLatency(latency.latencies);
+    
+    // Get lastFailure from shared tracker if available
+    // Note: ProviderHealthTracker doesn't expose lastFailure directly,
+    // but we can infer it from the status
+    const lastFailure = status === 'disabled' || status === 'degraded' ? new Date() : undefined;
     
     return {
       providerId,
-      status: health.status,
+      status,
       successRate,
       avgLatency,
-      lastFailure: health.lastFailure
+      lastFailure
     };
   }
   
@@ -200,24 +201,14 @@ export class ProviderPool implements IProviderPool {
    * Mark a provider as disabled due to failures
    */
   markProviderDisabled(providerId: string, reason: string): void {
-    const health = this.healthTracking.get(providerId);
-    if (health) {
-      health.status = 'disabled';
-      health.disabledReason = reason;
-      health.lastFailure = new Date();
-    }
+    this.healthTracker.markDisabled(providerId, reason);
   }
   
   /**
    * Re-enable a disabled provider (for manual recovery)
    */
   enableProvider(providerId: string): void {
-    const health = this.healthTracking.get(providerId);
-    if (health) {
-      health.status = 'healthy';
-      health.failureCount = 0;
-      health.disabledReason = undefined;
-    }
+    this.healthTracker.enableProvider(providerId);
   }
   
   /**

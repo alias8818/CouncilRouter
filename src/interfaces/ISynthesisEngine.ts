@@ -25,5 +25,5 @@ export interface ISynthesisEngine {
   selectModerator(
     members: CouncilMember[],
     strategy: ModeratorStrategy
-  ): CouncilMember;
+  ): Promise<CouncilMember>;
 }

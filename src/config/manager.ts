@@ -260,6 +260,9 @@ export class ConfigurationManager implements IConfigurationManager {
    * Apply a configuration preset
    */
   async applyPreset(preset: ConfigPreset): Promise<void> {
+    // Validate preset name before calling getPresetConfigurations
+    this.validatePreset(preset);
+    
     const presetConfigs = this.getPresetConfigurations(preset);
 
     // Update all configurations
@@ -268,6 +271,18 @@ export class ConfigurationManager implements IConfigurationManager {
     await this.updateSynthesisConfig(presetConfigs.synthesis);
     await this.updatePerformanceConfig(presetConfigs.performance);
     await this.updateTransparencyConfig(presetConfigs.transparency);
+  }
+
+  /**
+   * Validate preset name
+   */
+  private validatePreset(preset: ConfigPreset): void {
+    const validPresets: ConfigPreset[] = ['fast-council', 'balanced-council', 'research-council'];
+    if (!validPresets.includes(preset)) {
+      throw new ConfigurationValidationError(
+        `Invalid preset: ${preset}. Must be one of: ${validPresets.join(', ')}`
+      );
+    }
   }
 
   /**
@@ -405,9 +420,9 @@ export class ConfigurationManager implements IConfigurationManager {
    * Validate retry policy
    */
   private validateRetryPolicy(policy: RetryPolicy): void {
-    if (policy.maxAttempts < 0) {
+    if (policy.maxAttempts <= 0) {
       throw new ConfigurationValidationError(
-        'Retry maxAttempts must be non-negative'
+        'Retry maxAttempts must be positive'
       );
     }
 
@@ -714,7 +729,9 @@ export class ConfigurationManager implements IConfigurationManager {
         };
 
       default:
-        throw new Error(`Unknown preset: ${preset}`);
+        // This should never be reached if validatePreset is called first
+        // But kept as a safety net
+        throw new ConfigurationValidationError(`Unknown preset: ${preset}`);
     }
   }
 

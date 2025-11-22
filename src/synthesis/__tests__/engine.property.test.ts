@@ -178,7 +178,7 @@ describe('SynthesisEngine - Property-Based Tests', () => {
             memberId: designatedMemberId
           };
           
-          const selectedModerator = engine.selectModerator(uniqueMembers, strategy);
+          const selectedModerator = await engine.selectModerator(uniqueMembers, strategy);
           
           // The selected moderator should be the designated one
           expect(selectedModerator.id).toBe(designatedMemberId);
@@ -268,7 +268,7 @@ describe('SynthesisEngine - Property-Based Tests', () => {
             type: 'strongest'
           };
           
-          const selectedModerator = engine.selectModerator(uniqueMembers, strategy);
+          const selectedModerator = await engine.selectModerator(uniqueMembers, strategy);
           
           // Model rankings from the engine
           const MODEL_RANKINGS: Record<string, number> = {

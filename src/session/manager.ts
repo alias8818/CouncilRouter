@@ -75,28 +75,83 @@ export class SessionManager implements ISessionManager {
 
   /**
    * Add an entry to session history
+   * Uses database transaction to ensure atomic read-modify-write
    */
   async addToHistory(sessionId: string, entry: HistoryEntry): Promise<void> {
-    // Add to database
-    await this.db.query(
-      `INSERT INTO session_history (id, session_id, role, content, request_id, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [randomUUID(), sessionId, entry.role, entry.content, entry.requestId || null, entry.timestamp]
-    );
+    const client = await this.db.connect();
+    
+    try {
+      // Begin transaction
+      await client.query('BEGIN');
 
-    // Update session last activity and context window
-    const tokenEstimate = this.estimateTokens(entry.content);
-    await this.db.query(
-      `UPDATE sessions 
-       SET last_activity_at = $1, context_window_used = context_window_used + $2
-       WHERE id = $3`,
-      [new Date(), tokenEstimate, sessionId]
-    );
+      // Add to database
+      await client.query(
+        `INSERT INTO session_history (id, session_id, role, content, request_id, created_at)
+         VALUES ($1, $2, $3, $4, $5, $6)`,
+        [randomUUID(), sessionId, entry.role, entry.content, entry.requestId || null, entry.timestamp]
+      );
 
-    // Update cache
-    const session = await this.getSessionFromDatabase(sessionId);
-    if (session) {
-      await this.cacheSession(session);
+      // Update session last activity and context window
+      const tokenEstimate = this.estimateTokens(entry.content);
+      await client.query(
+        `UPDATE sessions 
+         SET last_activity_at = $1, context_window_used = context_window_used + $2
+         WHERE id = $3`,
+        [new Date(), tokenEstimate, sessionId]
+      );
+
+      // Read session with lock to prevent concurrent modifications
+      const sessionResult = await client.query(
+        `SELECT id, user_id, created_at, last_activity_at, context_window_used, expired
+         FROM sessions
+         WHERE id = $1 AND expired = false
+         FOR UPDATE`,
+        [sessionId]
+      );
+
+      if (sessionResult.rows.length > 0) {
+        const sessionRow = sessionResult.rows[0];
+
+        // Get history within the same transaction
+        const historyResult = await client.query(
+          `SELECT role, content, request_id, created_at
+           FROM session_history
+           WHERE session_id = $1
+           ORDER BY created_at ASC`,
+          [sessionId]
+        );
+
+        const history: HistoryEntry[] = historyResult.rows.map(row => ({
+          role: row.role as 'user' | 'assistant',
+          content: row.content,
+          timestamp: row.created_at,
+          requestId: row.request_id || undefined
+        }));
+
+        const session: Session = {
+          id: sessionRow.id,
+          userId: sessionRow.user_id,
+          history,
+          createdAt: sessionRow.created_at,
+          lastActivityAt: sessionRow.last_activity_at,
+          contextWindowUsed: sessionRow.context_window_used
+        };
+
+        // Commit transaction before caching
+        await client.query('COMMIT');
+
+        // Update cache with the consistent session data
+        await this.cacheSession(session);
+      } else {
+        await client.query('COMMIT');
+      }
+    } catch (error) {
+      // Rollback on error
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      // Release the client back to the pool
+      client.release();
     }
   }
 
@@ -208,12 +263,15 @@ export class SessionManager implements ISessionManager {
 
   /**
    * Get session from database
+   * @param forUpdate - If true, uses SELECT FOR UPDATE to lock the row
    */
-  private async getSessionFromDatabase(sessionId: string): Promise<Session | null> {
+  private async getSessionFromDatabase(sessionId: string, forUpdate: boolean = false): Promise<Session | null> {
+    const lockClause = forUpdate ? 'FOR UPDATE' : '';
     const sessionResult = await this.db.query(
       `SELECT id, user_id, created_at, last_activity_at, context_window_used, expired
        FROM sessions
-       WHERE id = $1 AND expired = false`,
+       WHERE id = $1 AND expired = false
+       ${lockClause}`,
       [sessionId]
     );
 

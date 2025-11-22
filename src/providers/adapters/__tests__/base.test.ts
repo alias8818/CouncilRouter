@@ -223,7 +223,7 @@ describe('BaseProviderAdapter', () => {
         id: 'test-1',
         provider: 'test',
         model: 'test-model',
-        timeout: 100, // 100ms timeout
+        timeout: 0.1, // 0.1 seconds (100ms) timeout
         retryPolicy: { ...defaultRetryPolicy, maxAttempts: 1 }
       };
       
@@ -242,7 +242,7 @@ describe('BaseProviderAdapter', () => {
         id: 'test-1',
         provider: 'test',
         model: 'test-model',
-        timeout: 1000, // 1 second timeout
+        timeout: 1, // 1 second timeout
         retryPolicy: defaultRetryPolicy
       };
       

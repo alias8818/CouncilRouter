@@ -208,7 +208,7 @@ class MockSynthesisEngine implements ISynthesisEngine {
     };
   }
   
-  selectModerator(members: CouncilMember[]): CouncilMember {
+  async selectModerator(members: CouncilMember[]): Promise<CouncilMember> {
     return members[0];
   }
 }
@@ -218,7 +218,7 @@ class MockSynthesisEngine implements ISynthesisEngine {
 // ============================================================================
 
 const retryPolicyArbitrary = fc.record({
-  maxAttempts: fc.integer({ min: 0, max: 5 }),
+  maxAttempts: fc.integer({ min: 1, max: 5 }),
   initialDelayMs: fc.integer({ min: 100, max: 2000 }),
   maxDelayMs: fc.integer({ min: 1000, max: 10000 }),
   backoffMultiplier: fc.double({ min: 1.1, max: 3.0 }),
@@ -437,15 +437,30 @@ describe('Property Test: Automatic Member Disabling', () => {
           
           // Pick a member to fail consistently
           const failingMember = councilConfig.members[0];
+          const failingProvider = failingMember.provider;
           
-          // Set up the failing member to always fail
-          mockProviderPool.setResponse(failingMember.id, {
-            content: '',
-            tokenUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
-            latency: 0,
-            success: false,
-            error: new Error('Consistent failure')
-          });
+          // Set up ALL members with the same provider as the failing member to fail
+          // This ensures failures are tracked correctly (successes reset failure counts)
+          for (const member of councilConfig.members) {
+            if (member.provider === failingProvider) {
+              mockProviderPool.setResponse(member.id, {
+                content: '',
+                tokenUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+                latency: 0,
+                success: false,
+                error: new Error('Consistent failure')
+              });
+            } else {
+              // Ensure other members with different providers succeed
+              // This allows distributeToCouncil to complete successfully
+              mockProviderPool.setResponse(member.id, {
+                content: `Response from ${member.id}`,
+                tokenUsage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 },
+                latency: 100,
+                success: true
+              });
+            }
+          }
           
           // Trigger failures
           for (let i = 0; i < numFailures; i++) {

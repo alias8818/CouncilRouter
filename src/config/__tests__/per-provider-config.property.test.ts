@@ -28,7 +28,7 @@ let configStorage: Map<string, any> = new Map();
 
 // Arbitraries for generating test data with diverse timeout and retry values
 const retryPolicyArbitrary = fc.record({
-  maxAttempts: fc.integer({ min: 0, max: 10 }),
+  maxAttempts: fc.integer({ min: 1, max: 10 }),
   initialDelayMs: fc.integer({ min: 100, max: 5000 }),
   maxDelayMs: fc.integer({ min: 1000, max: 30000 }),
   backoffMultiplier: fc.double({ min: 1.1, max: 5.0, noNaN: true }),

@@ -56,17 +56,24 @@ export abstract class BaseProviderAdapter {
     for (let attempt = 0; attempt < retryPolicy.maxAttempts; attempt++) {
       try {
         // Create timeout promise
+        const timeoutMs = member.timeout * 1000; // Convert seconds to milliseconds
+        let timeoutId: NodeJS.Timeout | null = null;
         const timeoutPromise = new Promise<never>((_, reject) => {
-          setTimeout(() => {
-            reject(new Error(`Request timeout after ${member.timeout}ms`));
-          }, member.timeout);
+          timeoutId = setTimeout(() => {
+            reject(new Error(`Request timeout after ${member.timeout}s`));
+          }, timeoutMs);
         });
         
-        // Race between request and timeout
+        // Race between request and timeout, ensuring timeout is cleared
         const response = await Promise.race([
           requestFn(),
           timeoutPromise
-        ]);
+        ]).finally(() => {
+          if (timeoutId !== null) {
+            clearTimeout(timeoutId);
+            timeoutId = null;
+          }
+        });
         
         const { content, tokenUsage } = this.parseResponse(response);
         const latency = Date.now() - startTime;

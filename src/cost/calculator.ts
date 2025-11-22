@@ -322,9 +322,31 @@ export class CostCalculator {
 
   /**
    * Check if a period string matches an alert period
+   * Supports both exact matches and period keys that end with the period type
+   * (e.g., "2024-01-daily" matches "daily", but "pre-daily" does not match "daily")
+   * 
+   * The period must be at the end of the periodKey, preceded by a separator.
+   * To avoid false positives, we only allow prefixes that look like dates (contain digits)
+   * or are empty. Word prefixes like "pre" are rejected.
    */
   private matchesPeriod(periodKey: string, alertPeriod: string): boolean {
-    // Simple implementation - in production would use proper date parsing
-    return periodKey.includes(alertPeriod);
+    // Exact match for period comparison
+    if (periodKey === alertPeriod) {
+      return true;
+    }
+    
+    // Check if periodKey ends with the alertPeriod after a separator
+    // This handles cases where periodKey is formatted like "2024-01-daily", "2024-01-hourly", etc.
+    if (periodKey.endsWith(`-${alertPeriod}`) || periodKey.endsWith(`_${alertPeriod}`)) {
+      const prefix = periodKey.slice(0, -(alertPeriod.length + 1)); // Everything before "-period"
+      
+      // Allow empty prefix or prefixes that contain digits (date-like formats)
+      // Reject prefixes that are only letters (word prefixes like "pre")
+      if (prefix.length === 0 || /\d/.test(prefix)) {
+        return true;
+      }
+    }
+    
+    return false;
   }
 }
