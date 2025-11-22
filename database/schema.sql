@@ -1,0 +1,157 @@
+-- AI Council Proxy Database Schema
+-- PostgreSQL
+
+-- ============================================================================
+-- Requests table
+-- ============================================================================
+CREATE TABLE requests (
+  id UUID PRIMARY KEY,
+  user_id VARCHAR(255),
+  session_id UUID,
+  query TEXT NOT NULL,
+  status VARCHAR(50) NOT NULL,
+  consensus_decision TEXT,
+  agreement_level DECIMAL(3,2),
+  total_cost DECIMAL(10,4),
+  total_latency_ms INTEGER,
+  created_at TIMESTAMP NOT NULL,
+  completed_at TIMESTAMP,
+  config_snapshot JSONB NOT NULL
+);
+
+CREATE INDEX idx_requests_user_id ON requests(user_id);
+CREATE INDEX idx_requests_session_id ON requests(session_id);
+CREATE INDEX idx_requests_created_at ON requests(created_at);
+
+-- ============================================================================
+-- Council responses table
+-- ============================================================================
+CREATE TABLE council_responses (
+  id UUID PRIMARY KEY,
+  request_id UUID REFERENCES requests(id),
+  council_member_id VARCHAR(255) NOT NULL,
+  round_number INTEGER NOT NULL,
+  content TEXT NOT NULL,
+  token_usage JSONB NOT NULL,
+  latency_ms INTEGER NOT NULL,
+  cost DECIMAL(10,4),
+  created_at TIMESTAMP NOT NULL
+);
+
+CREATE INDEX idx_council_responses_request_id ON council_responses(request_id);
+
+-- ============================================================================
+-- Deliberation exchanges table
+-- ============================================================================
+CREATE TABLE deliberation_exchanges (
+  id UUID PRIMARY KEY,
+  request_id UUID REFERENCES requests(id),
+  round_number INTEGER NOT NULL,
+  council_member_id VARCHAR(255) NOT NULL,
+  content TEXT NOT NULL,
+  references_to TEXT[], -- array of response IDs
+  token_usage JSONB NOT NULL,
+  created_at TIMESTAMP NOT NULL
+);
+
+CREATE INDEX idx_deliberation_exchanges_request_id ON deliberation_exchanges(request_id);
+
+-- ============================================================================
+-- Sessions table
+-- ============================================================================
+CREATE TABLE sessions (
+  id UUID PRIMARY KEY,
+  user_id VARCHAR(255) NOT NULL,
+  created_at TIMESTAMP NOT NULL,
+  last_activity_at TIMESTAMP NOT NULL,
+  context_window_used INTEGER NOT NULL,
+  expired BOOLEAN DEFAULT FALSE
+);
+
+-- ============================================================================
+-- Session history table
+-- ============================================================================
+CREATE TABLE session_history (
+  id UUID PRIMARY KEY,
+  session_id UUID REFERENCES sessions(id),
+  role VARCHAR(50) NOT NULL,
+  content TEXT NOT NULL,
+  request_id UUID,
+  created_at TIMESTAMP NOT NULL
+);
+
+CREATE INDEX idx_session_history_session_id ON session_history(session_id);
+
+-- ============================================================================
+-- Configuration table
+-- ============================================================================
+CREATE TABLE configurations (
+  id UUID PRIMARY KEY,
+  config_type VARCHAR(100) NOT NULL,
+  config_data JSONB NOT NULL,
+  version INTEGER NOT NULL,
+  created_at TIMESTAMP NOT NULL,
+  active BOOLEAN DEFAULT TRUE
+);
+
+-- ============================================================================
+-- Provider health table
+-- ============================================================================
+CREATE TABLE provider_health (
+  provider_id VARCHAR(255) PRIMARY KEY,
+  status VARCHAR(50) NOT NULL,
+  success_rate DECIMAL(5,4),
+  avg_latency_ms INTEGER,
+  last_failure_at TIMESTAMP,
+  disabled_reason TEXT,
+  updated_at TIMESTAMP NOT NULL
+);
+
+-- ============================================================================
+-- Cost tracking table
+-- ============================================================================
+CREATE TABLE cost_records (
+  id UUID PRIMARY KEY,
+  request_id UUID REFERENCES requests(id),
+  provider VARCHAR(255) NOT NULL,
+  model VARCHAR(255) NOT NULL,
+  prompt_tokens INTEGER NOT NULL,
+  completion_tokens INTEGER NOT NULL,
+  cost DECIMAL(10,4) NOT NULL,
+  pricing_version VARCHAR(100) NOT NULL,
+  created_at TIMESTAMP NOT NULL
+);
+
+CREATE INDEX idx_cost_records_request_id ON cost_records(request_id);
+CREATE INDEX idx_cost_records_created_at ON cost_records(created_at);
+
+-- ============================================================================
+-- Red team prompts table (secure storage)
+-- ============================================================================
+CREATE TABLE red_team_prompts (
+  id UUID PRIMARY KEY,
+  test_name VARCHAR(255) NOT NULL,
+  prompt TEXT NOT NULL,
+  attack_category VARCHAR(100) NOT NULL,
+  created_at TIMESTAMP NOT NULL
+);
+
+CREATE INDEX idx_red_team_prompts_category ON red_team_prompts(attack_category);
+
+-- ============================================================================
+-- Red team tests table
+-- ============================================================================
+CREATE TABLE red_team_tests (
+  id UUID PRIMARY KEY,
+  test_name VARCHAR(255) NOT NULL,
+  prompt TEXT NOT NULL,
+  attack_category VARCHAR(100) NOT NULL,
+  council_member_id VARCHAR(255) NOT NULL,
+  response TEXT NOT NULL,
+  compromised BOOLEAN NOT NULL,
+  created_at TIMESTAMP NOT NULL
+);
+
+CREATE INDEX idx_red_team_tests_member ON red_team_tests(council_member_id);
+CREATE INDEX idx_red_team_tests_category ON red_team_tests(attack_category);
+CREATE INDEX idx_red_team_tests_created_at ON red_team_tests(created_at);
