@@ -56,8 +56,11 @@ export class APIGateway implements IAPIGateway {
   private redis: RedisClientType;
   private dbPool: Pool;
 
-  // Streaming connections
+  // Streaming connections with TTL tracking
   private streamingConnections: Map<string, Response[]> = new Map();
+  private connectionTimestamps: Map<string, number> = new Map();
+  private readonly CONNECTION_TTL_MS = 30 * 60 * 1000; // 30 minutes
+  private cleanupInterval?: NodeJS.Timeout;
 
   constructor(
     orchestrationEngine: IOrchestrationEngine,
@@ -88,6 +91,7 @@ export class APIGateway implements IAPIGateway {
 
     this.setupMiddleware();
     this.setupRoutes();
+    this.startConnectionCleanup();
   }
 
   /**
@@ -374,7 +378,22 @@ export class APIGateway implements IAPIGateway {
       await this.eventLogger.logRequest(userRequest);
 
       // Process request asynchronously
-      this.processRequestAsync(userRequest, body.streaming || false);
+      // Don't await - fire and forget, but catch errors to prevent unhandled rejections
+      this.processRequestAsync(userRequest, body.streaming || false).catch(async (error) => {
+        console.error('Error in async request processing:', error);
+        // Update request status to failed in storage
+        try {
+          const storedRequest = await this.fetchRequest(requestId);
+          if (storedRequest) {
+            storedRequest.status = 'failed';
+            storedRequest.error = error.message || 'Internal server error';
+            storedRequest.completedAt = new Date();
+            await this.saveRequest(storedRequest);
+          }
+        } catch (saveError) {
+          console.error('Failed to save error state:', saveError);
+        }
+      });
 
       // Return request ID immediately
       const response: APIResponse = {
@@ -457,6 +476,7 @@ export class APIGateway implements IAPIGateway {
       // Register this connection for streaming
       if (!this.streamingConnections.has(requestId)) {
         this.streamingConnections.set(requestId, []);
+        this.connectionTimestamps.set(requestId, Date.now());
       }
       this.streamingConnections.get(requestId)!.push(res);
 
@@ -465,12 +485,16 @@ export class APIGateway implements IAPIGateway {
         this.sendSSE(res, 'message', storedRequest.consensusDecision.content);
         this.sendSSE(res, 'done', 'Request completed');
         res.end();
+        // Clean up this connection since it completed immediately
+        this.removeStreamingConnection(requestId, res);
         return;
       }
 
       if (storedRequest.status === 'failed') {
         this.sendSSE(res, 'error', storedRequest.error || 'Request failed');
         res.end();
+        // Clean up this connection since it failed immediately
+        this.removeStreamingConnection(requestId, res);
         return;
       }
 
@@ -479,13 +503,7 @@ export class APIGateway implements IAPIGateway {
 
       // Clean up on client disconnect
       req.on('close', () => {
-        const connections = this.streamingConnections.get(requestId);
-        if (connections) {
-          const index = connections.indexOf(res);
-          if (index > -1) {
-            connections.splice(index, 1);
-          }
-        }
+        this.removeStreamingConnection(requestId, res);
       });
     } catch (error) {
       next(error);
@@ -763,6 +781,63 @@ export class APIGateway implements IAPIGateway {
   }
 
   /**
+   * Remove a specific streaming connection
+   */
+  private removeStreamingConnection(requestId: string, res: Response): void {
+    const connections = this.streamingConnections.get(requestId);
+    if (connections) {
+      const index = connections.indexOf(res);
+      if (index > -1) {
+        connections.splice(index, 1);
+      }
+      // If no connections left for this request, clean up the entry
+      if (connections.length === 0) {
+        this.streamingConnections.delete(requestId);
+        this.connectionTimestamps.delete(requestId);
+      }
+    }
+  }
+
+  /**
+   * Start periodic cleanup of stale streaming connections
+   */
+  private startConnectionCleanup(): void {
+    // Run cleanup every 5 minutes
+    this.cleanupInterval = setInterval(() => {
+      const now = Date.now();
+      const staleRequests: string[] = [];
+
+      // Find stale connections
+      for (const [requestId, timestamp] of this.connectionTimestamps.entries()) {
+        if (now - timestamp > this.CONNECTION_TTL_MS) {
+          staleRequests.push(requestId);
+        }
+      }
+
+      // Clean up stale connections
+      for (const requestId of staleRequests) {
+        const connections = this.streamingConnections.get(requestId);
+        if (connections) {
+          // Close all connections for this request
+          connections.forEach(res => {
+            try {
+              this.sendSSE(res, 'error', 'Connection expired due to timeout');
+              res.end();
+            } catch (error) {
+              // Ignore errors when closing stale connections
+            }
+          });
+        }
+        this.streamingConnections.delete(requestId);
+        this.connectionTimestamps.delete(requestId);
+      }
+    }, 5 * 60 * 1000); // Every 5 minutes
+
+    // Unref the interval so it doesn't prevent process exit
+    this.cleanupInterval.unref();
+  }
+
+  /**
    * Start the API server
    */
   async start(port: number): Promise<void> {
@@ -778,6 +853,26 @@ export class APIGateway implements IAPIGateway {
    * Stop the API server
    */
   async stop(): Promise<void> {
+    // Clear cleanup interval
+    if (this.cleanupInterval) {
+      clearInterval(this.cleanupInterval);
+      this.cleanupInterval = undefined;
+    }
+
+    // Close all streaming connections
+    for (const [requestId, connections] of this.streamingConnections.entries()) {
+      connections.forEach(res => {
+        try {
+          this.sendSSE(res, 'error', 'Server shutting down');
+          res.end();
+        } catch (error) {
+          // Ignore errors when closing connections
+        }
+      });
+    }
+    this.streamingConnections.clear();
+    this.connectionTimestamps.clear();
+
     return new Promise((resolve, reject) => {
       if (!this.server) {
         resolve();

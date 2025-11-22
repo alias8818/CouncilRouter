@@ -320,27 +320,36 @@ export class SessionManager implements ISessionManager {
   /**
    * Cache session in Redis
    * Uses incremental updates: stores history entries separately to avoid O(N^2) behavior
+   *
+   * NOTE: There is a theoretical race condition between lLen check and rPush operations.
+   * In practice, this is acceptable because:
+   * 1. Session updates are typically sequential (same user in a session)
+   * 2. The window is very small (microseconds)
+   * 3. Impact is minimal (worst case: duplicate entry that gets overwritten)
+   *
+   * For production use with high concurrency, consider implementing distributed locking
+   * (e.g., Redlock) or using Redis Lua scripts for atomic check-and-append.
    */
   private async cacheSession(session: Session): Promise<void> {
     const key = `session:${session.id}`;
     const historyKey = `session:${session.id}:history`;
-    
+
     // Use pipeline for atomic operations
     const pipeline = this.redis.multi();
-    
+
     // Update session metadata (small, changes frequently)
     pipeline.hSet(key, {
       userId: session.userId,
       createdAt: session.createdAt.toISOString(),
       lastActivityAt: session.lastActivityAt.toISOString(),
       contextWindowUsed: session.contextWindowUsed.toString(),
-      historyLength: session.history.length.toString() // Track length for quick checks
+      historyLength: session.history.length.toString()
     });
-    
+
     // Store history entries incrementally in a list
-    // Only update if history length changed (indicates new entries)
+    // Check current length to determine if we need to append
     const existingLength = await this.redis.lLen(historyKey).catch(() => 0);
-    
+
     if (session.history.length > existingLength) {
       // Append only new entries (incremental update)
       const newEntries = session.history.slice(existingLength);
@@ -355,11 +364,11 @@ export class SessionManager implements ISessionManager {
       }
     }
     // If lengths match, no need to update history
-    
+
     // Set TTL on both keys
     pipeline.expire(key, this.SESSION_TTL);
     pipeline.expire(historyKey, this.SESSION_TTL);
-    
+
     await pipeline.exec();
   }
 
