@@ -196,6 +196,7 @@ export class APIGateway implements IAPIGateway {
           undefined,
           false
         ));
+        return;
       }
     } else if (trimmedAuth.startsWith('ApiKey ')) {
       // API key authentication
@@ -222,6 +223,7 @@ export class APIGateway implements IAPIGateway {
           undefined,
           false
         ));
+        return;
       }
     } else {
       res.status(401).json(this.createErrorResponse(
@@ -230,6 +232,7 @@ export class APIGateway implements IAPIGateway {
         undefined,
         false
       ));
+      return;
     }
   }
 

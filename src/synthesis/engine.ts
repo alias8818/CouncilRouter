@@ -18,26 +18,52 @@ import {
 /**
  * Model rankings for strongest moderator selection
  * Higher score = stronger model
+ * Updated: November 22, 2025 - Current frontier models
  */
 const MODEL_RANKINGS: Record<string, number> = {
-  // OpenAI models
-  'gpt-4': 95,
-  'gpt-4-turbo': 98,
-  'gpt-4o': 100,
-  'gpt-3.5-turbo': 70,
+  // === Legacy / 2023–mid-2024 models (significantly surpassed in 2025) ===
+  'gpt-3.5-turbo': 65,
+  'gpt-4': 85,
+  'gpt-4-turbo': 90,
+  'gpt-4o': 94,                  // was the 2024 frontier; now upper-mid tier
+  'claude-3-haiku': 72,
+  'claude-3-sonnet': 86,
+  'claude-3-opus': 93,
+  'claude-3.5-sonnet': 96,       // brief 2024.5 peak, quickly overtaken
+  'gemini-1.5-pro': 92,
+  'gemini-1.5-flash': 80,
+  'grok-1': 70,
+  'grok-2': 88,
 
-  // Anthropic models
-  'claude-3-opus': 98,
-  'claude-3-sonnet': 90,
-  'claude-3-haiku': 75,
-  'claude-2': 85,
+  // === Current 2025 frontier closed models (as of 22 Nov 2025) ===
+  // Sources: Chatbot Arena (Gemini 2.5 Pro still #1 Elo ~1451), Artificial Analysis, 
+  // LiveBench, EQ-Bench3 (Grok 4.1 leads), SWE-bench Verified, GPQA Diamond, AIME 2025, IOI-style leaderboards
+  'gemini-2.5-pro': 114,         // Current Chatbot Arena leader, strongest multimodal + search integration
+  'gemini-3-pro': 113,           // Very close behind; newer but slightly lower Elo in latest snapshot
+  'claude-sonnet-4.5': 112,      // Best-in-class for coding, agentic workflows, long-refactor tasks; consistent #1 on SWE-bench Verified
+  'grok-4.1': 111,               // Leads EQ-Bench3, strongest pure reasoning/math (AIME 2025, GPQA), excellent uncensored performance
+  'grok-4': 109,
+  'gpt-5.1': 110,                // Excellent all-rounder, especially adaptive reasoning + Codex variant for code
+  'gpt-5': 108,
+  'claude-opus-4.1': 109,        // Slightly behind Sonnet 4.5 on coding but stronger on some long-horizon tasks
+  'o3': 107,                     // Still extremely strong reasoning model, now mid-frontier
+  'o4-mini': 96,                 // Fast reasoning tier
 
-  // Google models
+  // === Strong 2025 open-weight models (often used as cost-effective council members) ===
+  'deepseek-v3': 109,            // Frequently beats closed models on reasoning/coding when non-thinking mode disabled
+  'deepseek-r1': 108,
+  'qwen3-235b': 107,
+  'qwen3-72b': 105,
+  'llama-4-maverick': 106,       // Meta's latest Llama series, strong coding + multimodal
+  'minimax-m2': 104,             // Outstanding agentic/coding open model
+
+  // === Legacy Google models (for backward compatibility) ===
   'gemini-pro': 92,
   'gemini-ultra': 97,
   'palm-2': 80,
+  'claude-2': 85,
 
-  // Default for unknown models
+  // === Fallback ===
   'default': 50
 };
 
@@ -332,7 +358,7 @@ export class SynthesisEngine implements ISynthesisEngine {
       .toLowerCase()
       .replace(/[^\w\s]/g, ' ')
       .split(/\s+/)
-      .filter(word => word.length > 2); // Filter out very short words (1-2 chars)
+      .filter(word => word.length > 2); // Filter out words with 2 or fewer characters
   }
 
   /**
@@ -528,10 +554,18 @@ export class SynthesisEngine implements ISynthesisEngine {
     }
 
     // Try partial match (e.g., "gpt-4-turbo-preview" matches "gpt-4-turbo")
+    // Prefer longer matches to avoid matching "gpt-4" when "gpt-4-turbo" is available
+    let bestMatch: { modelName: string; score: number } | null = null;
     for (const [modelName, score] of Object.entries(MODEL_RANKINGS)) {
       if (member.model.includes(modelName)) {
-        return score;
+        if (!bestMatch || modelName.length > bestMatch.modelName.length) {
+          bestMatch = { modelName, score };
+        }
       }
+    }
+
+    if (bestMatch) {
+      return bestMatch.score;
     }
 
     // Return default score

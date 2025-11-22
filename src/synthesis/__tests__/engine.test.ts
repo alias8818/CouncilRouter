@@ -202,10 +202,14 @@ describe('SynthesisEngine', () => {
 
         const result = await engine.synthesize(thread, strategy);
 
-        expect(result.content).toContain('Meta-synthesis');
-        expect(result.content).toContain('member1');
-        expect(result.content).toContain('member2');
-        expect(result.content).toContain('member3');
+        expect(mockProviderPool.sendRequest).toHaveBeenCalledTimes(1);
+        const [[moderator, prompt]] = mockProviderPool.sendRequest.mock.calls;
+        expect(moderator.id).toBe('member1');
+        expect(prompt).toContain('First perspective');
+        expect(prompt).toContain('Second perspective');
+        expect(prompt).toContain('Third perspective');
+        expect(prompt).toContain('You are the Moderator for an AI Council');
+        expect(result.content).toBe('Meta-synthesis result including member1, member2, member3');
         expect(result.contributingMembers).toHaveLength(3);
       });
     });

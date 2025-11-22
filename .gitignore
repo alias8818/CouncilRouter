@@ -36,3 +36,7 @@ yarn-error.log*
 # Temporary files
 *.tmp
 .cache/
+
+# Test output
+test_output.txt
+junit.xml

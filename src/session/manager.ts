@@ -368,6 +368,9 @@ export class SessionManager implements ISessionManager {
    * Simple heuristic: ~4 characters per token
    */
   private estimateTokens(content: string): number {
+    // Rough estimate: ~4 characters per token for English text
+    // Less accurate for code, non-English text, or heavy punctuation
+    // TODO: Integrate precise tokenizer like tiktoken for production accuracy
     return Math.ceil(content.length / 4);
   }
 
