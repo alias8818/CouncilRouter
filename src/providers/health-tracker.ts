@@ -68,18 +68,13 @@ export class ProviderHealthTracker {
    */
   private cleanupOldRecords(state: ProviderHealthState): void {
     const cutoffTime = new Date(Date.now() - this.rollingWindowMs);
-    const initialLength = state.requestHistory.length;
     
     // Remove records older than the rolling window
     state.requestHistory = state.requestHistory.filter(record => record.timestamp >= cutoffTime);
     
-    // Recalculate counts based on remaining records
-    const remainingRecords = state.requestHistory.length;
-    if (remainingRecords < initialLength) {
-      // Recalculate success count from remaining records
-      state.successCount = state.requestHistory.filter(r => r.success).length;
-      state.totalRequests = remainingRecords;
-    }
+    // Recalculate counts based on remaining records (always, so new entries are counted immediately)
+    state.totalRequests = state.requestHistory.length;
+    state.successCount = state.requestHistory.filter(r => r.success).length;
   }
 
   /**
