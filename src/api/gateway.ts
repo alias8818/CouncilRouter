@@ -485,7 +485,20 @@ export class APIGateway implements IAPIGateway {
             };
             res.status(status.status === 'completed' ? 200 : 202).json(response);
             return;
+          } else if (status.exists) {
+            // Key exists but is in an unexpected state (not in-progress and no result)
+            // This should not happen in normal operation, but we must handle it to prevent duplicate processing
+            res.status(500).json(this.createErrorResponse(
+              'IDEMPOTENCY_STATE_INVALID',
+              'Idempotency key exists but is in an invalid state. Please retry with a new idempotency key.',
+              { requestId },
+              true
+            ));
+            return;
           }
+          // If status.exists is false, the error was not due to a race condition
+          // Re-throw the original error to prevent processing
+          throw error;
         }
       }
 

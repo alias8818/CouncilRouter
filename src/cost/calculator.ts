@@ -352,8 +352,21 @@ export class CostCalculator {
       return false;
     }
 
-    // Allow purely numeric prefixes (e.g., "20240115-daily" or "123456-weekly")
+    // Validate purely numeric prefixes (e.g., "20240115-daily")
+    // Extract year portion (first 4 digits) and validate range
     if (/^\d+$/.test(prefix)) {
+      // For numeric-only prefixes, extract the year (first 4 digits)
+      // This handles formats like YYYYMMDD (20240115) or YYYYMM (202401)
+      if (prefix.length >= 4) {
+        const year = parseInt(prefix.substring(0, 4), 10);
+        if (Number.isNaN(year) || year < 1900 || year > 2100) {
+          return false;
+        }
+      } else {
+        // For prefixes shorter than 4 digits, they can't represent a valid year
+        // Reject them to maintain consistency
+        return false;
+      }
       return true;
     }
 
