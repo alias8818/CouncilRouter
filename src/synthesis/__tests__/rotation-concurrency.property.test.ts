@@ -74,6 +74,13 @@ describe('SynthesisEngine - Rotation Concurrency Property Test', () => {
           const mockConfigManager = {
             getCouncilConfig: jest.fn().mockResolvedValue({
               members: uniqueMembers
+            }),
+            getModelRankings: jest.fn().mockResolvedValue({
+              'gpt-4': 85,
+              'claude-3-opus': 93,
+              'gemini-pro': 92,
+              'gpt-3.5-turbo': 65,
+              'default': 50
             })
           } as any;
 

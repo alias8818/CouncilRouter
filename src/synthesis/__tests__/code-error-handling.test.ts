@@ -33,6 +33,10 @@ describe('Code-Aware Synthesis Error Handling', () => {
     const mockConfigManager = {
       getCouncilConfig: jest.fn().mockResolvedValue({
         members: [{ id: 'member1', model: 'gpt-4' }]
+      }),
+      getModelRankings: jest.fn().mockResolvedValue({
+        'gpt-4': 85,
+        'default': 50
       })
     } as any;
 
@@ -57,13 +61,18 @@ describe('Code-Aware Synthesis Error Handling', () => {
   describe('Validation Error Handling', () => {
     it('should handle null/undefined input gracefully', () => {
       const result = codeValidator.validateCode(null as any);
-      expect(result.weight).toBeGreaterThanOrEqual(0.1);
-      expect(result.weight).toBeLessThanOrEqual(2.0);
+      // Empty/null code should return weight 0.0 (critical error) so it gets filtered out
+      expect(result.weight).toBe(0.0);
+      expect(result.isCriticalError).toBe(true);
+      expect(result.errorMessages.length).toBeGreaterThan(0);
     });
 
     it('should handle empty code gracefully', () => {
       const result = codeValidator.validateCode('');
-      expect(result.weight).toBeGreaterThanOrEqual(0.1);
+      // Empty code should return weight 0.0 (critical error) so it gets filtered out
+      expect(result.weight).toBe(0.0);
+      expect(result.isCriticalError).toBe(true);
+      expect(result.errorMessages.length).toBeGreaterThan(0);
     });
   });
 

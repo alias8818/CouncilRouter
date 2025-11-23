@@ -38,6 +38,46 @@ describe('SynthesisEngine - Property-Based Tests', () => {
           { id: 'member3', model: 'gemini-pro' },
           { id: 'member4', model: 'gpt-3.5-turbo' }
         ]
+      }),
+      getModelRankings: jest.fn().mockResolvedValue({
+        // Legacy models
+        'gpt-3.5-turbo': 65,
+        'gpt-4': 85,
+        'gpt-4-turbo': 90,
+        'gpt-4o': 94,
+        'claude-3-haiku': 72,
+        'claude-3-sonnet': 86,
+        'claude-3-opus': 93,
+        'claude-3.5-sonnet': 96,
+        'gemini-1.5-pro': 92,
+        'gemini-1.5-flash': 80,
+        'grok-1': 70,
+        'grok-2': 88,
+        // 2025 frontier models
+        'gemini-2.5-pro': 114,
+        'gemini-3-pro': 113,
+        'claude-sonnet-4.5': 112,
+        'grok-4.1': 111,
+        'grok-4': 109,
+        'gpt-5.1': 110,
+        'gpt-5': 108,
+        'claude-opus-4.1': 109,
+        'o3': 107,
+        'o4-mini': 96,
+        // Open-weight models
+        'deepseek-v3': 109,
+        'deepseek-r1': 108,
+        'qwen3-235b': 107,
+        'qwen3-72b': 105,
+        'llama-4-maverick': 106,
+        'minimax-m2': 104,
+        // Legacy Google models
+        'gemini-pro': 92,
+        'gemini-ultra': 97,
+        'palm-2': 80,
+        'claude-2': 85,
+        // Fallback
+        'default': 50
       })
     } as any;
 

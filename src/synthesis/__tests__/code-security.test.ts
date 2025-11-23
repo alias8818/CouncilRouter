@@ -141,9 +141,9 @@ describe('Code-Aware Synthesis Security Tests', () => {
       const invalidCode = null as any;
       const result = codeValidator.validateCode(invalidCode);
       
-      // Should return safe default (minimum weight)
-      expect(result.weight).toBeGreaterThanOrEqual(0.1);
-      expect(result.weight).toBeLessThanOrEqual(2.0);
+      // Should return weight 0.0 (critical error) so invalid code gets filtered out
+      expect(result.weight).toBe(0.0);
+      expect(result.isCriticalError).toBe(true);
     });
   });
 });

@@ -48,10 +48,10 @@ export class CodeValidator {
         hasBalancedBrackets: false,
         hasSyntaxErrors: true,
         hasObviousSyntaxErrors: true,
-        isCriticalError: true,
+        isCriticalError: true, // Empty code is a critical error and should be filtered out
         hasErrorHandling: false,
         hasDocumentation: false,
-        weight: 0.0, // Critical error gets zero weight
+        weight: 0.0, // Critical error gets zero weight so it gets filtered out
         errorMessages: ['Empty or whitespace-only code provided']
       };
     }

@@ -361,6 +361,10 @@ describe('Code-Aware Synthesis - Property-Based Tests', () => {
     const mockConfigManager = {
       getCouncilConfig: jest.fn().mockResolvedValue({
         members: [{ id: 'member1', model: 'gpt-4' }]
+      }),
+      getModelRankings: jest.fn().mockResolvedValue({
+        'gpt-4': 85,
+        'default': 50
       })
     } as any;
 

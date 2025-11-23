@@ -401,7 +401,8 @@ export class SynthesisEngine implements ISynthesisEngine {
       // Include original user query
       if (query && query.trim().length > 0) {
         // Sanitize query to prevent prompt injection (basic sanitization)
-        const sanitizedQuery = query.replace(/```/g, '').substring(0, 2000);
+        // Trim whitespace since leading/trailing whitespace isn't meaningful
+        const sanitizedQuery = query.trim().replace(/```/g, '').substring(0, 2000);
         prompt += 'ORIGINAL USER QUERY:\n';
         prompt += `${sanitizedQuery}\n\n`;
       }

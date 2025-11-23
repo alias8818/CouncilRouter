@@ -37,6 +37,12 @@ describe('Code-Aware Synthesis Performance Tests', () => {
           { id: 'member2', model: 'claude-3-opus' },
           { id: 'member3', model: 'gemini-pro' }
         ]
+      }),
+      getModelRankings: jest.fn().mockResolvedValue({
+        'gpt-4': 85,
+        'claude-3-opus': 93,
+        'gemini-pro': 92,
+        'default': 50
       })
     } as any;
 
