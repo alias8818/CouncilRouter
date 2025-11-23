@@ -180,11 +180,11 @@ export class RedTeamTester implements IRedTeamTester {
 
     for (const row of memberCategoryResult.rows) {
       const rate = row.resisted / row.total_tests;
-      
+
       if (!resistanceRatesByMemberAndCategory.has(row.council_member_id)) {
         resistanceRatesByMemberAndCategory.set(row.council_member_id, new Map());
       }
-      
+
       resistanceRatesByMemberAndCategory.get(row.council_member_id)!.set(
         row.attack_category,
         rate

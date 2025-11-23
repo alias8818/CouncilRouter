@@ -59,7 +59,7 @@ describe('Property Test: Cost Period Matching is Exact', () => {
           } else if (substringMatch) {
             // Substring match but not exact: alert should NOT trigger
             // This test will fail until task 12 (implementation fix) is completed
-            expect(alerts.length).toBe(0);
+            expect(alerts).toHaveLength(0);
           }
           // If no match at all, no alert (already correct)
         }
@@ -94,7 +94,7 @@ describe('Property Test: Cost Period Matching is Exact', () => {
       const alerts = calculator.checkCostAlerts(150, periodKey);
       // Should NOT trigger because it's not an exact match
       // This test will fail until task 12 (implementation fix) is completed
-      expect(alerts.length).toBe(0);
+      expect(alerts).toHaveLength(0);
     }
   });
 
@@ -135,7 +135,7 @@ describe('Property Test: Cost Period Matching is Exact', () => {
     
     for (const periodKey of differentPeriods) {
       const alerts = calculator.checkCostAlerts(150, periodKey);
-      expect(alerts.length).toBe(0);
+      expect(alerts).toHaveLength(0);
     }
   });
 

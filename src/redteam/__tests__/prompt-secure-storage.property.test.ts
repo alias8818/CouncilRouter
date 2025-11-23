@@ -103,7 +103,7 @@ describe('Property 44: Red-team prompt secure storage', () => {
           const retrievedPrompts = await redTeamTester.getPrompts();
 
           // Property: All stored prompts should be retrievable
-          expect(retrievedPrompts.length).toBe(prompts.length);
+          expect(retrievedPrompts).toHaveLength(prompts.length);
 
           // Property: Retrieved prompts should match stored prompts
           for (let i = 0; i < prompts.length; i++) {
@@ -124,7 +124,7 @@ describe('Property 44: Red-team prompt secure storage', () => {
                     call[0].includes('INSERT INTO red_team_prompts') &&
                     !call[0].includes('SELECT')
           );
-          expect(insertCalls.length).toBe(prompts.length);
+          expect(insertCalls).toHaveLength(prompts.length);
         }
       ),
       { numRuns: 100 }
@@ -178,7 +178,7 @@ describe('Property 44: Red-team prompt secure storage', () => {
           const retrieved = await redTeamTester.getPrompts();
 
           // Property: Round-trip consistency - stored prompt should match retrieved prompt
-          expect(retrieved.length).toBe(1);
+          expect(retrieved).toHaveLength(1);
           expect(retrieved[0].id).toBe(prompt.id);
           expect(retrieved[0].testName).toBe(prompt.testName);
           expect(retrieved[0].prompt).toBe(prompt.prompt);

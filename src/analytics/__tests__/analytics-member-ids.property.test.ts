@@ -130,7 +130,7 @@ describe('Property Test: Analytics Sees Correct Member IDs', () => {
           }
           
           // The matrix should contain all unique members
-          expect(matrix.members.length).toBe(uniqueMemberIds.length);
+          expect(matrix.members).toHaveLength(uniqueMemberIds.length);
         }
       ),
       { numRuns: 100 }

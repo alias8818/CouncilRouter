@@ -16,7 +16,7 @@ export interface IOrchestrationEngine {
    * Process a user request through the entire council deliberation cycle
    */
   processRequest(request: UserRequest): Promise<ConsensusDecision>;
-  
+
   /**
    * Distribute a request to all configured council members in parallel
    */
@@ -24,7 +24,7 @@ export interface IOrchestrationEngine {
     request: UserRequest,
     councilMembers: CouncilMember[]
   ): Promise<InitialResponse[]>;
-  
+
   /**
    * Conduct deliberation rounds where council members review each other's responses
    */
@@ -32,7 +32,7 @@ export interface IOrchestrationEngine {
     initialResponses: InitialResponse[],
     rounds: number
   ): Promise<DeliberationThread>;
-  
+
   /**
    * Handle timeout by synthesizing partial responses
    * Note: This is an internal method, partialResponses should contain TrackedResponse[]

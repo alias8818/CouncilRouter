@@ -158,16 +158,17 @@ export interface TransparencyConfig {
   forcedTransparency: boolean; // Always show deliberation regardless of user preference
 }
 
-export type ConfigPreset = 
+export type ConfigPreset =
   | 'fast-council'
   | 'balanced-council'
-  | 'research-council';
+  | 'research-council'
+  | 'coding-council';
 
 // ============================================================================
 // Synthesis Strategy Models
 // ============================================================================
 
-export type SynthesisStrategy = 
+export type SynthesisStrategy =
   | { type: 'consensus-extraction' }
   | { type: 'weighted-fusion'; weights: Map<string, number> }
   | { type: 'meta-synthesis'; moderatorStrategy: ModeratorStrategy };

@@ -457,7 +457,7 @@ describe('ToolExecutionEngine', () => {
       await engine.executeTool('logged-tool', {}, 'member-1', 'req-1');
 
       const usage = mockPool.getToolUsage();
-      expect(usage.length).toBe(1);
+      expect(usage).toHaveLength(1);
       expect(usage[0].tool_name).toBe('logged-tool');
       expect(usage[0].council_member_id).toBe('member-1');
       expect(usage[0].request_id).toBe('req-1');
@@ -495,7 +495,7 @@ describe('ToolExecutionEngine', () => {
         { toolName: 'tool-2', parameters: {}, councilMemberId: 'member-1', requestId: 'req-1' }
       ]);
 
-      expect(results.length).toBe(2);
+      expect(results).toHaveLength(2);
       expect(results[0].toolName).toBe('tool-1');
       expect(results[1].toolName).toBe('tool-2');
       expect(results[0].success).toBe(true);
@@ -528,7 +528,7 @@ describe('ToolExecutionEngine', () => {
         { toolName: 'failure-tool', parameters: {}, councilMemberId: 'member-1', requestId: 'req-1' }
       ]);
 
-      expect(results.length).toBe(2);
+      expect(results).toHaveLength(2);
       expect(results[0].success).toBe(true);
       expect(results[1].success).toBe(false);
       expect(results[1].error).toBe('Failed');
@@ -551,7 +551,7 @@ describe('ToolExecutionEngine', () => {
 
       const usage = await engine.getToolUsageForRequest('req-1');
 
-      expect(usage.length).toBe(1);
+      expect(usage).toHaveLength(1);
       expect(usage[0].toolName).toBe('test-tool');
       expect(usage[0].councilMemberId).toBe('member-1');
     });
@@ -588,7 +588,7 @@ describe('ToolExecutionEngine', () => {
 
       const available = engine.getAvailableTools();
 
-      expect(available.length).toBe(2);
+      expect(available).toHaveLength(2);
       expect(available).toContainEqual(tool1);
       expect(available).toContainEqual(tool2);
     });

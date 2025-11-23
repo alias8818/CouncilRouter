@@ -53,6 +53,6 @@ export class FunctionToolAdapter implements IToolAdapter {
     if (!fn) {
       throw new Error(`Function ${toolName} not found`);
     }
-    return await fn(parameters);
+    return fn(parameters);
   }
 }

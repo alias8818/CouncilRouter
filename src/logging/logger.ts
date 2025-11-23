@@ -32,7 +32,7 @@ export class EventLogger implements IEventLogger {
           created_at, config_snapshot
         ) VALUES ($1, $2, $3, $4, $5, $6, $7)
       `;
-      
+
       const values = [
         request.id,
         'default-user', // userId not in UserRequest, using default

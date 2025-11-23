@@ -87,7 +87,7 @@ describe('Property: Analytics handles null values safely', () => {
           expect(matrix).toBeDefined();
           expect(matrix.members).toEqual([member1Id, member2Id]);
           expect(Array.isArray(matrix.disagreementRates)).toBe(true);
-          expect(matrix.disagreementRates.length).toBe(2);
+          expect(matrix.disagreementRates).toHaveLength(2);
         }
       ),
       { numRuns: 100 }

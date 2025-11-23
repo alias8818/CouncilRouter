@@ -146,7 +146,7 @@ export class ToolExecutionEngine implements IToolExecutionEngine {
       )
     );
 
-    return await Promise.all(promises);
+    return Promise.all(promises);
   }
 
   /**

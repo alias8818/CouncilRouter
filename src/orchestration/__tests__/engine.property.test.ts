@@ -343,7 +343,7 @@ describe('Property Test: Request Distribution Completeness', () => {
           }
           
           // 2. Number of requests should equal number of configured members
-          expect(requestLog.length).toBe(councilConfig.members.length);
+          expect(requestLog).toHaveLength(councilConfig.members.length);
           
           // 3. Each member should receive the same query
           for (const log of requestLog) {
@@ -622,18 +622,18 @@ describe('Property Test: Deliberation Round Count Enforcement', () => {
           // Property assertions:
           // 1. The deliberation thread should have exactly N+1 rounds
           //    (round 0 for initial responses + N deliberation rounds)
-          expect(deliberationThread.rounds.length).toBe(numRounds + 1);
+          expect(deliberationThread.rounds).toHaveLength(numRounds + 1);
           
           // 2. Round 0 should contain the initial responses
           expect(deliberationThread.rounds[0].roundNumber).toBe(0);
-          expect(deliberationThread.rounds[0].exchanges.length).toBe(councilConfig.members.length);
+          expect(deliberationThread.rounds[0].exchanges).toHaveLength(councilConfig.members.length);
           
           // 3. Each subsequent round should be numbered correctly (1 through N)
           for (let i = 1; i <= numRounds; i++) {
             expect(deliberationThread.rounds[i].roundNumber).toBe(i);
             
             // Each deliberation round should have exchanges from all members
-            expect(deliberationThread.rounds[i].exchanges.length).toBe(councilConfig.members.length);
+            expect(deliberationThread.rounds[i].exchanges).toHaveLength(councilConfig.members.length);
             
             // Each exchange should reference peer responses
             for (const exchange of deliberationThread.rounds[i].exchanges) {
@@ -641,7 +641,7 @@ describe('Property Test: Deliberation Round Count Enforcement', () => {
               expect(Array.isArray(exchange.referencesTo)).toBe(true);
               
               // Should reference all other members (not self)
-              expect(exchange.referencesTo.length).toBe(councilConfig.members.length - 1);
+              expect(exchange.referencesTo).toHaveLength(councilConfig.members.length - 1);
             }
           }
           
@@ -695,11 +695,11 @@ describe('Property Test: Deliberation Round Count Enforcement', () => {
           
           // Property assertions:
           // 1. Should have exactly 1 round (round 0 with initial responses only)
-          expect(deliberationThread.rounds.length).toBe(1);
+          expect(deliberationThread.rounds).toHaveLength(1);
           
           // 2. Round 0 should contain the initial responses
           expect(deliberationThread.rounds[0].roundNumber).toBe(0);
-          expect(deliberationThread.rounds[0].exchanges.length).toBe(councilConfig.members.length);
+          expect(deliberationThread.rounds[0].exchanges).toHaveLength(councilConfig.members.length);
           
           // 3. No peer review exchanges should occur
           // (all exchanges should be the initial responses with empty referencesTo)
@@ -788,7 +788,7 @@ describe('Property Test: Peer Response Sharing Completeness', () => {
               
               // 2. Should reference exactly N-1 members (all except self)
               const expectedPeerCount = councilConfig.members.length - 1;
-              expect(exchange.referencesTo.length).toBe(expectedPeerCount);
+              expect(exchange.referencesTo).toHaveLength(expectedPeerCount);
               
               // 3. Should not reference self
               expect(exchange.referencesTo).not.toContain(memberId);
@@ -811,7 +811,7 @@ describe('Property Test: Peer Response Sharing Completeness', () => {
           // Additional verification: Check that deliberation prompts contain peer responses
           // Each member should have received (numRounds) deliberation prompts
           const expectedDeliberationCalls = councilConfig.members.length * numRounds;
-          expect(requestLog.length).toBe(expectedDeliberationCalls);
+          expect(requestLog).toHaveLength(expectedDeliberationCalls);
           
           // Verify that each deliberation prompt contains references to peer responses
           for (const log of requestLog) {
@@ -1006,7 +1006,7 @@ describe('Property Test: Context Inclusion in Distribution', () => {
           
           // Property assertions:
           // 1. All council members should have received the request
-          expect(contextLog.length).toBe(councilConfig.members.length);
+          expect(contextLog).toHaveLength(councilConfig.members.length);
           
           // 2. Each member should have received the same context
           for (const log of contextLog) {
@@ -1091,7 +1091,7 @@ describe('Property Test: Context Inclusion in Distribution', () => {
           
           // Property assertions:
           // 1. All members should have been called
-          expect(contextLog.length).toBe(councilConfig.members.length);
+          expect(contextLog).toHaveLength(councilConfig.members.length);
           
           // 2. Context should be undefined for all members (no context provided)
           for (const log of contextLog) {

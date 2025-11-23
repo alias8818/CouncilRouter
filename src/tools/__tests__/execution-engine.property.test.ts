@@ -216,7 +216,7 @@ describe('Tool Execution Engine - Property Tests', () => {
           const totalTime = Date.now() - startTime;
 
           // Assertions
-          expect(results.length).toBe(councilMemberIds.length);
+          expect(results).toHaveLength(councilMemberIds.length);
 
           // All should succeed
           results.forEach(result => {

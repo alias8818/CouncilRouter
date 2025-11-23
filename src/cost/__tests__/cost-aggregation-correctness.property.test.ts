@@ -142,7 +142,7 @@ describe('Property 14: Cost aggregation correctness', () => {
           expect(aggregated.totalCost).toBe(0);
           expect(aggregated.byProvider.size).toBe(0);
           expect(aggregated.byMember.size).toBe(0);
-          expect(aggregated.calculations.length).toBe(0);
+          expect(aggregated.calculations).toHaveLength(0);
         }
       ),
       { numRuns: 100 }
@@ -158,7 +158,7 @@ describe('Property 14: Cost aggregation correctness', () => {
           const aggregated = calculator.aggregateCosts(calculations);
 
           // Property: All individual calculations should be preserved
-          expect(aggregated.calculations.length).toBe(calculations.length);
+          expect(aggregated.calculations).toHaveLength(calculations.length);
           
           // Verify each calculation is present
           for (let i = 0; i < calculations.length; i++) {

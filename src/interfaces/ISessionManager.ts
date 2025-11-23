@@ -14,12 +14,12 @@ export interface ISessionManager {
    * Get an existing session by ID
    */
   getSession(sessionId: string): Promise<Session | null>;
-  
+
   /**
    * Create a new session for a user
    */
   createSession(userId: string): Promise<Session>;
-  
+
   /**
    * Add an entry to session history
    */
@@ -27,7 +27,7 @@ export interface ISessionManager {
     sessionId: string,
     entry: HistoryEntry
   ): Promise<void>;
-  
+
   /**
    * Get conversation context for a request, respecting token limits
    */
@@ -35,7 +35,7 @@ export interface ISessionManager {
     sessionId: string,
     maxTokens: number
   ): Promise<ConversationContext>;
-  
+
   /**
    * Expire inactive sessions
    */

@@ -24,7 +24,7 @@ let mockRedis: jest.Mocked<RedisClientType>;
 let configManager: ConfigurationManager;
 
 // Storage for simulating database persistence
-let configStorage: Map<string, any> = new Map();
+const configStorage: Map<string, any> = new Map();
 
 // Arbitraries for generating test data
 const retryPolicyArbitrary = fc.record({
@@ -156,7 +156,7 @@ describe('Property Test: Configuration Persistence Round-Trip', () => {
 
           // Property assertions:
           // 1. Retrieved config should have same number of members
-          expect(retrievedConfig.members.length).toBe(originalConfig.members.length);
+          expect(retrievedConfig.members).toHaveLength(originalConfig.members.length);
 
           // 2. Retrieved config should have same minimumSize
           expect(retrievedConfig.minimumSize).toBe(originalConfig.minimumSize);
@@ -209,7 +209,7 @@ describe('Property Test: Configuration Persistence Round-Trip', () => {
 
           // Property assertions:
           // Both retrievals should be identical
-          expect(secondRetrieval.members.length).toBe(firstRetrieval.members.length);
+          expect(secondRetrieval.members).toHaveLength(firstRetrieval.members.length);
           expect(secondRetrieval.minimumSize).toBe(firstRetrieval.minimumSize);
           expect(secondRetrieval.requireMinimumForConsensus).toBe(firstRetrieval.requireMinimumForConsensus);
 
@@ -232,7 +232,7 @@ describe('Property Test: Configuration Persistence Round-Trip', () => {
       fc.asyncProperty(
         fc.array(councilConfigArbitrary, { minLength: 2, maxLength: 5 }),
         async (configs) => {
-          let lastSavedConfig = configs[configs.length - 1];
+          const lastSavedConfig = configs[configs.length - 1];
 
           // Save all configurations in sequence
           for (const config of configs) {
@@ -244,7 +244,7 @@ describe('Property Test: Configuration Persistence Round-Trip', () => {
 
           // Property assertions:
           // Retrieved config should match the last saved config
-          expect(retrievedConfig.members.length).toBe(lastSavedConfig.members.length);
+          expect(retrievedConfig.members).toHaveLength(lastSavedConfig.members.length);
           expect(retrievedConfig.minimumSize).toBe(lastSavedConfig.minimumSize);
           expect(retrievedConfig.requireMinimumForConsensus).toBe(lastSavedConfig.requireMinimumForConsensus);
 

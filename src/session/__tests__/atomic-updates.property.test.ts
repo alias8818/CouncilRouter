@@ -98,7 +98,7 @@ describe('SessionManager Atomic Updates Property Test', () => {
           const expectedHistory: HistoryEntry[] = [];
 
           // Setup: Mock transaction behavior
-          let transactionCallCount = 0;
+          const transactionCallCount = 0;
 
           (mockClient.query as jest.Mock).mockImplementation(async (query: string, params?: any[]) => {
             if (query === 'BEGIN') {
@@ -186,27 +186,27 @@ describe('SessionManager Atomic Updates Property Test', () => {
           );
 
           // Should have one transaction per entry
-          expect(beginCalls.length).toBe(testData.entries.length);
-          expect(commitCalls.length).toBe(testData.entries.length);
-          expect(rollbackCalls.length).toBe(0); // No errors, so no rollbacks
+          expect(beginCalls).toHaveLength(testData.entries.length);
+          expect(commitCalls).toHaveLength(testData.entries.length);
+          expect(rollbackCalls).toHaveLength(0); // No errors, so no rollbacks
 
           // Verify SELECT FOR UPDATE was used (ensures locking)
           const selectForUpdateCalls = (mockClient.query as jest.Mock).mock.calls.filter(
             call => typeof call[0] === 'string' && call[0].includes('FOR UPDATE')
           );
-          expect(selectForUpdateCalls.length).toBe(testData.entries.length);
+          expect(selectForUpdateCalls).toHaveLength(testData.entries.length);
 
           // Verify all inserts were made
           const insertCalls = (mockClient.query as jest.Mock).mock.calls.filter(
             call => typeof call[0] === 'string' && call[0].includes('INSERT INTO session_history')
           );
-          expect(insertCalls.length).toBe(testData.entries.length);
+          expect(insertCalls).toHaveLength(testData.entries.length);
 
           // Verify all updates were made
           const updateCalls = (mockClient.query as jest.Mock).mock.calls.filter(
             call => typeof call[0] === 'string' && call[0].includes('UPDATE sessions')
           );
-          expect(updateCalls.length).toBe(testData.entries.length);
+          expect(updateCalls).toHaveLength(testData.entries.length);
 
           // Verify client was released after each transaction
           expect(mockClient.release).toHaveBeenCalledTimes(testData.entries.length);
@@ -216,7 +216,7 @@ describe('SessionManager Atomic Updates Property Test', () => {
           expect(mockRedis.multi).toHaveBeenCalledTimes(testData.entries.length);
           // Get all pipeline objects and verify exec() was called on each
           const multiCalls = (mockRedis.multi as jest.Mock).mock.results;
-          expect(multiCalls.length).toBe(testData.entries.length);
+          expect(multiCalls).toHaveLength(testData.entries.length);
           for (const result of multiCalls) {
             const pipeline = result.value;
             expect(pipeline.exec).toHaveBeenCalled();
@@ -281,7 +281,7 @@ describe('SessionManager Atomic Updates Property Test', () => {
           const rollbackCalls = (mockClient.query as jest.Mock).mock.calls.filter(
             call => call[0] === 'ROLLBACK'
           );
-          expect(rollbackCalls.length).toBe(1);
+          expect(rollbackCalls).toHaveLength(1);
 
           // Verify client was released even after error
           expect(mockClient.release).toHaveBeenCalledTimes(1);

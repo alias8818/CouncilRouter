@@ -7,11 +7,11 @@ import { CouncilMember, ProviderResponse, ConversationContext, TokenUsage, Retry
 
 export abstract class BaseProviderAdapter {
   protected apiKey: string;
-  
+
   constructor(apiKey: string) {
     this.apiKey = apiKey;
   }
-  
+
   /**
    * Send a request to the provider's API
    */
@@ -20,12 +20,12 @@ export abstract class BaseProviderAdapter {
     prompt: string,
     context?: ConversationContext
   ): Promise<ProviderResponse>;
-  
+
   /**
    * Get health status of this provider
    */
   abstract getHealth(): Promise<{ available: boolean; latency?: number }>;
-  
+
   /**
    * Format the prompt and context for this provider's API
    */
@@ -33,7 +33,7 @@ export abstract class BaseProviderAdapter {
     prompt: string,
     context?: ConversationContext
   ): any;
-  
+
   /**
    * Parse the provider's response into our standard format
    */
@@ -41,7 +41,7 @@ export abstract class BaseProviderAdapter {
     content: string;
     tokenUsage: TokenUsage;
   };
-  
+
   /**
    * Execute a request with retry logic and timeout handling
    */
@@ -52,7 +52,7 @@ export abstract class BaseProviderAdapter {
     const startTime = Date.now();
     const retryPolicy = member.retryPolicy;
     let lastError: Error | undefined;
-    
+
     for (let attempt = 0; attempt < retryPolicy.maxAttempts; attempt++) {
       let timeoutId: NodeJS.Timeout | null = null;
 
@@ -120,7 +120,7 @@ export abstract class BaseProviderAdapter {
         }
       }
     }
-    
+
     // All retries exhausted
     const latency = Date.now() - startTime;
     return {
@@ -131,19 +131,19 @@ export abstract class BaseProviderAdapter {
       error: lastError
     };
   }
-  
+
   /**
    * Extract error code from error object
    */
   protected getErrorCode(error: any): string {
-    if (error.code) return error.code;
-    if (error.message?.includes('timeout')) return 'TIMEOUT';
-    if (error.message?.includes('rate limit')) return 'RATE_LIMIT';
-    if (error.status === 503 || error.statusCode === 503) return 'SERVICE_UNAVAILABLE';
-    if (error.status === 429 || error.statusCode === 429) return 'RATE_LIMIT';
+    if (error.code) {return error.code;}
+    if (error.message?.includes('timeout')) {return 'TIMEOUT';}
+    if (error.message?.includes('rate limit')) {return 'RATE_LIMIT';}
+    if (error.status === 503 || error.statusCode === 503) {return 'SERVICE_UNAVAILABLE';}
+    if (error.status === 429 || error.statusCode === 429) {return 'RATE_LIMIT';}
     return 'UNKNOWN_ERROR';
   }
-  
+
   /**
    * Calculate exponential backoff delay
    */
@@ -156,7 +156,7 @@ export abstract class BaseProviderAdapter {
     const delay = initialDelay * Math.pow(multiplier, attempt);
     return Math.min(delay, maxDelay);
   }
-  
+
   /**
    * Sleep for specified milliseconds
    */

@@ -15,7 +15,7 @@ export interface IEventLogger {
    * Log a user request
    */
   logRequest(request: UserRequest): Promise<void>;
-  
+
   /**
    * Log a council member response
    */
@@ -23,7 +23,7 @@ export interface IEventLogger {
     requestId: string,
     response: InitialResponse
   ): Promise<void>;
-  
+
   /**
    * Log a deliberation round
    */
@@ -31,7 +31,7 @@ export interface IEventLogger {
     requestId: string,
     round: DeliberationRound
   ): Promise<void>;
-  
+
   /**
    * Log the final consensus decision
    */
@@ -39,7 +39,7 @@ export interface IEventLogger {
     requestId: string,
     decision: ConsensusDecision
   ): Promise<void>;
-  
+
   /**
    * Log cost information
    */
@@ -47,7 +47,7 @@ export interface IEventLogger {
     requestId: string,
     cost: CostBreakdown
   ): Promise<void>;
-  
+
   /**
    * Log a provider failure
    */

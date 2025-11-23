@@ -405,7 +405,7 @@ describe('Integration Tests - Full Deliberation Flow', () => {
       // Each mock provider returns 10 prompt + 20 completion = 30 total tokens
       // With 3 members, total should be 90
       expect(decision).toBeDefined();
-      expect(decision.contributingMembers.length).toBe(3);
+      expect(decision.contributingMembers).toHaveLength(3);
     });
 
     it('should maintain session context across multiple requests', async () => {
@@ -469,7 +469,7 @@ describe('Integration Tests - Full Deliberation Flow', () => {
 
       // Should still get a decision from the working providers
       expect(decision).toBeDefined();
-      expect(decision.contributingMembers.length).toBe(2);
+      expect(decision.contributingMembers).toHaveLength(2);
       expect(decision.contributingMembers).not.toContain('member-2');
     });
 

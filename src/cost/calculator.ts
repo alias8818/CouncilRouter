@@ -151,7 +151,7 @@ export class CostCalculator {
       // If no pricing config found, return zero cost with warning
       console.warn(
         `No pricing configuration found for ${member.provider}/${member.model}. ` +
-        `Cost will be calculated as $0.00`
+        'Cost will be calculated as $0.00'
       );
 
       return {
@@ -248,7 +248,7 @@ export class CostCalculator {
 
     // Check each alert
     for (const alert of this.costAlerts) {
-      if (!alert.enabled) continue;
+      if (!alert.enabled) {continue;}
 
       // Check if this alert applies to the current period
       if (this.matchesPeriod(period, alert.period)) {
@@ -394,7 +394,7 @@ export class CostCalculator {
     if (parts.length > 1) {
       const monthSegment = parts[1];
       const monthOrDay = parseInt(monthSegment, 10);
-      
+
       if (Number.isNaN(monthOrDay)) {
         return false;
       }

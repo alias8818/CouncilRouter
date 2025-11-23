@@ -40,7 +40,7 @@ interface OpenAIResponse {
 
 export class OpenAIAdapter extends BaseProviderAdapter {
   private readonly baseUrl = 'https://api.openai.com/v1';
-  
+
   async sendRequest(
     member: CouncilMember,
     prompt: string,
@@ -49,7 +49,7 @@ export class OpenAIAdapter extends BaseProviderAdapter {
     return this.executeWithRetry(member, async () => {
       const requestBody = this.formatRequest(prompt, context);
       requestBody.model = member.model;
-      
+
       const response = await fetch(`${this.baseUrl}/chat/completions`, {
         method: 'POST',
         headers: {
@@ -58,17 +58,17 @@ export class OpenAIAdapter extends BaseProviderAdapter {
         },
         body: JSON.stringify(requestBody)
       });
-      
+
       if (!response.ok) {
         const error: any = new Error(`OpenAI API error: ${response.statusText}`);
         error.status = response.status;
         throw error;
       }
-      
-      return await response.json();
+
+      return response.json();
     });
   }
-  
+
   async getHealth(): Promise<{ available: boolean; latency?: number }> {
     const startTime = Date.now();
     try {
@@ -78,7 +78,7 @@ export class OpenAIAdapter extends BaseProviderAdapter {
           'Authorization': `Bearer ${this.apiKey}`
         }
       });
-      
+
       const latency = Date.now() - startTime;
       return {
         available: response.ok,
@@ -88,10 +88,10 @@ export class OpenAIAdapter extends BaseProviderAdapter {
       return { available: false };
     }
   }
-  
+
   protected formatRequest(prompt: string, context?: ConversationContext): OpenAIRequest {
     const messages: OpenAIMessage[] = [];
-    
+
     // Add conversation history if available
     if (context?.messages) {
       for (const entry of context.messages) {
@@ -101,20 +101,20 @@ export class OpenAIAdapter extends BaseProviderAdapter {
         });
       }
     }
-    
+
     // Add current prompt
     messages.push({
       role: 'user',
       content: prompt
     });
-    
+
     return {
       model: '', // Will be set by sendRequest
       messages,
       temperature: 0.7
     };
   }
-  
+
   protected parseResponse(response: OpenAIResponse): { content: string; tokenUsage: TokenUsage } {
     const content = response.choices[0]?.message?.content || '';
     const tokenUsage: TokenUsage = {
@@ -122,7 +122,7 @@ export class OpenAIAdapter extends BaseProviderAdapter {
       completionTokens: response.usage.completion_tokens,
       totalTokens: response.usage.total_tokens
     };
-    
+
     return { content, tokenUsage };
   }
 }

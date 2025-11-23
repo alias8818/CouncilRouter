@@ -40,9 +40,9 @@ export class BudgetEnforcer implements IBudgetEnforcer {
     for (const cap of caps) {
       const periods: Array<'daily' | 'weekly' | 'monthly'> = [];
 
-      if (cap.daily_limit) periods.push('daily');
-      if (cap.weekly_limit) periods.push('weekly');
-      if (cap.monthly_limit) periods.push('monthly');
+      if (cap.daily_limit) {periods.push('daily');}
+      if (cap.weekly_limit) {periods.push('weekly');}
+      if (cap.monthly_limit) {periods.push('monthly');}
 
       for (const period of periods) {
         const spending = await this.getCurrentSpending(provider, model, period);
@@ -283,9 +283,9 @@ export class BudgetEnforcer implements IBudgetEnforcer {
   }
 
   private getLimitForPeriod(cap: any, period: 'daily' | 'weekly' | 'monthly'): number | null {
-    if (period === 'daily') return cap.daily_limit;
-    if (period === 'weekly') return cap.weekly_limit;
-    if (period === 'monthly') return cap.monthly_limit;
+    if (period === 'daily') {return cap.daily_limit;}
+    if (period === 'weekly') {return cap.weekly_limit;}
+    if (period === 'monthly') {return cap.monthly_limit;}
     return null;
   }
 

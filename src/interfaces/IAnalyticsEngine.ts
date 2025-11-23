@@ -17,24 +17,24 @@ export interface IAnalyticsEngine {
   calculatePerformanceMetrics(
     timeRange: TimeRange
   ): Promise<PerformanceMetrics>;
-  
+
   /**
    * Compute agreement matrix from deliberation data
    */
   computeAgreementMatrix(): Promise<AgreementMatrix>;
-  
+
   /**
    * Calculate influence scores based on consensus decisions
    */
   calculateInfluenceScores(): Promise<InfluenceScores>;
-  
+
   /**
    * Aggregate cost analytics by time period
    */
   aggregateCostAnalytics(
     timeRange: TimeRange
   ): Promise<CostAnalytics>;
-  
+
   /**
    * Calculate cost-per-quality analysis
    */

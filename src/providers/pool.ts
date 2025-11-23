@@ -22,14 +22,14 @@ export class ProviderPool implements IProviderPool {
   private latencyTracking: Map<string, ProviderLatencyTracking>;
   private healthTracker: ProviderHealthTracker;
   private readonly maxLatencyHistory = 100;
-  
+
   constructor(healthTracker?: ProviderHealthTracker) {
     this.adapters = new Map();
     this.latencyTracking = new Map();
     this.healthTracker = healthTracker || getSharedHealthTracker();
     this.initializeAdapters();
   }
-  
+
   /**
    * Initialize provider adapters with API keys from environment
    */
@@ -37,23 +37,23 @@ export class ProviderPool implements IProviderPool {
     const openaiKey = process.env.OPENAI_API_KEY;
     const anthropicKey = process.env.ANTHROPIC_API_KEY;
     const googleKey = process.env.GOOGLE_API_KEY;
-    
+
     if (openaiKey) {
       this.adapters.set('openai', new OpenAIAdapter(openaiKey));
       this.initializeHealthTracking('openai');
     }
-    
+
     if (anthropicKey) {
       this.adapters.set('anthropic', new AnthropicAdapter(anthropicKey));
       this.initializeHealthTracking('anthropic');
     }
-    
+
     if (googleKey) {
       this.adapters.set('google', new GoogleAdapter(googleKey));
       this.initializeHealthTracking('google');
     }
   }
-  
+
   /**
    * Initialize health tracking for a provider
    */
@@ -65,7 +65,7 @@ export class ProviderPool implements IProviderPool {
       totalRequests: 0
     });
   }
-  
+
   /**
    * Send a request to a specific council member's provider
    */
@@ -75,7 +75,7 @@ export class ProviderPool implements IProviderPool {
     context?: ConversationContext
   ): Promise<ProviderResponse> {
     const adapter = this.adapters.get(member.provider);
-    
+
     if (!adapter) {
       return {
         content: '',
@@ -85,7 +85,7 @@ export class ProviderPool implements IProviderPool {
         error: new Error(`Provider ${member.provider} not configured`)
       };
     }
-    
+
     if (this.healthTracker.isDisabled(member.provider)) {
       const disabledReason = this.healthTracker.getDisabledReason(member.provider);
       return {
@@ -96,7 +96,7 @@ export class ProviderPool implements IProviderPool {
         error: new Error(`Provider ${member.provider} is disabled: ${disabledReason || 'Unknown reason'}`)
       };
     }
-    
+
     try {
       const response = await adapter.sendRequest(member, prompt, context);
       this.updateHealthTracking(member.provider, response);
@@ -113,7 +113,7 @@ export class ProviderPool implements IProviderPool {
       return failedResponse;
     }
   }
-  
+
   /**
    * Update health tracking based on request result
    */
@@ -132,18 +132,18 @@ export class ProviderPool implements IProviderPool {
       }
       return;
     }
-    
+
     latency.totalRequests++;
-    
+
     if (response.success) {
       latency.successCount++;
-      
+
       // Track latency locally (for ProviderHealth calculation)
       latency.latencies.push(response.latency);
       if (latency.latencies.length > this.maxLatencyHistory) {
         latency.latencies.shift();
       }
-      
+
       // Record success in shared tracker
       this.healthTracker.recordSuccess(providerId);
     } else {
@@ -151,23 +151,23 @@ export class ProviderPool implements IProviderPool {
       this.healthTracker.recordFailure(providerId);
     }
   }
-  
+
   /**
    * Calculate average latency from array
    */
   private calculateAverageLatency(latencies: number[]): number {
-    if (latencies.length === 0) return 0;
+    if (latencies.length === 0) {return 0;}
     const sum = latencies.reduce((acc, val) => acc + val, 0);
     return sum / latencies.length;
   }
-  
+
   /**
    * Get health status of a provider
    */
   getProviderHealth(providerId: string): ProviderHealth {
     const latency = this.latencyTracking.get(providerId);
     const status = this.healthTracker.getHealthStatus(providerId);
-    
+
     if (!latency) {
       return {
         providerId,
@@ -176,16 +176,16 @@ export class ProviderPool implements IProviderPool {
         avgLatency: 0
       };
     }
-    
+
     // Use rolling window success rate from health tracker for accurate metrics
     // This provides more responsive metrics that reflect recent performance
     const successRate = this.healthTracker.getSuccessRate(providerId);
-    
+
     const avgLatency = this.calculateAverageLatency(latency.latencies);
-    
+
     // Get actual last failure timestamp from health tracker
     const lastFailure = this.healthTracker.getLastFailure(providerId);
-    
+
     return {
       providerId,
       status,
@@ -194,31 +194,31 @@ export class ProviderPool implements IProviderPool {
       lastFailure
     };
   }
-  
+
   /**
    * Mark a provider as disabled due to failures
    */
   markProviderDisabled(providerId: string, reason: string): void {
     this.healthTracker.markDisabled(providerId, reason);
   }
-  
+
   /**
    * Re-enable a disabled provider (for manual recovery)
    */
   enableProvider(providerId: string): void {
     this.healthTracker.enableProvider(providerId);
   }
-  
+
   /**
    * Get all provider health statuses
    */
   getAllProviderHealth(): ProviderHealth[] {
     const healthStatuses: ProviderHealth[] = [];
-    
+
     for (const providerId of this.adapters.keys()) {
       healthStatuses.push(this.getProviderHealth(providerId));
     }
-    
+
     return healthStatuses;
   }
 }

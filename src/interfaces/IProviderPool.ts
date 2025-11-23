@@ -18,7 +18,7 @@ export interface IProviderPool {
     prompt: string,
     context?: ConversationContext
   ): Promise<ProviderResponse>;
-  
+
   /**
    * Get health status of a provider
    */
@@ -30,12 +30,12 @@ export interface IProviderPool {
    * of every provider without issuing individual calls for each one.
    */
   getAllProviderHealth(): ProviderHealth[];
-  
+
   /**
    * Get health status of all providers
    */
   getAllProviderHealth(): ProviderHealth[];
-  
+
   /**
    * Mark a provider as disabled due to failures
    */

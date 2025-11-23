@@ -651,7 +651,7 @@ describe('Dashboard - Deliberation Data', () => {
 
       const warnings = await dashboard.getDisabledMemberWarnings();
 
-      expect(warnings.length).toBe(1);
+      expect(warnings).toHaveLength(1);
       expect(warnings[0]).toContain('disabled');
       expect(warnings[0]).toContain('openai');
     });
@@ -1286,7 +1286,7 @@ describe('Dashboard - Provider Health', () => {
       const result = await dashboard.getProviderHealthStatus();
 
       const disabled = result.filter(h => h.status === 'disabled');
-      expect(disabled.length).toBe(1);
+      expect(disabled).toHaveLength(1);
       expect(disabled[0].providerId).toBe('anthropic');
     });
   });

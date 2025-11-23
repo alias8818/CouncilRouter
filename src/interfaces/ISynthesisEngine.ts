@@ -18,7 +18,7 @@ export interface ISynthesisEngine {
     thread: DeliberationThread,
     strategy: SynthesisStrategy
   ): Promise<ConsensusDecision>;
-  
+
   /**
    * Select a moderator for meta-synthesis
    */

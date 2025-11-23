@@ -24,7 +24,7 @@ let mockRedis: jest.Mocked<RedisClientType>;
 let configManager: ConfigurationManager;
 
 // Storage for simulating database persistence
-let configStorage: Map<string, any> = new Map();
+const configStorage: Map<string, any> = new Map();
 
 // Arbitraries for generating test data with diverse timeout and retry values
 const retryPolicyArbitrary = fc.record({
@@ -302,7 +302,7 @@ describe('Property Test: Per-Provider Configuration Support', () => {
 
           // Verify the config was actually saved
           const retrieved = await configManager.getCouncilConfig();
-          expect(retrieved.members.length).toBe(config.members.length);
+          expect(retrieved.members).toHaveLength(config.members.length);
         }
       ),
       { numRuns: 100 }

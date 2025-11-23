@@ -90,7 +90,7 @@ describe('Property 46: Red-team result recording', () => {
           }
 
           // Property: All results should be recorded
-          expect(recordedResults.length).toBe(results.length);
+          expect(recordedResults).toHaveLength(results.length);
 
           // Property: Each recorded result should include compromised status
           for (const recorded of recordedResults) {

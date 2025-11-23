@@ -14,6 +14,9 @@ import {
   ModeratorStrategy,
   Exchange
 } from '../types/core';
+import { CodeDetector } from './code-detector';
+import { CodeSimilarityCalculator } from './code-similarity';
+import { CodeValidator } from './code-validator';
 
 /**
  * Model rankings for strongest moderator selection
@@ -36,7 +39,7 @@ const MODEL_RANKINGS: Record<string, number> = {
   'grok-2': 88,
 
   // === Current 2025 frontier closed models (as of 22 Nov 2025) ===
-  // Sources: Chatbot Arena (Gemini 2.5 Pro still #1 Elo ~1451), Artificial Analysis, 
+  // Sources: Chatbot Arena (Gemini 2.5 Pro still #1 Elo ~1451), Artificial Analysis,
   // LiveBench, EQ-Bench3 (Grok 4.1 leads), SWE-bench Verified, GPQA Diamond, AIME 2025, IOI-style leaderboards
   'gemini-2.5-pro': 114,         // Current Chatbot Arena leader, strongest multimodal + search integration
   'gemini-3-pro': 113,           // Very close behind; newer but slightly lower Elo in latest snapshot
@@ -72,6 +75,9 @@ export class SynthesisEngine implements ISynthesisEngine {
   private rotationLock: Promise<void> = Promise.resolve();
   private providerPool: IProviderPool;
   private configManager: IConfigurationManager;
+  private codeDetector: CodeDetector;
+  private codeSimilarityCalculator: CodeSimilarityCalculator;
+  private codeValidator: CodeValidator;
 
   constructor(
     providerPool: IProviderPool,
@@ -79,6 +85,9 @@ export class SynthesisEngine implements ISynthesisEngine {
   ) {
     this.providerPool = providerPool;
     this.configManager = configManager;
+    this.codeDetector = new CodeDetector();
+    this.codeSimilarityCalculator = new CodeSimilarityCalculator();
+    this.codeValidator = new CodeValidator();
   }
 
   /**
@@ -146,13 +155,27 @@ export class SynthesisEngine implements ISynthesisEngine {
     // Calculate agreement level based on content similarity
     const agreementLevel = this.calculateAgreementLevel(exchanges);
 
+    // Apply validation weights if code is detected
+    const validationWeights = this.weightByValidation(exchanges);
+
     // Group responses by similarity
     const responseGroups = this.groupSimilarResponses(exchanges);
 
-    // Find majority position (largest group)
-    const majorityGroup = responseGroups.reduce((largest, current) =>
-      current.length > largest.length ? current : largest
-    );
+    // Find majority position (largest group, weighted by validation if code detected)
+    const majorityGroup = responseGroups.reduce((largest, current) => {
+      // Calculate weighted size (size * average validation weight)
+      const currentAvgWeight = current.reduce((sum, e) => {
+        return sum + (validationWeights.get(e.councilMemberId) || 1.0);
+      }, 0) / current.length;
+      const currentWeightedSize = current.length * currentAvgWeight;
+
+      const largestAvgWeight = largest.reduce((sum, e) => {
+        return sum + (validationWeights.get(e.councilMemberId) || 1.0);
+      }, 0) / largest.length;
+      const largestWeightedSize = largest.length * largestAvgWeight;
+
+      return currentWeightedSize > largestWeightedSize ? current : largest;
+    });
 
     // Extract consensus from majority group
     const majorityContent = majorityGroup.map(e => e.content).join('\n\n');
@@ -195,6 +218,17 @@ export class SynthesisEngine implements ISynthesisEngine {
     // Calculate agreement level
     const agreementLevel = this.calculateAgreementLevel(exchanges);
 
+    // Apply validation weights if code is detected
+    const validationWeights = this.weightByValidation(exchanges);
+
+    // Multiply base weights by validation weights
+    const finalWeights = new Map<string, number>();
+    exchanges.forEach(exchange => {
+      const baseWeight = weights.get(exchange.councilMemberId) || 1.0;
+      const validationWeight = validationWeights.get(exchange.councilMemberId) || 1.0;
+      finalWeights.set(exchange.councilMemberId, baseWeight * validationWeight);
+    });
+
     // Group exchanges by council member
     const exchangesByMember = new Map<string, Exchange[]>();
     exchanges.forEach(exchange => {
@@ -206,27 +240,27 @@ export class SynthesisEngine implements ISynthesisEngine {
     // Build weighted synthesis
     let synthesis = 'Weighted synthesis of council responses:\n\n';
 
-    // Sort members by weight (highest first)
+    // Sort members by final weight (highest first)
     const sortedMembers = Array.from(exchangesByMember.keys()).sort((a, b) => {
-      const weightA = weights.get(a) || 1.0;
-      const weightB = weights.get(b) || 1.0;
+      const weightA = finalWeights.get(a) || 1.0;
+      const weightB = finalWeights.get(b) || 1.0;
       return weightB - weightA;
     });
 
     sortedMembers.forEach(memberId => {
       const memberExchanges = exchangesByMember.get(memberId)!;
-      const weight = weights.get(memberId) || 1.0;
+      const weight = finalWeights.get(memberId) || 1.0;
       const memberContent = memberExchanges.map(e => e.content).join('\n');
 
       synthesis += `[Weight: ${weight.toFixed(2)}] ${memberId}:\n${memberContent}\n\n`;
     });
 
     // Confidence based on weight distribution and agreement
-    const weightValues = Array.from(weights.values());
+    const weightValues = Array.from(finalWeights.values());
     // Handle empty weights case: if no weights provided, all members have equal weight (1.0),
     // so weightSpread is 0
-    const weightSpread = weightValues.length === 0 
-      ? 0 
+    const weightSpread = weightValues.length === 0
+      ? 0
       : Math.max(...weightValues) - Math.min(...weightValues);
 
     // High confidence if weights are well-distributed and agreement is high
@@ -262,22 +296,42 @@ export class SynthesisEngine implements ISynthesisEngine {
       );
 
       // Construct prompt for moderator
-      let prompt = `You are the Moderator for an AI Council. Your task is to synthesize the responses from multiple AI models into a single, coherent, and comprehensive answer.\n\n`;
+      let prompt = 'You are the Moderator for an AI Council. Your task is to synthesize the responses from multiple AI models into a single, coherent, and comprehensive answer.\n\n';
 
-      prompt += `Here are the responses from the council members:\n\n`;
+      prompt += 'Here are the responses from the council members:\n\n';
 
       exchanges.forEach((exchange, index) => {
         prompt += `--- Council Member ${exchange.councilMemberId} ---\n`;
         prompt += `${exchange.content}\n\n`;
       });
 
-      prompt += `Instructions:\n`;
-      prompt += `1. Identify the core consensus among the models.\n`;
-      prompt += `2. Highlight any significant disagreements or alternative perspectives.\n`;
-      prompt += `3. Synthesize the best parts of each response into a final, high-quality answer.\n`;
-      prompt += `4. Do not just list the responses; integrate them.\n`;
-      prompt += `5. If there are conflicts, explain the trade-offs.\n\n`;
-      prompt += `Provide your synthesized response now:`;
+      // Detect if responses contain code
+      const hasCode = exchanges.some(e => {
+        try {
+          return this.codeDetector.detectCode(e.content);
+        } catch {
+          return false;
+        }
+      });
+
+      // Use code-specific instructions if code detected
+      if (hasCode) {
+        prompt += 'Instructions for CODE synthesis:\n';
+        prompt += '1. Identify the functionally correct solutions (ignore style differences).\n';
+        prompt += '2. Combine the best error handling from all responses.\n';
+        prompt += '3. Include the most comprehensive edge case handling.\n';
+        prompt += '4. Prefer solutions with better time/space complexity.\n';
+        prompt += '5. Ensure the final code is syntactically valid.\n';
+        prompt += '6. Add comments explaining key decisions.\n\n';
+      } else {
+        prompt += 'Instructions:\n';
+        prompt += '1. Identify the core consensus among the models.\n';
+        prompt += '2. Highlight any significant disagreements or alternative perspectives.\n';
+        prompt += '3. Synthesize the best parts of each response into a final, high-quality answer.\n';
+        prompt += '4. Do not just list the responses; integrate them.\n';
+        prompt += '5. If there are conflicts, explain the trade-offs.\n\n';
+      }
+      prompt += 'Provide your synthesized response now:';
 
       // Send request to moderator
       const response = await this.providerPool.sendRequest(moderator, prompt);
@@ -328,6 +382,87 @@ export class SynthesisEngine implements ISynthesisEngine {
       return 1.0;
     }
 
+    // Detect if responses contain code
+    try {
+      const hasCode = exchanges.some(e => this.codeDetector.detectCode(e.content));
+
+      if (hasCode) {
+        return this.calculateCodeAgreement(exchanges);
+      }
+    } catch (error) {
+      // Fall back to text similarity on code detection failure
+      console.warn('Code detection failed, falling back to text similarity:', error);
+    }
+
+    // Fall back to existing text-based similarity
+    return this.calculateTextAgreement(exchanges);
+  }
+
+  /**
+   * Calculate agreement for code responses
+   */
+  private calculateCodeAgreement(exchanges: Exchange[]): number {
+    try {
+      const codeBlocks = exchanges.map(e => {
+        // Use extractCodeSegments which handles both markdown blocks
+        // and keyword-detected code segments
+        const blocks = this.codeDetector.extractCodeSegments(e.content);
+        
+        // If we found code segments, use them; otherwise fall back to text similarity
+        if (blocks.length > 0) {
+          return blocks.join('\n');
+        }
+        
+        // No code segments found - this shouldn't happen if detectCode returned true,
+        // but if it does, fall back to text similarity for this exchange
+        return null;
+      });
+
+      // Filter out null entries (exchanges where no code was actually extracted)
+      const validCodeBlocks = codeBlocks.filter((block): block is string => block !== null);
+      
+      // If we couldn't extract code from any exchanges, fall back to text similarity
+      if (validCodeBlocks.length === 0) {
+        console.warn('Code detected but extraction failed, falling back to text similarity');
+        return this.calculateTextAgreement(exchanges);
+      }
+
+      // If we only have one valid code block, we can't compare
+      if (validCodeBlocks.length === 1) {
+        return 0.5; // Neutral similarity score
+      }
+
+      let totalSimilarity = 0;
+      let comparisons = 0;
+
+      for (let i = 0; i < validCodeBlocks.length; i++) {
+        for (let j = i + 1; j < validCodeBlocks.length; j++) {
+          try {
+            const similarity = this.codeSimilarityCalculator.calculateSimilarity(
+              validCodeBlocks[i],
+              validCodeBlocks[j]
+            );
+            totalSimilarity += similarity;
+            comparisons++;
+          } catch (error) {
+            // Skip failed comparisons
+            console.warn('Code similarity calculation failed:', error);
+          }
+        }
+      }
+
+      return comparisons > 0 ? totalSimilarity / comparisons : 0;
+    } catch (error) {
+      // Fall back to text similarity on error
+      console.warn('Code agreement calculation failed, falling back to text similarity:', error);
+      return this.calculateTextAgreement(exchanges);
+    }
+  }
+
+  /**
+   * Calculate text-based agreement (existing implementation)
+   */
+  private calculateTextAgreement(exchanges: Exchange[]): number {
     // Use TF-IDF Cosine Similarity for better semantic agreement detection
     const vectors = this.computeTfIdfVectors(exchanges.map(e => e.content));
 
@@ -343,6 +478,47 @@ export class SynthesisEngine implements ISynthesisEngine {
     }
 
     return comparisons > 0 ? totalSimilarity / comparisons : 0;
+  }
+
+  /**
+   * Apply validation-based weighting
+   */
+  private weightByValidation(exchanges: Exchange[]): Map<string, number> {
+    const weights = new Map<string, number>();
+
+    for (const exchange of exchanges) {
+      try {
+        const codeBlocks = this.codeDetector.extractCode(exchange.content);
+
+        if (codeBlocks.length === 0) {
+          // No code detected, use neutral weight
+          weights.set(exchange.councilMemberId, 1.0);
+          continue;
+        }
+
+        // Validate all code blocks and average the weights
+        let totalWeight = 0;
+        for (const code of codeBlocks) {
+          try {
+            const validation = this.codeValidator.validateCode(code);
+            totalWeight += validation.weight;
+          } catch (error) {
+            // On validation failure, use neutral weight
+            totalWeight += 1.0;
+            console.warn('Code validation failed:', error);
+          }
+        }
+
+        const avgWeight = totalWeight / codeBlocks.length;
+        weights.set(exchange.councilMemberId, avgWeight);
+      } catch (error) {
+        // On extraction failure, use neutral weight
+        weights.set(exchange.councilMemberId, 1.0);
+        console.warn('Code extraction failed for validation:', error);
+      }
+    }
+
+    return weights;
   }
 
   /**
@@ -420,7 +596,7 @@ export class SynthesisEngine implements ISynthesisEngine {
       mag2 += val2 * val2;
     });
 
-    if (mag1 === 0 || mag2 === 0) return 0;
+    if (mag1 === 0 || mag2 === 0) {return 0;}
     return dotProduct / (Math.sqrt(mag1) * Math.sqrt(mag2));
   }
 
@@ -437,13 +613,13 @@ export class SynthesisEngine implements ISynthesisEngine {
     const used = new Set<number>();
 
     for (let i = 0; i < exchanges.length; i++) {
-      if (used.has(i)) continue;
+      if (used.has(i)) {continue;}
 
       const group: Exchange[] = [exchanges[i]];
       used.add(i);
 
       for (let j = i + 1; j < exchanges.length; j++) {
-        if (used.has(j)) continue;
+        if (used.has(j)) {continue;}
 
         const similarity = this.cosineSimilarity(vectors[i], vectors[j]);
 
@@ -510,7 +686,7 @@ export class SynthesisEngine implements ISynthesisEngine {
       case 'rotate':
         // Use a promise-based lock to ensure atomic rotation across concurrent async calls
         // This guarantees each call gets a unique sequential index
-        return await this.getNextRotationMember(members);
+        return this.getNextRotationMember(members);
 
       case 'strongest':
         // Select based on model rankings

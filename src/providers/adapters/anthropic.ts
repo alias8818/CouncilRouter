@@ -37,7 +37,7 @@ interface AnthropicResponse {
 export class AnthropicAdapter extends BaseProviderAdapter {
   private readonly baseUrl = 'https://api.anthropic.com/v1';
   private readonly apiVersion = '2023-06-01';
-  
+
   async sendRequest(
     member: CouncilMember,
     prompt: string,
@@ -46,7 +46,7 @@ export class AnthropicAdapter extends BaseProviderAdapter {
     return this.executeWithRetry(member, async () => {
       const requestBody = this.formatRequest(prompt, context);
       requestBody.model = member.model;
-      
+
       const response = await fetch(`${this.baseUrl}/messages`, {
         method: 'POST',
         headers: {
@@ -56,17 +56,17 @@ export class AnthropicAdapter extends BaseProviderAdapter {
         },
         body: JSON.stringify(requestBody)
       });
-      
+
       if (!response.ok) {
         const error: any = new Error(`Anthropic API error: ${response.statusText}`);
         error.status = response.status;
         throw error;
       }
-      
-      return await response.json();
+
+      return response.json();
     });
   }
-  
+
   async getHealth(): Promise<{ available: boolean; latency?: number }> {
     const startTime = Date.now();
     try {
@@ -84,7 +84,7 @@ export class AnthropicAdapter extends BaseProviderAdapter {
           max_tokens: 1
         })
       });
-      
+
       const latency = Date.now() - startTime;
       return {
         available: response.ok || response.status === 400, // 400 is ok for health check
@@ -94,10 +94,10 @@ export class AnthropicAdapter extends BaseProviderAdapter {
       return { available: false };
     }
   }
-  
+
   protected formatRequest(prompt: string, context?: ConversationContext): AnthropicRequest {
     const messages: AnthropicMessage[] = [];
-    
+
     // Add conversation history if available
     if (context?.messages) {
       for (const entry of context.messages) {
@@ -107,13 +107,13 @@ export class AnthropicAdapter extends BaseProviderAdapter {
         });
       }
     }
-    
+
     // Add current prompt
     messages.push({
       role: 'user',
       content: prompt
     });
-    
+
     return {
       model: '', // Will be set by sendRequest
       messages,
@@ -121,7 +121,7 @@ export class AnthropicAdapter extends BaseProviderAdapter {
       temperature: 0.7
     };
   }
-  
+
   protected parseResponse(response: AnthropicResponse): { content: string; tokenUsage: TokenUsage } {
     const content = response.content[0]?.text || '';
     const tokenUsage: TokenUsage = {
@@ -129,7 +129,7 @@ export class AnthropicAdapter extends BaseProviderAdapter {
       completionTokens: response.usage.output_tokens,
       totalTokens: response.usage.input_tokens + response.usage.output_tokens
     };
-    
+
     return { content, tokenUsage };
   }
 }

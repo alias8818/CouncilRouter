@@ -91,7 +91,7 @@ describe('Property Test: Logged Responses Have Correct Member IDs', () => {
           
           // Property assertions:
           // Should have logged exactly one query
-          expect(queries.length).toBe(1);
+          expect(queries).toHaveLength(1);
           
           const loggedQuery = queries[0];
           
@@ -149,7 +149,7 @@ describe('Property Test: Logged Responses Have Correct Member IDs', () => {
           
           // Property assertions:
           // Should have logged one query per response
-          expect(queries.length).toBe(uniqueResponses.length);
+          expect(queries).toHaveLength(uniqueResponses.length);
           
           // Extract logged member IDs
           const loggedMemberIds = queries.map(q => q.values[2]);

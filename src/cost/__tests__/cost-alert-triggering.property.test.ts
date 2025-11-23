@@ -86,7 +86,7 @@ describe('Property 15: Cost alert triggering', () => {
           const alerts = calculator.checkCostAlerts(cost, periodKey);
 
           // Property: No alert should be triggered when cost is below threshold
-          expect(alerts.length).toBe(0);
+          expect(alerts).toHaveLength(0);
         }
       ),
       { numRuns: 100 }
@@ -188,7 +188,7 @@ describe('Property 15: Cost alert triggering', () => {
           const alerts = calculator.checkCostAlerts(cost, periodKey);
 
           // Property: Disabled alert should not trigger
-          expect(alerts.length).toBe(0);
+          expect(alerts).toHaveLength(0);
         }
       ),
       { numRuns: 100 }
@@ -220,7 +220,7 @@ describe('Property 15: Cost alert triggering', () => {
             a.enabled && cost >= a.threshold && periodKey.includes(a.period)
           ).length;
 
-          expect(triggeredAlerts.length).toBe(expectedTriggers);
+          expect(triggeredAlerts).toHaveLength(expectedTriggers);
         }
       ),
       { numRuns: 100 }
@@ -313,7 +313,7 @@ describe('Property 15: Cost alert triggering', () => {
 
           // Property: Zero cost should not trigger any alerts (assuming threshold > 0)
           if (alert.threshold > 0) {
-            expect(alerts.length).toBe(0);
+            expect(alerts).toHaveLength(0);
           }
         }
       ),

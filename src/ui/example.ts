@@ -1,6 +1,6 @@
 /**
  * Example usage of the User Interface
- * 
+ *
  * This demonstrates how to start the UI server alongside the API Gateway
  */
 
@@ -22,12 +22,12 @@ async function startServers() {
     port: parseInt(process.env.DB_PORT || '5432'),
     database: process.env.DB_NAME || 'ai_council',
     user: process.env.DB_USER || 'postgres',
-    password: process.env.DB_PASSWORD || 'postgres',
+    password: process.env.DB_PASSWORD || 'postgres'
   });
 
   // Initialize Redis client
   const redis = createClient({
-    url: process.env.REDIS_URL || 'redis://localhost:6379',
+    url: process.env.REDIS_URL || 'redis://localhost:6379'
   });
   await redis.connect();
 

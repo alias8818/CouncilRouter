@@ -348,99 +348,99 @@ export class APIGateway implements IAPIGateway {
       const body = req.body as APIRequestBody;
       const userId = req.userId!;
 
-        // Check for idempotency key in header
-        const idempotencyKey = req.headers['idempotency-key'] as string | undefined;
-        const scopedIdempotencyKey = idempotencyKey
-          ? this.createUserScopedIdempotencyKey(userId, idempotencyKey)
-          : undefined;
+      // Check for idempotency key in header
+      const idempotencyKey = req.headers['idempotency-key'] as string | undefined;
+      const scopedIdempotencyKey = idempotencyKey
+        ? this.createUserScopedIdempotencyKey(userId, idempotencyKey)
+        : undefined;
 
-        // Handle idempotency if cache is available and key is provided
-        if (this.idempotencyCache && scopedIdempotencyKey) {
-          const status = await this.idempotencyCache.checkKey(scopedIdempotencyKey);
+      // Handle idempotency if cache is available and key is provided
+      if (this.idempotencyCache && scopedIdempotencyKey) {
+        const status = await this.idempotencyCache.checkKey(scopedIdempotencyKey);
 
-          // If key exists and is completed, return cached result
-          if (status.exists && status.status === 'completed' && status.result) {
-            const response: APIResponse = {
-              requestId: status.result.requestId,
-              status: 'completed',
-              consensusDecision: status.result.consensusDecision?.content,
-              createdAt: status.result.timestamp,
-              completedAt: status.result.timestamp,
-              fromCache: true
-            };
-            res.status(200).json(response);
-            return;
-          }
+        // If key exists and is completed, return cached result
+        if (status.exists && status.status === 'completed' && status.result) {
+          const response: APIResponse = {
+            requestId: status.result.requestId,
+            status: 'completed',
+            consensusDecision: status.result.consensusDecision?.content,
+            createdAt: status.result.timestamp,
+            completedAt: status.result.timestamp,
+            fromCache: true
+          };
+          res.status(200).json(response);
+          return;
+        }
 
-          // If key exists and is failed, return cached error
-          if (status.exists && status.status === 'failed' && status.result) {
-            res.status(500).json(status.result.error);
-            return;
-          }
+        // If key exists and is failed, return cached error
+        if (status.exists && status.status === 'failed' && status.result) {
+          res.status(500).json(status.result.error);
+          return;
+        }
 
-          // If key exists and is in-progress, wait for completion
-          if (status.exists && status.status === 'in-progress') {
-            try {
-              const result = await this.idempotencyCache.waitForCompletion(scopedIdempotencyKey, 30000);
+        // If key exists and is in-progress, wait for completion
+        if (status.exists && status.status === 'in-progress') {
+          try {
+            const result = await this.idempotencyCache.waitForCompletion(scopedIdempotencyKey, 30000);
 
-              if (result.consensusDecision) {
-                const response: APIResponse = {
-                  requestId: result.requestId,
-                  status: 'completed',
-                  consensusDecision: result.consensusDecision.content,
-                  createdAt: result.timestamp,
-                  completedAt: result.timestamp,
-                  fromCache: true
-                };
-                res.status(200).json(response);
-              } else if (result.error) {
-                res.status(500).json(result.error);
-              } else {
-                res.status(500).json(this.createErrorResponse(
-                  'IDEMPOTENCY_RESULT_INVALID',
-                  'Cached result is missing response data for this idempotency key',
-                  { requestId: result.requestId },
-                  true
-                ));
-              }
-              return;
-            } catch (waitError) {
-              // Timeout or error waiting - check cache again to get request ID
-              const updatedStatus = await this.idempotencyCache.checkKey(scopedIdempotencyKey);
-              let actualRequestId = 'unknown';
-
-              // Try to extract request ID from cache record
-              if (updatedStatus.result) {
-                actualRequestId = updatedStatus.result.requestId;
-              }
-
-              // Return 202 and let client poll with the actual request ID
+            if (result.consensusDecision) {
               const response: APIResponse = {
-                requestId: actualRequestId,
-                status: 'processing',
-                createdAt: new Date()
+                requestId: result.requestId,
+                status: 'completed',
+                consensusDecision: result.consensusDecision.content,
+                createdAt: result.timestamp,
+                completedAt: result.timestamp,
+                fromCache: true
               };
-              res.status(202).json(response);
-              return;
+              res.status(200).json(response);
+            } else if (result.error) {
+              res.status(500).json(result.error);
+            } else {
+              res.status(500).json(this.createErrorResponse(
+                'IDEMPOTENCY_RESULT_INVALID',
+                'Cached result is missing response data for this idempotency key',
+                { requestId: result.requestId },
+                true
+              ));
             }
+            return;
+          } catch (waitError) {
+            // Timeout or error waiting - check cache again to get request ID
+            const updatedStatus = await this.idempotencyCache.checkKey(scopedIdempotencyKey);
+            let actualRequestId = 'unknown';
+
+            // Try to extract request ID from cache record
+            if (updatedStatus.result) {
+              actualRequestId = updatedStatus.result.requestId;
+            }
+
+            // Return 202 and let client poll with the actual request ID
+            const response: APIResponse = {
+              requestId: actualRequestId,
+              status: 'processing',
+              createdAt: new Date()
+            };
+            res.status(202).json(response);
+            return;
           }
         }
+      }
 
       // Process new request
       const requestId = randomUUID();
 
       // Mark as in-progress in idempotency cache
-        if (this.idempotencyCache && scopedIdempotencyKey) {
+      if (this.idempotencyCache && scopedIdempotencyKey) {
         try {
-            await this.idempotencyCache.markInProgress(scopedIdempotencyKey, requestId, 86400);
+          await this.idempotencyCache.markInProgress(scopedIdempotencyKey, requestId, 86400);
         } catch (error) {
           // Key already exists (race condition) - wait for the existing request
-            const status = await this.idempotencyCache.checkKey(scopedIdempotencyKey);
+          const status = await this.idempotencyCache.checkKey(scopedIdempotencyKey);
 
           if (status.exists && status.status === 'in-progress') {
             // Another request is processing with this key - wait for it
-              try {
-                const result = await this.idempotencyCache.waitForCompletion(scopedIdempotencyKey, 30000);
+            try {
+              const result = await this.idempotencyCache.waitForCompletion(scopedIdempotencyKey, 30000);
 
               if (result.consensusDecision) {
                 const response: APIResponse = {
@@ -536,8 +536,8 @@ export class APIGateway implements IAPIGateway {
 
       // Process request asynchronously
       // Don't await - fire and forget, but catch errors to prevent unhandled rejections
-        this.processRequestAsync(userRequest, body.streaming || false, scopedIdempotencyKey).catch(async (error) => {
-        if ((error as any)?.handledByProcessRequestAsync) {
+      this.processRequestAsync(userRequest, body.streaming || false, scopedIdempotencyKey).catch(async (error) => {
+        if ((error)?.handledByProcessRequestAsync) {
           return;
         }
 
@@ -553,7 +553,7 @@ export class APIGateway implements IAPIGateway {
           }
 
           // Cache error in idempotency cache
-            if (this.idempotencyCache && scopedIdempotencyKey) {
+          if (this.idempotencyCache && scopedIdempotencyKey) {
             const errorResponse: ErrorResponse = {
               error: {
                 code: 'INTERNAL_ERROR',
@@ -563,7 +563,7 @@ export class APIGateway implements IAPIGateway {
               requestId,
               timestamp: new Date()
             };
-              await this.idempotencyCache.cacheError(scopedIdempotencyKey, requestId, errorResponse, 86400);
+            await this.idempotencyCache.cacheError(scopedIdempotencyKey, requestId, errorResponse, 86400);
           }
         } catch (saveError) {
           console.error('Failed to save error state:', saveError);
@@ -783,7 +783,7 @@ export class APIGateway implements IAPIGateway {
     consensusDecision: ConsensusDecision
   ): void {
     const connections = this.streamingConnections.get(requestId);
-    if (!connections) return;
+    if (!connections) {return;}
 
     connections.forEach(res => {
       this.sendSSE(res, 'message', consensusDecision.content);
@@ -801,7 +801,7 @@ export class APIGateway implements IAPIGateway {
    */
   private notifyStreamingError(requestId: string, error: string): void {
     const connections = this.streamingConnections.get(requestId);
-    if (!connections) return;
+    if (!connections) {return;}
 
     connections.forEach(res => {
       this.sendSSE(res, 'error', error);
@@ -831,7 +831,7 @@ export class APIGateway implements IAPIGateway {
 
     // In test/development mode, allow shorter keys for testing
     const isTestOrDev = process.env.NODE_ENV === 'development' || process.env.NODE_ENV === 'test' || !process.env.NODE_ENV;
-    
+
     if (!isTestOrDev && apiKey.length < 32) {
       return false;
     }
@@ -977,7 +977,7 @@ export class APIGateway implements IAPIGateway {
    */
   private async fetchRequest(requestId: string): Promise<StoredRequest | null> {
     const data = await this.redis.get(`request:${requestId}`);
-    if (!data) return null;
+    if (!data) {return null;}
 
     const request = JSON.parse(data);
 

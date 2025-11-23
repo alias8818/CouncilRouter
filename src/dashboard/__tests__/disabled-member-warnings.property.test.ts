@@ -125,7 +125,7 @@ describe('Property 32: Disabled member warnings', () => {
           const disabledCount = normalizedHealth.filter(h => h.status === 'disabled').length;
 
           // Property: Number of warnings should equal number of disabled members
-          expect(warnings.length).toBe(disabledCount);
+          expect(warnings).toHaveLength(disabledCount);
 
           // Property: Each warning should mention the disabled member
           const disabledIds = normalizedHealth
@@ -196,7 +196,7 @@ describe('Property 32: Disabled member warnings', () => {
           const warnings = await dashboard.getDisabledMemberWarnings();
 
           // Property: No disabled members means no warnings
-          expect(warnings.length).toBe(0);
+          expect(warnings).toHaveLength(0);
         }
       ),
       { numRuns: 100 }
@@ -251,13 +251,13 @@ describe('Property 32: Disabled member warnings', () => {
           const warnings = await dashboard.getDisabledMemberWarnings();
 
           // Property: Exactly one warning per disabled member
-          expect(warnings.length).toBe(normalizedHealth.length);
+          expect(warnings).toHaveLength(normalizedHealth.length);
 
           // Property: Each provider ID appears in exactly one warning
           for (const health of normalizedHealth) {
             const pattern = `Council member ${health.providerId} is disabled`;
             const matchingWarnings = warnings.filter(w => w.includes(pattern));
-            expect(matchingWarnings.length).toBe(1);
+            expect(matchingWarnings).toHaveLength(1);
           }
         }
       ),

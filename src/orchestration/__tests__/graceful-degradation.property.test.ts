@@ -327,7 +327,7 @@ describe('Property Test: Graceful Degradation with Partial Responses', () => {
           
           // 4. The number of contributing members should equal the number of successful members
           const expectedSuccessfulCount = councilConfig.members.length - numMembersToFail;
-          expect(result.contributingMembers.length).toBe(expectedSuccessfulCount);
+          expect(result.contributingMembers).toHaveLength(expectedSuccessfulCount);
           
           // 5. Consensus decision should have valid structure
           expect(result.confidence).toBeDefined();
@@ -382,7 +382,7 @@ describe('Property Test: Graceful Degradation with Partial Responses', () => {
           expect(result.content).toBeDefined();
           
           // 2. Should have exactly one contributing member
-          expect(result.contributingMembers.length).toBe(1);
+          expect(result.contributingMembers).toHaveLength(1);
           
           // 3. The contributing member should be the one that didn't fail
           const successfulMember = councilConfig.members[numMembersToFail];
@@ -480,7 +480,7 @@ describe('Property Test: Graceful Degradation with Partial Responses', () => {
           
           // 5. Contributing members should match successful members
           const expectedSuccessfulCount = councilConfig.members.length - numMembersToFail;
-          expect(result.contributingMembers.length).toBe(expectedSuccessfulCount);
+          expect(result.contributingMembers).toHaveLength(expectedSuccessfulCount);
         }
       ),
       { numRuns: 100 }

@@ -105,6 +105,7 @@ The system follows a layered architecture:
 - **Orchestration Engine**: Coordinates the entire request lifecycle with timeout handling and graceful degradation
 - **Provider Pool**: Manages connections to AI provider APIs with health tracking and automatic disabling
 - **Synthesis Engine**: Combines council member responses into consensus using multiple strategies
+  - **Code-Aware Synthesis**: Advanced code detection and similarity calculation for functional equivalence
 - **Session Manager**: Manages conversation sessions and context with automatic summarization
 - **Configuration Manager**: Manages system configuration with validation and presets
 - **Event Logger**: Logs all system events for monitoring and analytics
@@ -112,6 +113,56 @@ The system follows a layered architecture:
 - **API Gateway**: REST API with authentication, rate limiting, streaming, and idempotency support
 - **Budget Enforcer**: Tracks spending and enforces budget caps per provider/model
 - **Tool Execution Engine**: Enables council members to use external tools during deliberation
+
+## Code-Aware Synthesis
+
+The AI Council Proxy includes advanced code-aware synthesis capabilities that understand and compare code responses based on functional equivalence rather than just text similarity.
+
+### Features
+
+- **Code Detection**: Automatically detects code blocks in responses (markdown fenced blocks, keywords)
+- **Language Identification**: Supports JavaScript, TypeScript, Python, Java, C#, Rust, Go, and more
+- **Functional Equivalence**: Compares code based on function signatures (70%), logic structure (20%), and variable names (10%)
+- **Code Validation**: Validates code quality (balanced brackets, syntax errors, error handling, documentation)
+- **Validation Weighting**: Applies quality-based weights to council member responses
+- **Code-Specific Prompts**: Uses specialized prompts for code synthesis that emphasize functional correctness
+
+### Usage
+
+Use the `coding-council` preset for code generation tasks:
+
+```typescript
+import { ConfigurationManager } from './config/manager';
+
+const config = await configManager.getPresetConfigurations('coding-council');
+// Configured with Claude Sonnet 4.5, GPT-5.1, and DeepSeek-v3
+// Optimized for code synthesis with 3 deliberation rounds
+```
+
+### Example
+
+When council members provide code responses, the system:
+1. Detects code blocks automatically
+2. Extracts function signatures and compares them
+3. Analyzes logic structure (control flow, nesting depth)
+4. Validates code quality (brackets, syntax, error handling)
+5. Applies validation weights to favor higher-quality code
+6. Uses code-specific synthesis prompts for better results
+
+### Performance
+
+- Code detection: <10ms
+- Similarity calculation: <100ms per pair
+- Validation: <50ms per block
+- End-to-end synthesis: <500ms for 3-member council
+- Size limits: 100KB per block, 1MB total
+
+### Security
+
+- ReDoS protection for regex patterns
+- Input size limits (10MB max)
+- No code execution (static analysis only)
+- Safe handling of special characters and unicode
 
 ## Documentation
 
@@ -152,6 +203,7 @@ The AI Council Proxy is feature-complete with all core components implemented:
 ✅ Session manager with context handling  
 ✅ Orchestration engine with deliberation  
 ✅ Synthesis engine with multiple strategies  
+✅ **Code-aware synthesis** with functional equivalence detection  
 ✅ Event logging and cost tracking  
 ✅ Analytics engine  
 ✅ Admin dashboard  

@@ -246,7 +246,7 @@ describe('SessionManager Property-Based Tests', () => {
             } else {
               // If within limits, should not be summarized
               expect(context.summarized).toBe(false);
-              expect(context.messages.length).toBe(testData.history.length);
+              expect(context.messages).toHaveLength(testData.history.length);
             }
           }
         ),
@@ -376,7 +376,7 @@ describe('SessionManager Property-Based Tests', () => {
             }
 
             // Assert: Should have one insert call per response
-            expect(allInsertCalls.length).toBe(testData.responses.length);
+            expect(allInsertCalls).toHaveLength(testData.responses.length);
 
             // Verify each response was inserted with correct data
             for (let i = 0; i < testData.responses.length; i++) {

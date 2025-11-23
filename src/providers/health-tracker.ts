@@ -62,16 +62,16 @@ export class ProviderHealthTracker {
       });
     }
   }
-  
+
   /**
    * Clean up old request records outside the rolling window
    */
   private cleanupOldRecords(state: ProviderHealthState): void {
     const cutoffTime = new Date(Date.now() - this.rollingWindowMs);
-    
+
     // Remove records older than the rolling window
     state.requestHistory = state.requestHistory.filter(record => record.timestamp >= cutoffTime);
-    
+
     // Recalculate counts based on remaining records (always, so new entries are counted immediately)
     state.totalRequests = state.requestHistory.length;
     state.successCount = state.requestHistory.filter(r => r.success).length;
@@ -211,7 +211,7 @@ export class ProviderHealthTracker {
     const state = this.healthState.get(providerId);
     return state?.status || 'healthy';
   }
-  
+
   /**
    * Get the last failure timestamp for a provider
    */
@@ -219,7 +219,7 @@ export class ProviderHealthTracker {
     const state = this.healthState.get(providerId);
     return state?.lastFailure;
   }
-  
+
   /**
    * Calculate success rate based on rolling window
    */
@@ -228,14 +228,14 @@ export class ProviderHealthTracker {
     if (!state || state.requestHistory.length === 0) {
       return 0;
     }
-    
+
     // Clean up old records
     this.cleanupOldRecords(state);
-    
+
     if (state.requestHistory.length === 0) {
       return 0;
     }
-    
+
     return state.successCount / state.requestHistory.length;
   }
 

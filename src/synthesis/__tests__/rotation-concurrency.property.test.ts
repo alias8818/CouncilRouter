@@ -92,7 +92,7 @@ describe('SynthesisEngine - Rotation Concurrency Property Test', () => {
           const selectedModerators = await Promise.all(selectionPromises);
 
           // Verify that we got exactly numRequests selections
-          expect(selectedModerators.length).toBe(numRequests);
+          expect(selectedModerators).toHaveLength(numRequests);
 
           // CRITICAL FIX: Test actual rotation properties, not exact distribution
           // The rotation mechanism should ensure:

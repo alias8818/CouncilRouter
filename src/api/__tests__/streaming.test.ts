@@ -443,7 +443,7 @@ describe('API Gateway Streaming - Connection Management', () => {
       (gateway as any).streamingConnections.set(requestId, connections);
       
       const currentConnections = (gateway as any).streamingConnections.get(requestId);
-      expect(currentConnections.length).toBe(MAX_CONNECTIONS);
+      expect(currentConnections).toHaveLength(MAX_CONNECTIONS);
     });
   });
 });
@@ -753,7 +753,7 @@ describe('API Gateway Streaming - Data Integrity & Auth', () => {
       (gateway as any).streamingConnections.set(requestId, connections);
       
       const stored = (gateway as any).streamingConnections.get(requestId);
-      expect(stored.length).toBe(1);
+      expect(stored).toHaveLength(1);
     });
   });
 

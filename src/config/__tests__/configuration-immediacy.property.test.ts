@@ -24,7 +24,7 @@ let mockRedis: jest.Mocked<RedisClientType>;
 let configManager: ConfigurationManager;
 
 // Storage for simulating database persistence
-let configStorage: Map<string, any> = new Map();
+const configStorage: Map<string, any> = new Map();
 
 // Arbitraries for generating test data
 const retryPolicyArbitrary = fc.record({
@@ -195,7 +195,7 @@ describe('Property Test: Configuration Immediacy', () => {
 
           // 4. The retrieved config should match the modified config, not the initial config
           // This ensures the update was applied immediately
-          expect(retrievedModified.members.length).toBe(modifiedConfig.members.length);
+          expect(retrievedModified.members).toHaveLength(modifiedConfig.members.length);
           expect(retrievedModified.minimumSize).toBe(modifiedConfig.minimumSize);
         }
       ),

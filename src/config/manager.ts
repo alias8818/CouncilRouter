@@ -69,10 +69,10 @@ export class ConfigurationManager implements IConfigurationManager {
     }
 
     const config = this.deserializeCouncilConfig(result.rows[0].config_data);
-    
+
     // Cache it
     await this.redis.set(this.CACHE_KEYS.council, JSON.stringify(result.rows[0].config_data));
-    
+
     return config;
   }
 
@@ -131,10 +131,10 @@ export class ConfigurationManager implements IConfigurationManager {
     }
 
     const config = result.rows[0].config_data;
-    
+
     // Cache it
     await this.redis.set(this.CACHE_KEYS.deliberation, JSON.stringify(config));
-    
+
     return config;
   }
 
@@ -161,10 +161,10 @@ export class ConfigurationManager implements IConfigurationManager {
     }
 
     const config = this.deserializeSynthesisConfig(result.rows[0].config_data);
-    
+
     // Cache it
     await this.redis.set(this.CACHE_KEYS.synthesis, JSON.stringify(result.rows[0].config_data));
-    
+
     return config;
   }
 
@@ -191,10 +191,10 @@ export class ConfigurationManager implements IConfigurationManager {
     }
 
     const config = result.rows[0].config_data;
-    
+
     // Cache it
     await this.redis.set(this.CACHE_KEYS.performance, JSON.stringify(config));
-    
+
     return config;
   }
 
@@ -221,10 +221,10 @@ export class ConfigurationManager implements IConfigurationManager {
     }
 
     const config = result.rows[0].config_data;
-    
+
     // Cache it
     await this.redis.set(this.CACHE_KEYS.transparency, JSON.stringify(config));
-    
+
     return config;
   }
 
@@ -262,7 +262,7 @@ export class ConfigurationManager implements IConfigurationManager {
   async applyPreset(preset: ConfigPreset): Promise<void> {
     // Validate preset name before calling getPresetConfigurations
     this.validatePreset(preset);
-    
+
     const presetConfigs = this.getPresetConfigurations(preset);
 
     // Update all configurations
@@ -277,7 +277,7 @@ export class ConfigurationManager implements IConfigurationManager {
    * Validate preset name
    */
   private validatePreset(preset: ConfigPreset): void {
-    const validPresets: ConfigPreset[] = ['fast-council', 'balanced-council', 'research-council'];
+    const validPresets: ConfigPreset[] = ['fast-council', 'balanced-council', 'research-council', 'coding-council'];
     if (!validPresets.includes(preset)) {
       throw new ConfigurationValidationError(
         `Invalid preset: ${preset}. Must be one of: ${validPresets.join(', ')}`
@@ -785,6 +785,71 @@ export class ConfigurationManager implements IConfigurationManager {
           },
           performance: {
             globalTimeout: 180,
+            enableFastFallback: false,
+            streamingEnabled: true
+          },
+          transparency: {
+            enabled: true,
+            forcedTransparency: false
+          }
+        };
+
+      case 'coding-council':
+        return {
+          council: {
+            members: [
+              {
+                id: 'claude-sonnet-coding',
+                provider: 'anthropic',
+                model: 'claude-sonnet-4.5',
+                timeout: 120,
+                retryPolicy: {
+                  maxAttempts: 3,
+                  initialDelayMs: 1000,
+                  maxDelayMs: 10000,
+                  backoffMultiplier: 2,
+                  retryableErrors: ['RATE_LIMIT', 'TIMEOUT']
+                }
+              },
+              {
+                id: 'gpt-coding',
+                provider: 'openai',
+                model: 'gpt-5.1',
+                timeout: 120,
+                retryPolicy: {
+                  maxAttempts: 3,
+                  initialDelayMs: 1000,
+                  maxDelayMs: 10000,
+                  backoffMultiplier: 2,
+                  retryableErrors: ['RATE_LIMIT', 'TIMEOUT']
+                }
+              },
+              {
+                id: 'deepseek-coding',
+                provider: 'openai', // Assuming DeepSeek uses OpenAI-compatible API
+                model: 'deepseek-v3',
+                timeout: 120,
+                retryPolicy: {
+                  maxAttempts: 3,
+                  initialDelayMs: 1000,
+                  maxDelayMs: 10000,
+                  backoffMultiplier: 2,
+                  retryableErrors: ['RATE_LIMIT', 'TIMEOUT']
+                }
+              }
+            ],
+            minimumSize: 2,
+            requireMinimumForConsensus: true
+          },
+          deliberation: {
+            rounds: 3,
+            preset: 'balanced'
+          },
+          synthesis: {
+            strategy: { type: 'weighted-fusion', weights: new Map() }
+          },
+          performance: {
+            globalTimeout: 120,
             enableFastFallback: false,
             streamingEnabled: true
           },

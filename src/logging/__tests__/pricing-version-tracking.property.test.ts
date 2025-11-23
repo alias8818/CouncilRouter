@@ -88,7 +88,7 @@ describe('Property 16: Pricing version tracking', () => {
           );
 
           // Property: Each cost record should include the pricing version
-          expect(costRecordLogs.length).toBe(cost.byMember.size);
+          expect(costRecordLogs).toHaveLength(cost.byMember.size);
           
           costRecordLogs.forEach(log => {
             const pricingVersion = log.values[7]; // pricing_version is 8th parameter

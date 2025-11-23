@@ -99,7 +99,7 @@ describe('Property 10: Response attribution', () => {
           );
 
           // Property: Each logged response should include the council member ID
-          expect(responseLogs.length).toBe(responses.length);
+          expect(responseLogs).toHaveLength(responses.length);
           
           responseLogs.forEach((log, index) => {
             const councilMemberId = log.values[2]; // council_member_id is third parameter
@@ -141,7 +141,7 @@ describe('Property 10: Response attribution', () => {
           const allExchanges = rounds.flatMap(r => r.exchanges);
 
           // Property: Each logged exchange should include the council member ID
-          expect(exchangeLogs.length).toBe(allExchanges.length);
+          expect(exchangeLogs).toHaveLength(allExchanges.length);
           
           exchangeLogs.forEach((log, index) => {
             const councilMemberId = log.values[3]; // council_member_id is fourth parameter

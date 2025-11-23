@@ -287,7 +287,7 @@ export class Dashboard implements IDashboard {
 
     for (const row of result.rows) {
       const councilMemberId = row.council_member_id;
-      
+
       // If we already have this mapping, skip
       if (memberToProvider.has(councilMemberId)) {
         continue;
@@ -325,7 +325,7 @@ export class Dashboard implements IDashboard {
 
         warnings.push(
           `Warning: Council member ${providerId} is disabled. ` +
-          `Reduced council participation may affect response quality.`
+          'Reduced council participation may affect response quality.'
         );
       }
     }
@@ -385,7 +385,7 @@ export class Dashboard implements IDashboard {
     userPreference?: boolean
   ): Promise<DeliberationThread | null> {
     const shouldShow = await this.shouldShowDeliberation(userPreference);
-    
+
     if (!shouldShow) {
       return null;
     }

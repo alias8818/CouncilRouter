@@ -36,7 +36,7 @@ interface GoogleResponse {
 
 export class GoogleAdapter extends BaseProviderAdapter {
   private readonly baseUrl = 'https://generativelanguage.googleapis.com/v1beta';
-  
+
   async sendRequest(
     member: CouncilMember,
     prompt: string,
@@ -45,7 +45,7 @@ export class GoogleAdapter extends BaseProviderAdapter {
     return this.executeWithRetry(member, async () => {
       const requestBody = this.formatRequest(prompt, context);
       const modelPath = `models/${member.model}:generateContent`;
-      
+
       const response = await fetch(`${this.baseUrl}/${modelPath}?key=${this.apiKey}`, {
         method: 'POST',
         headers: {
@@ -53,17 +53,17 @@ export class GoogleAdapter extends BaseProviderAdapter {
         },
         body: JSON.stringify(requestBody)
       });
-      
+
       if (!response.ok) {
         const error: any = new Error(`Google API error: ${response.statusText}`);
         error.status = response.status;
         throw error;
       }
-      
-      return await response.json();
+
+      return response.json();
     });
   }
-  
+
   async getHealth(): Promise<{ available: boolean; latency?: number }> {
     const startTime = Date.now();
     try {
@@ -80,7 +80,7 @@ export class GoogleAdapter extends BaseProviderAdapter {
           })
         }
       );
-      
+
       const latency = Date.now() - startTime;
       return {
         available: response.ok,
@@ -90,10 +90,10 @@ export class GoogleAdapter extends BaseProviderAdapter {
       return { available: false };
     }
   }
-  
+
   protected formatRequest(prompt: string, context?: ConversationContext): GoogleRequest {
     const contents: GoogleContent[] = [];
-    
+
     // Add conversation history if available
     if (context?.messages) {
       for (const entry of context.messages) {
@@ -103,13 +103,13 @@ export class GoogleAdapter extends BaseProviderAdapter {
         });
       }
     }
-    
+
     // Add current prompt
     contents.push({
       role: 'user',
       parts: [{ text: prompt }]
     });
-    
+
     return {
       contents,
       generationConfig: {
@@ -118,7 +118,7 @@ export class GoogleAdapter extends BaseProviderAdapter {
       }
     };
   }
-  
+
   protected parseResponse(response: GoogleResponse): { content: string; tokenUsage: TokenUsage } {
     const content = response.candidates[0]?.content?.parts[0]?.text || '';
     const tokenUsage: TokenUsage = {
@@ -126,7 +126,7 @@ export class GoogleAdapter extends BaseProviderAdapter {
       completionTokens: response.usageMetadata.candidatesTokenCount,
       totalTokens: response.usageMetadata.totalTokenCount
     };
-    
+
     return { content, tokenUsage };
   }
 }

@@ -226,7 +226,7 @@ describe('CostCalculator', () => {
       expect(aggregated.byProvider.get('anthropic')).toBe(0.02);
       expect(aggregated.byMember.get('member1')).toBe(0.01);
       expect(aggregated.byMember.get('member2')).toBe(0.02);
-      expect(aggregated.calculations.length).toBe(2);
+      expect(aggregated.calculations).toHaveLength(2);
     });
 
     it('should return zero cost for empty calculations', () => {
@@ -235,7 +235,7 @@ describe('CostCalculator', () => {
       expect(aggregated.totalCost).toBe(0);
       expect(aggregated.byProvider.size).toBe(0);
       expect(aggregated.byMember.size).toBe(0);
-      expect(aggregated.calculations.length).toBe(0);
+      expect(aggregated.calculations).toHaveLength(0);
     });
 
     it('should aggregate multiple costs from same provider', () => {
@@ -284,10 +284,10 @@ describe('CostCalculator', () => {
       calculator.addCostAlert(alert);
 
       const alerts1 = calculator.checkCostAlerts(5.0, 'daily');
-      expect(alerts1.length).toBe(0);
+      expect(alerts1).toHaveLength(0);
 
       const alerts2 = calculator.checkCostAlerts(6.0, 'daily');
-      expect(alerts2.length).toBe(1);
+      expect(alerts2).toHaveLength(1);
       expect(alerts2[0]).toContain('exceeded threshold');
       expect(alerts2[0]).toContain('10.00');
     });
@@ -303,7 +303,7 @@ describe('CostCalculator', () => {
       calculator.addCostAlert(alert);
 
       const alerts = calculator.checkCostAlerts(15.0, 'daily');
-      expect(alerts.length).toBe(0);
+      expect(alerts).toHaveLength(0);
     });
 
     it('should accumulate costs across multiple checks', () => {
@@ -321,7 +321,7 @@ describe('CostCalculator', () => {
       calculator.checkCostAlerts(3.0, 'daily');
 
       const alerts = calculator.checkCostAlerts(2.0, 'daily');
-      expect(alerts.length).toBe(1); // Total is now 11.0, exceeds 10.0
+      expect(alerts).toHaveLength(1); // Total is now 11.0, exceeds 10.0
     });
 
     it('should reset period costs', () => {
@@ -344,7 +344,7 @@ describe('CostCalculator', () => {
 
       // Should match date-prefixed period keys
       const alerts = calculator.checkCostAlerts(15.0, '2024-01-15-daily');
-      expect(alerts.length).toBe(1);
+      expect(alerts).toHaveLength(1);
     });
   });
 

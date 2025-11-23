@@ -16,7 +16,7 @@ export class UserInterface {
   private server?: Server;
   private configManager: IConfigurationManager;
   private apiBaseUrl: string;
-  
+
   constructor(
     configManager: IConfigurationManager,
     apiBaseUrl: string = 'http://localhost:3000'
@@ -24,33 +24,33 @@ export class UserInterface {
     this.app = express();
     this.configManager = configManager;
     this.apiBaseUrl = apiBaseUrl;
-    
+
     this.setupMiddleware();
     this.setupRoutes();
   }
-  
+
   /**
    * Set up Express middleware
    */
   private setupMiddleware(): void {
     // Serve static files
     this.app.use(express.static(path.join(__dirname, 'public')));
-    
+
     // JSON body parser
     this.app.use(express.json());
   }
-  
+
   /**
    * Set up UI routes
    */
   private setupRoutes(): void {
     // Main UI page
     this.app.get('/', this.serveMainPage.bind(this));
-    
+
     // API configuration endpoint for UI
     this.app.get('/api/ui/config', this.getUIConfig.bind(this));
   }
-  
+
   /**
    * Serve main UI page
    */
@@ -59,7 +59,7 @@ export class UserInterface {
     res.setHeader('Content-Type', 'text/html');
     res.send(html);
   }
-  
+
   /**
    * Get UI configuration
    */
@@ -67,7 +67,7 @@ export class UserInterface {
     try {
       // Get transparency configuration
       const transparencyConfig = await this.configManager.getTransparencyConfig();
-      
+
       res.json({
         transparencyEnabled: transparencyConfig.enabled,
         forcedTransparency: transparencyConfig.forcedTransparency,
@@ -77,7 +77,7 @@ export class UserInterface {
       res.status(500).json({ error: 'Failed to load configuration' });
     }
   }
-  
+
   /**
    * Generate HTML for the UI
    */
@@ -705,7 +705,7 @@ export class UserInterface {
 </html>
     `;
   }
-  
+
   /**
    * Start the UI server
    */
@@ -717,7 +717,7 @@ export class UserInterface {
       });
     });
   }
-  
+
   /**
    * Stop the UI server
    */
@@ -727,7 +727,7 @@ export class UserInterface {
         resolve();
         return;
       }
-      
+
       this.server.close((error) => {
         if (error) {
           reject(error);

@@ -692,7 +692,7 @@ describe('Security Suite - Session Management', () => {
 
       // Session IDs should be unique
       expect(sessionId1).not.toBe(sessionId2);
-      expect(sessionId1.length).toBe(64); // 32 bytes = 64 hex chars
+      expect(sessionId1).toHaveLength(64); // 32 bytes = 64 hex chars
     });
   });
 
@@ -869,7 +869,7 @@ describe('Security Suite - Cryptographic Operations', () => {
 
       // Random values should be different
       expect(random1.toString('hex')).not.toBe(random2.toString('hex'));
-      expect(random1.length).toBe(32);
+      expect(random1).toHaveLength(32);
     });
   });
 

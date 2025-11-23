@@ -137,13 +137,13 @@ describe('Property 9: Complete logging', () => {
           );
 
           // Property: All components should be logged
-          expect(requestLogs.length).toBe(1);
-          expect(responseLogs.length).toBe(responses.length);
+          expect(requestLogs).toHaveLength(1);
+          expect(responseLogs).toHaveLength(responses.length);
           
           const totalExchanges = rounds.reduce((sum, r) => sum + r.exchanges.length, 0);
-          expect(exchangeLogs.length).toBe(totalExchanges);
+          expect(exchangeLogs).toHaveLength(totalExchanges);
           
-          expect(decisionLogs.length).toBe(1);
+          expect(decisionLogs).toHaveLength(1);
 
           // Verify request ID is consistent across all logs
           expect(requestLogs[0].values[0]).toBe(request.id);

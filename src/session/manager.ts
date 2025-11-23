@@ -85,7 +85,7 @@ export class SessionManager implements ISessionManager {
    */
   async addToHistory(sessionId: string, entry: HistoryEntry): Promise<void> {
     const client = await this.db.connect();
-    
+
     try {
       // Begin transaction
       await client.query('BEGIN');
@@ -169,7 +169,7 @@ export class SessionManager implements ISessionManager {
     maxTokens: number
   ): Promise<ConversationContext> {
     const session = await this.getSession(sessionId);
-    
+
     if (!session || session.history.length === 0) {
       return {
         messages: [],
@@ -196,28 +196,28 @@ export class SessionManager implements ISessionManager {
     for (let i = session.history.length - 1; i >= 0; i--) {
       const entry = session.history[i];
       const entryTokens = this.estimateTokens(entry.content);
-      
+
       if (totalTokens + entryTokens <= maxTokens) {
         messages.unshift(entry);
         totalTokens += entryTokens;
       } else {
         // Summarize remaining older messages
-          const olderMessages = session.history.slice(0, i + 1);
-          const summary = this.summarizeMessages(olderMessages, {
-            maxTokens,
-            remainingBudget: Math.max(0, maxTokens - totalTokens)
-          });
-          const summaryContent = `[Summary of earlier conversation: ${summary}]`;
+        const olderMessages = session.history.slice(0, i + 1);
+        const summary = this.summarizeMessages(olderMessages, {
+          maxTokens,
+          remainingBudget: Math.max(0, maxTokens - totalTokens)
+        });
+        const summaryContent = `[Summary of earlier conversation: ${summary}]`;
         const summaryTokens = this.estimateTokens(summaryContent);
-        
-          // If summary would overflow the budget, drop oldest retained messages first
-          while (messages.length > 0 && totalTokens + summaryTokens > maxTokens) {
-            const removed = messages.shift();
-            if (!removed) {
-              break;
-            }
-            totalTokens -= this.estimateTokens(removed.content);
+
+        // If summary would overflow the budget, drop oldest retained messages first
+        while (messages.length > 0 && totalTokens + summaryTokens > maxTokens) {
+          const removed = messages.shift();
+          if (!removed) {
+            break;
           }
+          totalTokens -= this.estimateTokens(removed.content);
+        }
 
         messages.unshift({
           role: 'assistant',
@@ -242,7 +242,7 @@ export class SessionManager implements ISessionManager {
    */
   async expireInactiveSessions(inactivityThreshold: Duration): Promise<number> {
     const thresholdDate = new Date(Date.now() - inactivityThreshold);
-    
+
     const result = await this.db.query(
       `UPDATE sessions 
        SET expired = true 
@@ -267,10 +267,10 @@ export class SessionManager implements ISessionManager {
   private async getSessionFromCache(sessionId: string): Promise<Session | null> {
     const key = `session:${sessionId}`;
     const historyKey = `session:${sessionId}:history`;
-    
+
     // Get session metadata
     const data = await this.redis.hGetAll(key);
-    
+
     if (!data || Object.keys(data).length === 0) {
       return null;
     }
@@ -335,7 +335,7 @@ export class SessionManager implements ISessionManager {
     };
   }
 
-    /**
+  /**
      * Cache session in Redis
      * Uses incremental updates: stores history entries separately to avoid O(N^2) behavior
      * WATCH/EXEC ensures existing length is read atomically with writes
@@ -347,86 +347,86 @@ export class SessionManager implements ISessionManager {
      * CRITICAL FIX: Length is read BEFORE WATCH to prevent race conditions where length
      * is read after WATCH but before EXEC, during which time it could change.
      */
-    private async cacheSession(session: Session): Promise<void> {
-      const key = `session:${session.id}`;
-      const historyKey = `session:${session.id}:history`;
-      const MAX_ATTEMPTS = 5;
+  private async cacheSession(session: Session): Promise<void> {
+    const key = `session:${session.id}`;
+    const historyKey = `session:${session.id}:history`;
+    const MAX_ATTEMPTS = 5;
 
-      const buildPipeline = (existingLength: number) => {
-        const pipeline = this.redis.multi();
+    const buildPipeline = (existingLength: number) => {
+      const pipeline = this.redis.multi();
 
-        pipeline.hSet(key, {
-          userId: session.userId,
-          createdAt: session.createdAt.toISOString(),
-          lastActivityAt: session.lastActivityAt.toISOString(),
-          contextWindowUsed: session.contextWindowUsed.toString(),
-          historyLength: session.history.length.toString()
-        });
+      pipeline.hSet(key, {
+        userId: session.userId,
+        createdAt: session.createdAt.toISOString(),
+        lastActivityAt: session.lastActivityAt.toISOString(),
+        contextWindowUsed: session.contextWindowUsed.toString(),
+        historyLength: session.history.length.toString()
+      });
 
-        if (session.history.length > existingLength) {
-          const newEntries = session.history.slice(existingLength);
-          if (newEntries.length > 0) {
-            pipeline.rPush(historyKey, newEntries.map(e => JSON.stringify(e)));
-          }
-        } else if (session.history.length < existingLength) {
-          pipeline.del(historyKey);
-          if (session.history.length > 0) {
-            pipeline.rPush(historyKey, session.history.map(e => JSON.stringify(e)));
-          }
+      if (session.history.length > existingLength) {
+        const newEntries = session.history.slice(existingLength);
+        if (newEntries.length > 0) {
+          pipeline.rPush(historyKey, newEntries.map(e => JSON.stringify(e)));
         }
-
-        pipeline.expire(key, this.SESSION_TTL);
-        pipeline.expire(historyKey, this.SESSION_TTL);
-
-        return pipeline;
-      };
-
-      // Fallback for mocked Redis clients (e.g., unit tests) that do not support WATCH/UNWATCH
-      if (typeof this.redis.watch !== 'function') {
-        const existingLength = await this.redis.lLen(historyKey).catch(() => 0);
-        const pipeline = buildPipeline(existingLength);
-        await pipeline.exec();
-        return;
+      } else if (session.history.length < existingLength) {
+        pipeline.del(historyKey);
+        if (session.history.length > 0) {
+          pipeline.rPush(historyKey, session.history.map(e => JSON.stringify(e)));
+        }
       }
 
-      const safeUnwatch = async () => {
-        if (typeof this.redis.unwatch === 'function') {
-          try {
-            await this.redis.unwatch();
-          } catch {
-            // Ignore unwatch errors to avoid masking original issue
-          }
-        }
-      };
+      pipeline.expire(key, this.SESSION_TTL);
+      pipeline.expire(historyKey, this.SESSION_TTL);
 
-      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-        try {
-          // CRITICAL FIX: WATCH must be called BEFORE reading the value
-          // This ensures any modifications after WATCH is set will be detected
-          await this.redis.watch(historyKey);
+      return pipeline;
+    };
 
-          // Now read the existing length after WATCH is set
-          // If historyKey was modified after WATCH, EXEC will fail and we retry
-          const existingLength = await this.redis.lLen(historyKey).catch(() => 0);
-
-          // Build pipeline based on the length we read after WATCH
-          const pipeline = buildPipeline(existingLength);
-
-          const result = await pipeline.exec();
-          if (result !== null) {
-            return;
-          }
-        } catch (error) {
-          await safeUnwatch();
-          throw error;
-        }
-
-        // Retry if transaction was aborted
-        await safeUnwatch();
-      }
-
-      throw new Error('Failed to cache session after multiple attempts due to concurrent updates.');
+    // Fallback for mocked Redis clients (e.g., unit tests) that do not support WATCH/UNWATCH
+    if (typeof this.redis.watch !== 'function') {
+      const existingLength = await this.redis.lLen(historyKey).catch(() => 0);
+      const pipeline = buildPipeline(existingLength);
+      await pipeline.exec();
+      return;
     }
+
+    const safeUnwatch = async () => {
+      if (typeof this.redis.unwatch === 'function') {
+        try {
+          await this.redis.unwatch();
+        } catch {
+          // Ignore unwatch errors to avoid masking original issue
+        }
+      }
+    };
+
+    for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+      try {
+        // CRITICAL FIX: WATCH must be called BEFORE reading the value
+        // This ensures any modifications after WATCH is set will be detected
+        await this.redis.watch(historyKey);
+
+        // Now read the existing length after WATCH is set
+        // If historyKey was modified after WATCH, EXEC will fail and we retry
+        const existingLength = await this.redis.lLen(historyKey).catch(() => 0);
+
+        // Build pipeline based on the length we read after WATCH
+        const pipeline = buildPipeline(existingLength);
+
+        const result = await pipeline.exec();
+        if (result !== null) {
+          return;
+        }
+      } catch (error) {
+        await safeUnwatch();
+        throw error;
+      }
+
+      // Retry if transaction was aborted
+      await safeUnwatch();
+    }
+
+    throw new Error('Failed to cache session after multiple attempts due to concurrent updates.');
+  }
 
   /**
    * Get or create a tiktoken encoder for a specific model
@@ -496,7 +496,7 @@ export class SessionManager implements ISessionManager {
     if (messages.length === 0) {
       return 'No previous conversation.';
     }
-    
+
     const totalMessages = messages.length;
     const userCount = messages.filter(m => m.role === 'user').length;
     const assistantCount = messages.filter(m => m.role === 'assistant').length;
