@@ -52,13 +52,13 @@ export class IdempotencyCache implements IIdempotencyCache {
     return {
       exists: true,
       status: record.status,
-      result: record.status !== 'in-progress' ? {
+      result: {
         requestId: record.requestId,
         consensusDecision: record.consensusDecision,
         error: record.error,
         timestamp: new Date(record.timestamp),
         fromCache: true
-      } : undefined
+      }
     };
   }
 

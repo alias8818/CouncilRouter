@@ -301,7 +301,9 @@ export class BudgetEnforcer implements IBudgetEnforcer {
       const day = start.getDay();
       start.setDate(start.getDate() - day);
       start.setHours(0, 0, 0, 0);
-      end.setDate(start.getDate() + 6);
+      // Create end from start to ensure correct week boundary
+      end.setTime(start.getTime());
+      end.setDate(end.getDate() + 6);
       end.setHours(23, 59, 59, 999);
     } else if (period === 'monthly') {
       start.setDate(1);

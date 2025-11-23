@@ -395,9 +395,18 @@ export class APIGateway implements IAPIGateway {
             }
             return;
           } catch (waitError) {
-            // Timeout or error waiting - return 202 and let client poll
+            // Timeout or error waiting - check cache again to get request ID
+            const updatedStatus = await this.idempotencyCache.checkKey(idempotencyKey);
+            let actualRequestId = 'unknown';
+
+            // Try to extract request ID from cache record
+            if (updatedStatus.result) {
+              actualRequestId = updatedStatus.result.requestId;
+            }
+
+            // Return 202 and let client poll with the actual request ID
             const response: APIResponse = {
-              requestId: 'unknown',
+              requestId: actualRequestId,
               status: 'processing',
               createdAt: new Date()
             };
@@ -415,51 +424,50 @@ export class APIGateway implements IAPIGateway {
         try {
           await this.idempotencyCache.markInProgress(idempotencyKey, requestId, 86400);
         } catch (error) {
-          // Key already exists (race condition) - fetch and return cached result
+          // Key already exists (race condition) - wait for the existing request
           const status = await this.idempotencyCache.checkKey(idempotencyKey);
-          if (status.exists) {
-            // If another request is still processing, wait briefly for completion
-            if (status.status === 'in-progress') {
-              try {
-                const result = await this.idempotencyCache.waitForCompletion(idempotencyKey, 30000);
 
-                if (result.consensusDecision) {
-                  const response: APIResponse = {
-                    requestId: result.requestId,
-                    status: 'completed',
-                    consensusDecision: result.consensusDecision.content,
-                    createdAt: result.timestamp,
-                    completedAt: result.timestamp,
-                    fromCache: true
-                  };
-                  res.status(200).json(response);
-                } else if (result.error) {
-                  res.status(500).json(result.error);
-                }
-                return;
-              } catch (waitError) {
+          if (status.exists && status.status === 'in-progress') {
+            // Another request is processing with this key - wait for it
+            try {
+              const result = await this.idempotencyCache.waitForCompletion(idempotencyKey, 30000);
+
+              if (result.consensusDecision) {
                 const response: APIResponse = {
-                  requestId: status.result?.requestId || 'unknown',
-                  status: 'processing',
-                  createdAt: new Date()
+                  requestId: result.requestId,
+                  status: 'completed',
+                  consensusDecision: result.consensusDecision.content,
+                  createdAt: result.timestamp,
+                  completedAt: result.timestamp,
+                  fromCache: true
                 };
-                res.status(202).json(response);
-                return;
+                res.status(200).json(response);
+              } else if (result.error) {
+                res.status(500).json(result.error);
               }
-            }
-
-            if (status.result) {
+              return;
+            } catch (waitError) {
+              // Timeout waiting - return 202 with the existing request ID
               const response: APIResponse = {
-                requestId: status.result.requestId,
-                status: status.status === 'completed' ? 'completed' : 'processing',
-                consensusDecision: status.result.consensusDecision?.content,
-                createdAt: status.result.timestamp,
-                completedAt: status.status === 'completed' ? status.result.timestamp : undefined,
-                fromCache: true
+                requestId: status.result?.requestId || 'unknown',
+                status: 'processing',
+                createdAt: new Date()
               };
-              res.status(status.status === 'completed' ? 200 : 202).json(response);
+              res.status(202).json(response);
               return;
             }
+          } else if (status.exists && status.result) {
+            // Request already completed or failed
+            const response: APIResponse = {
+              requestId: status.result.requestId,
+              status: status.status === 'completed' ? 'completed' : 'processing',
+              consensusDecision: status.result.consensusDecision?.content,
+              createdAt: status.result.timestamp,
+              completedAt: status.status === 'completed' ? status.result.timestamp : undefined,
+              fromCache: true
+            };
+            res.status(status.status === 'completed' ? 200 : 202).json(response);
+            return;
           }
         }
       }
@@ -711,7 +719,7 @@ export class APIGateway implements IAPIGateway {
       if (this.idempotencyCache && idempotencyKey) {
         const errorResponse: ErrorResponse = {
           error: {
-            code: 'INTERNAL_ERROR',
+            code: 'PROCESSING_ERROR',
             message: (error as Error).message || 'Internal server error',
             retryable: false
           },
