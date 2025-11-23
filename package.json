@@ -10,6 +10,11 @@
     "test:ci": "cross-env PROPERTY_TEST_RUNS=100 CI=true jest",
     "test:watch": "jest --watch",
     "test:coverage": "cross-env COLLECT_COVERAGE=true jest --coverage",
+    "docker:setup": "pwsh -File scripts/setup-docker-test-env.ps1",
+    "docker:stop": "docker stop test-postgres test-redis",
+    "docker:start": "docker start test-postgres test-redis",
+    "docker:logs:postgres": "docker logs -f test-postgres",
+    "docker:logs:redis": "docker logs -f test-redis",
     "dev": "ts-node src/index.ts"
   },
   "keywords": [
