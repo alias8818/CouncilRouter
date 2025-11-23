@@ -23,6 +23,13 @@ export interface IProviderPool {
    * Get health status of a provider
    */
   getProviderHealth(providerId: string): ProviderHealth;
+
+  /**
+   * Get health status for all configured providers
+   * Useful for dashboards and monitoring components that need an overview
+   * of every provider without issuing individual calls for each one.
+   */
+  getAllProviderHealth(): ProviderHealth[];
   
   /**
    * Get health status of all providers

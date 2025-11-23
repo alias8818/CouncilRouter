@@ -37,9 +37,26 @@ describe('CostCalculator', () => {
       expect(matchesPeriod('2024_12_weekly', 'weekly')).toBe(true);
     });
 
-    it('should match numeric-only prefixes', () => {
+    it('should match numeric-only prefixes with valid years', () => {
       expect(matchesPeriod('20240115-daily', 'daily')).toBe(true);
-      expect(matchesPeriod('123456-weekly', 'weekly')).toBe(true);
+      expect(matchesPeriod('202401-weekly', 'weekly')).toBe(true);
+      expect(matchesPeriod('20241231-weekly', 'weekly')).toBe(true);
+      expect(matchesPeriod('20000101-monthly', 'monthly')).toBe(true);
+      expect(matchesPeriod('19991231-monthly', 'monthly')).toBe(true);
+    });
+
+    it('should reject numeric-only prefixes with invalid years', () => {
+      // Too short (less than 4 digits)
+      expect(matchesPeriod('123-daily', 'daily')).toBe(false);
+      expect(matchesPeriod('0-weekly', 'weekly')).toBe(false);
+      
+      // Invalid year (outside 1900-2100 range)
+      expect(matchesPeriod('1234-daily', 'daily')).toBe(false); // Year 1234 < 1900
+      expect(matchesPeriod('123456-weekly', 'weekly')).toBe(false); // Year 1234 < 1900
+      expect(matchesPeriod('99999999-daily', 'daily')).toBe(false); // Year 9999 > 2100
+      expect(matchesPeriod('18991231-daily', 'daily')).toBe(false); // Year 1899 < 1900
+      expect(matchesPeriod('21011231-daily', 'daily')).toBe(false); // Year 2101 > 2100
+      expect(matchesPeriod('21010101-daily', 'daily')).toBe(false); // Year 2101 > 2100
     });
 
     it('should reject word prefixes', () => {

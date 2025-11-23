@@ -223,9 +223,11 @@ export class SynthesisEngine implements ISynthesisEngine {
 
     // Confidence based on weight distribution and agreement
     const weightValues = Array.from(weights.values());
-    const maxWeight = Math.max(...weightValues);
-    const minWeight = Math.min(...weightValues);
-    const weightSpread = maxWeight - minWeight;
+    // Handle empty weights case: if no weights provided, all members have equal weight (1.0),
+    // so weightSpread is 0
+    const weightSpread = weightValues.length === 0 
+      ? 0 
+      : Math.max(...weightValues) - Math.min(...weightValues);
 
     // High confidence if weights are well-distributed and agreement is high
     const confidence = (weightSpread < 0.5 && agreementLevel > 0.7) ? 'high' :
@@ -524,27 +526,26 @@ export class SynthesisEngine implements ISynthesisEngine {
    * Uses a promise chain to serialize rotation index access across concurrent calls
    */
   private async getNextRotationMember(members: CouncilMember[]): Promise<CouncilMember> {
-    // Create a promise that will resolve with our index
-    let resolveIndex: (index: number) => void;
-    const indexPromise = new Promise<number>(resolve => {
-      resolveIndex = resolve;
-    });
+    if (members.length === 0) {
+      throw new Error('No council members available for rotation');
+    }
 
     // Chain this operation after the previous rotation operation completes
     const previousLock = this.rotationLock;
-    
-    // Update the lock to wait for this operation to complete
-    this.rotationLock = previousLock.then(async () => {
+
+    // Create a new promise that returns the rotation index
+    const indexPromise: Promise<number> = previousLock.then(() => {
       // Atomically get and increment the rotation index
-      const myIndex = this.rotationIndex++;
-      // Resolve the index for this specific call
-      resolveIndex(myIndex);
+      return this.rotationIndex++;
     });
 
-    // Wait for our turn and get our index
+    // Update the lock to wait for this operation (but don't return the index)
+    this.rotationLock = indexPromise.then(() => {});
+
+    // Wait for our turn and get the index
     const index = await indexPromise;
 
-    // Return the member at this index
+    // Use modulo to wrap around to valid member index
     return members[index % members.length];
   }
 

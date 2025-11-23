@@ -247,10 +247,68 @@ export class Dashboard implements IDashboard {
    * Returns array of provider health information including warnings for disabled members
    */
   async getProviderHealthStatus(): Promise<ProviderHealth[]> {
-    // Get all provider health from the provider pool directly
-    // This returns health for actual providers (openai, anthropic, google)
-    // rather than council member IDs (gpt-4-default, claude-3-balanced, etc.)
-    return this.providerPool.getAllProviderHealth();
+    const getAllHealth = (this.providerPool as any)?.getAllProviderHealth;
+
+    if (typeof getAllHealth === 'function') {
+      return getAllHealth.call(this.providerPool);
+    }
+
+    if (this.configManager) {
+      // Preferred fallback: derive unique providers from council configuration
+      const councilConfig = await this.configManager.getCouncilConfig();
+      const uniqueProviders = Array.from(new Set(councilConfig.members.map(member => member.provider)));
+
+      return uniqueProviders.map(providerId =>
+        this.providerPool.getProviderHealth(providerId)
+      );
+    }
+
+    // Final fallback: query database to map council member IDs to provider IDs
+    // Join council_responses with requests to access config_snapshot which contains
+    // the mapping between council_member_id and provider
+    const result = await this.db.query(`
+      SELECT DISTINCT
+        cr.council_member_id,
+        r.config_snapshot->'members' AS members
+      FROM council_responses cr
+      INNER JOIN requests r ON cr.request_id = r.id
+      WHERE cr.council_member_id IS NOT NULL
+        AND r.config_snapshot->'members' IS NOT NULL
+      LIMIT 100
+    `);
+
+    if (result.rows.length === 0) {
+      return [];
+    }
+
+    // Build a mapping from council_member_id to provider
+    const memberToProvider = new Map<string, string>();
+    const uniqueProviders = new Set<string>();
+
+    for (const row of result.rows) {
+      const councilMemberId = row.council_member_id;
+      
+      // If we already have this mapping, skip
+      if (memberToProvider.has(councilMemberId)) {
+        continue;
+      }
+
+      // Extract provider from config_snapshot members array
+      if (row.members && Array.isArray(row.members)) {
+        for (const member of row.members) {
+          if (member.id === councilMemberId && member.provider) {
+            memberToProvider.set(councilMemberId, member.provider);
+            uniqueProviders.add(member.provider);
+            break;
+          }
+        }
+      }
+    }
+
+    // Return health status for unique providers (not council member IDs)
+    return Array.from(uniqueProviders).map(providerId =>
+      this.providerPool.getProviderHealth(providerId)
+    );
   }
 
   /**

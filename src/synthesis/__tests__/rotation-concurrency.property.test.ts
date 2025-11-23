@@ -107,14 +107,13 @@ describe('SynthesisEngine - Rotation Concurrency Property Test', () => {
 
           // Property 1: All members should have similar selection counts (balanced)
           const counts = Array.from(selectionCounts.values());
-          
-          // Handle edge case of no selections (shouldn't happen but be defensive)
-          if (counts.length === 0) {
-            throw new Error('No selections recorded');
+          let minCount = counts.length > 0 ? Math.min(...counts) : 0;
+          const maxCount = counts.length > 0 ? Math.max(...counts) : 0;
+
+          // If some members never got selected, treat the minimum as 0 explicitly
+          if (selectionCounts.size < uniqueMembers.length) {
+            minCount = 0;
           }
-          
-          const minCount = Math.min(...counts);
-          const maxCount = Math.max(...counts);
 
           // Max difference should be at most 1 in a perfect rotation
           // (some members get one extra due to remainder)
