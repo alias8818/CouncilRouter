@@ -223,9 +223,11 @@ export class SynthesisEngine implements ISynthesisEngine {
 
     // Confidence based on weight distribution and agreement
     const weightValues = Array.from(weights.values());
-    const maxWeight = Math.max(...weightValues);
-    const minWeight = Math.min(...weightValues);
-    const weightSpread = maxWeight - minWeight;
+    // Handle empty weights case: if no weights provided, all members have equal weight (1.0),
+    // so weightSpread is 0
+    const weightSpread = weightValues.length === 0 
+      ? 0 
+      : Math.max(...weightValues) - Math.min(...weightValues);
 
     // High confidence if weights are well-distributed and agreement is high
     const confidence = (weightSpread < 0.5 && agreementLevel > 0.7) ? 'high' :
@@ -528,33 +530,23 @@ export class SynthesisEngine implements ISynthesisEngine {
       throw new Error('No council members available for rotation');
     }
 
-    // Create a new lock promise and capture the resolver so we can release it
-    let releaseLock: (() => void) | undefined;
-    const nextLock = new Promise<void>((resolve) => {
-      releaseLock = resolve;
+    // Chain this operation after the previous rotation operation completes
+    const previousLock = this.rotationLock;
+
+    // Create a new promise that returns the rotation index
+    const indexPromise: Promise<number> = previousLock.then(() => {
+      // Atomically get and increment the rotation index
+      return this.rotationIndex++;
     });
 
-    const previousLock = this.rotationLock;
-    // Chain the current lock to run after the previous one completes
-    this.rotationLock = previousLock.then(() => nextLock);
+    // Update the lock to wait for this operation (but don't return the index)
+    this.rotationLock = indexPromise.then(() => {});
 
-    // Wait until all prior rotations have completed
-    await previousLock;
+    // Wait for our turn and get the index
+    const index = await indexPromise;
 
-    // Safeguard resolver initialization (should never happen)
-    if (!releaseLock) {
-      throw new Error('Rotation lock initialization failed');
-    }
-
-    try {
-      // Atomically compute the next index and wrap to avoid overflow
-      const index = this.rotationIndex % members.length;
-      this.rotationIndex = (this.rotationIndex + 1) % Number.MAX_SAFE_INTEGER;
-      return members[index];
-    } finally {
-      // Always release the lock so subsequent callers can proceed
-      releaseLock();
-    }
+    // Use modulo to wrap around to valid member index
+    return members[index % members.length];
   }
 
   /**

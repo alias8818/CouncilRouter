@@ -100,20 +100,20 @@ describe('SynthesisEngine - Rotation Concurrency Property Test', () => {
           // 3. All members eventually get selected in a fair rotation
 
           // Count how many times each member was selected
-            const selectionCounts = new Map<string, number>();
-            selectedModerators.forEach(member => {
-              selectionCounts.set(member.id, (selectionCounts.get(member.id) || 0) + 1);
-            });
+          const selectionCounts = new Map<string, number>();
+          selectedModerators.forEach(member => {
+            selectionCounts.set(member.id, (selectionCounts.get(member.id) || 0) + 1);
+          });
 
-            // Property 1: All members should have similar selection counts (balanced)
-            const counts = Array.from(selectionCounts.values());
-            let minCount = counts.length > 0 ? Math.min(...counts) : 0;
-            const maxCount = counts.length > 0 ? Math.max(...counts) : 0;
+          // Property 1: All members should have similar selection counts (balanced)
+          const counts = Array.from(selectionCounts.values());
+          let minCount = counts.length > 0 ? Math.min(...counts) : 0;
+          const maxCount = counts.length > 0 ? Math.max(...counts) : 0;
 
-            // If some members never got selected, treat the minimum as 0 explicitly
-            if (selectionCounts.size < uniqueMembers.length) {
-              minCount = 0;
-            }
+          // If some members never got selected, treat the minimum as 0 explicitly
+          if (selectionCounts.size < uniqueMembers.length) {
+            minCount = 0;
+          }
 
           // Max difference should be at most 1 in a perfect rotation
           // (some members get one extra due to remainder)

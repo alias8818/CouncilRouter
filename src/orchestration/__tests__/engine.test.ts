@@ -112,7 +112,9 @@ class MockProviderPool implements IProviderPool {
         this.getProviderHealth(providerId)
       );
     }
-    return Array.from(this.healthStatuses.values());
+    // Return health for all known providers
+    const providers = new Set([...this.healthStatuses.keys(), 'openai', 'anthropic', 'google']);
+    return Array.from(providers).map(providerId => this.getProviderHealth(providerId));
   }
 
   markProviderDisabled(providerId: string, reason: string): void {
@@ -368,13 +370,9 @@ describe('OrchestrationEngine', () => {
         timestamp: new Date()
       };
 
-      // Mark one provider as disabled
-      mockProviderPool.setHealthStatus('openai', {
-        providerId: 'openai',
-        status: 'disabled',
-        successRate: 0,
-        avgLatency: 0
-      });
+      // Mark one provider as disabled via the provider pool
+      // This properly updates the health tracker
+      mockProviderPool.markProviderDisabled('openai', 'Test disable');
 
       const result = await engine.processRequest(request);
 
@@ -396,13 +394,9 @@ describe('OrchestrationEngine', () => {
       councilConfig.minimumSize = 2;
       mockConfigManager.setCouncilConfig(councilConfig);
 
-      // Disable one provider
-      mockProviderPool.setHealthStatus('openai', {
-        providerId: 'openai',
-        status: 'disabled',
-        successRate: 0,
-        avgLatency: 0
-      });
+      // Disable one provider via the provider pool
+      // This properly updates the health tracker
+      mockProviderPool.markProviderDisabled('openai', 'Test disable');
 
       await expect(
         engine.processRequest(request)
