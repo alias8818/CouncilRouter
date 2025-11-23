@@ -99,18 +99,18 @@ async function startServer() {
     }
   };
 
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
-  process.on('SIGINT', () => shutdown('SIGINT'));
+  process.on('SIGTERM', () => void shutdown('SIGTERM'));
+  process.on('SIGINT', () => void shutdown('SIGINT'));
 
   // Handle uncaught errors
   process.on('uncaughtException', (error) => {
     console.error('Uncaught exception:', error);
-    shutdown('UNCAUGHT_EXCEPTION');
+    void shutdown('UNCAUGHT_EXCEPTION');
   });
 
   process.on('unhandledRejection', (reason, promise) => {
     console.error('Unhandled rejection at:', promise, 'reason:', reason);
-    shutdown('UNHANDLED_REJECTION');
+    void shutdown('UNHANDLED_REJECTION');
   });
 }
 
