@@ -100,9 +100,11 @@ describe('Property Test: Base Provider Adapter Timeout Error Messages', () => {
             timeout: 0.05 // 50ms for fast execution
           };
           
-          // Set up a request that will timeout (takes 100ms, timeout is 50ms)
+          // Set up a request that will timeout (takes 500ms, timeout is 50ms)
+          // Use a duration 10x longer than timeout to ensure timeout always fires first
+          // This avoids race conditions and timing precision issues with very small timeouts
           adapter.testRequestFn = async () => {
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await new Promise(resolve => setTimeout(resolve, 500));
             return { content: 'should not reach here' };
           };
           

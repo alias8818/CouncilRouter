@@ -32,8 +32,15 @@ describe('Tool Execution Engine - Property Tests', () => {
     engine.registerAdapter(functionAdapter);
     engine.registerAdapter(new HTTPToolAdapter());
 
-    // Clean up test data
-    await dbPool.query('DELETE FROM tool_usage WHERE request_id LIKE $1', ['test-%']);
+    // Clean up test data (ignore if table doesn't exist)
+    try {
+      await dbPool.query('DELETE FROM tool_usage WHERE request_id LIKE $1', ['test-%']);
+    } catch (error: any) {
+      // Ignore error if table doesn't exist (e.g., in test environments without full schema)
+      if (!error.message?.includes('does not exist')) {
+        throw error;
+      }
+    }
   });
 
   /**

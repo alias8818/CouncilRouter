@@ -431,7 +431,6 @@ describe('DevilsAdvocateModule', () => {
 
     it('should generate valid critique prompt for minimal thread', () => {
       const minimalThread: DeliberationThread = {
-        requestId: 'req-1',
         rounds: [
           {
             roundNumber: 1,
@@ -445,7 +444,7 @@ describe('DevilsAdvocateModule', () => {
             ]
           }
         ],
-        finalDecision: null
+        totalDuration: 100
       };
 
       const prompt = module.generateCritiquePrompt(minimalThread);
