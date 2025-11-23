@@ -87,7 +87,7 @@ describe('Idempotency Cache - Property Tests', () => {
         fc.uuid(),
         fc.uuid(),
         fc.string({ minLength: 1, maxLength: 100 }),
-        fc.float({ min: 0, max: 1 }),
+        fc.float({ min: 0, max: 1 }).filter(x => !isNaN(x)), // Filter out NaN as it's not a valid agreementLevel
         async (requestId, idempotencyKey, content, agreementLevel) => {
           const key = `test-${idempotencyKey}`;
 

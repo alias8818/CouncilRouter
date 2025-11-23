@@ -36,6 +36,7 @@ yarn-error.log*
 # Temporary files
 *.tmp
 .cache/
+.jest-cache/
 
 # Test output
 test_output.txt

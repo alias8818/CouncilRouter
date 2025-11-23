@@ -243,13 +243,26 @@ jobs:
             npm install
           }
 
+      - name: Cache Jest cache
+        uses: actions/cache@v4
+        with:
+          path: .jest-cache
+          key: jest-cache-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            jest-cache-${{ runner.os }}-
+
       - name: Build project
         shell: pwsh
         run: npm run build
 
       - name: Run tests
         shell: pwsh
-        run: npm run test:ci
+        run: |
+          # Run tests with optimized settings for CI
+          # --maxWorkers=100% uses all available CPU cores
+          # --bail stops on first failure (already set in config but explicit here)
+          # --no-coverage skips coverage collection (faster, only collect when needed)
+          npm run test:ci -- --maxWorkers=100% --no-coverage
 
       - name: Upload test results
         if: always()

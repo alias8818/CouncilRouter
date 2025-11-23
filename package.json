@@ -7,8 +7,9 @@
     "build": "tsc",
     "test": "jest",
     "test:fast": "cross-env PROPERTY_TEST_RUNS=20 jest",
-    "test:ci": "cross-env PROPERTY_TEST_RUNS=100 jest",
+    "test:ci": "cross-env PROPERTY_TEST_RUNS=100 CI=true jest",
     "test:watch": "jest --watch",
+    "test:coverage": "cross-env COLLECT_COVERAGE=true jest --coverage",
     "dev": "ts-node src/index.ts"
   },
   "keywords": [
