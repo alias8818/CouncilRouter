@@ -524,6 +524,10 @@ export class SynthesisEngine implements ISynthesisEngine {
    * Uses a promise chain to serialize rotation index access across concurrent calls
    */
   private async getNextRotationMember(members: CouncilMember[]): Promise<CouncilMember> {
+    if (members.length === 0) {
+      throw new Error('No council members available for rotation');
+    }
+
     // Create a new lock promise and capture the resolver so we can release it
     let releaseLock: (() => void) | undefined;
     const nextLock = new Promise<void>((resolve) => {
@@ -542,14 +546,15 @@ export class SynthesisEngine implements ISynthesisEngine {
       throw new Error('Rotation lock initialization failed');
     }
 
-    // Atomically compute the next index and wrap to avoid overflow
-    const index = this.rotationIndex % members.length;
-    this.rotationIndex = (this.rotationIndex + 1) % Number.MAX_SAFE_INTEGER;
-
-    // Release the lock for the next waiter
-    releaseLock();
-
-    return members[index];
+    try {
+      // Atomically compute the next index and wrap to avoid overflow
+      const index = this.rotationIndex % members.length;
+      this.rotationIndex = (this.rotationIndex + 1) % Number.MAX_SAFE_INTEGER;
+      return members[index];
+    } finally {
+      // Always release the lock so subsequent callers can proceed
+      releaseLock();
+    }
   }
 
   /**

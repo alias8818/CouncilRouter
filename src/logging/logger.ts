@@ -3,6 +3,7 @@
  * Logs all system events to PostgreSQL database for monitoring and analytics
  */
 
+import { randomUUID as nodeRandomUUID } from 'crypto';
 import { Pool } from 'pg';
 import { IEventLogger } from '../interfaces/IEventLogger';
 import {
@@ -242,8 +243,10 @@ export class EventLogger implements IEventLogger {
   private generateUUID(): string {
     // Use Node.js built-in crypto.randomUUID() for proper UUID v4 generation
     // Falls back to custom implementation for older Node.js versions
-    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-      return crypto.randomUUID();
+    try {
+      return nodeRandomUUID();
+    } catch {
+      // Fall through to manual implementation
     }
 
     // Fallback for older environments (though this should not be needed in modern Node.js)

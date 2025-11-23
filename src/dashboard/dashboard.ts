@@ -263,10 +263,11 @@ export class Dashboard implements IDashboard {
       );
     }
 
-    // Final fallback: query database for council member IDs when config manager is unavailable
+    // Final fallback: query database for council member IDs when config manager is unavailable.
+    // Use council_responses, which actually stores council_member_id values.
     const result = await this.db.query(`
       SELECT DISTINCT council_member_id
-      FROM council_members
+      FROM council_responses
       WHERE council_member_id IS NOT NULL
     `);
 
