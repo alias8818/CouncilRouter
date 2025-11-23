@@ -73,7 +73,7 @@
 
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/CouncilRouter.git
+git clone https://github.com/alias8818/CouncilRouter.git
 cd CouncilRouter
 
 # Copy environment template
@@ -349,9 +349,8 @@ MIT License - see [LICENSE](LICENSE) file for details.
 
 ## 💬 **Questions?**
 
-- **Issues**: [GitHub Issues](https://github.com/yourusername/CouncilRouter/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/CouncilRouter/discussions)
-- **Twitter**: [@yourusername](https://twitter.com/yourusername)
+- **Issues**: [GitHub Issues](https://github.com/alias8818/CouncilRouter/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/alias8818/CouncilRouter/discussions)
 
 ---
 

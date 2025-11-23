@@ -14,7 +14,7 @@ Thank you for your interest in contributing! This document provides guidelines a
 
 ```bash
 # Fork and clone the repository
-git clone https://github.com/YOUR_USERNAME/CouncilRouter.git
+git clone https://github.com/alias8818/CouncilRouter.git
 cd CouncilRouter
 
 # Install dependencies
@@ -223,8 +223,8 @@ We are committed to providing a welcoming and inclusive environment:
 
 ## 💬 Questions?
 
-- **Discussions**: [GitHub Discussions](https://github.com/yourusername/CouncilRouter/discussions)
-- **Issues**: [GitHub Issues](https://github.com/yourusername/CouncilRouter/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/alias8818/CouncilRouter/discussions)
+- **Issues**: [GitHub Issues](https://github.com/alias8818/CouncilRouter/issues)
 
 ## 🎉 Recognition
 
