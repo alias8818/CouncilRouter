@@ -97,7 +97,7 @@
   - **Property 13: Tool usage dashboard display**
   - **Validates: Requirements 2.7**
 
-- [ ] 6. Implement budget enforcer
+- [x] 6. Implement budget enforcer
   - Create BudgetEnforcer class with database connection
   - Implement checkBudget function to validate spending limits
   - Implement recordSpending function to track costs
@@ -155,7 +155,7 @@
 - [ ] 9. Checkpoint - Ensure all tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 10. Implement devil's advocate module
+- [x] 10. Implement devil's advocate module
   - Create DevilsAdvocateModule class
   - Implement selectDevilsAdvocate function with strategy support
   - Implement generateCritiquePrompt function
@@ -200,7 +200,7 @@
   - **Property 17: Devil's advocate dashboard identification**
   - **Validates: Requirements 3.5**
 
-- [ ] 13. Implement per-request transparency
+- [x] 13. Implement per-request transparency
   - Extend API request interface to accept transparency parameter
   - Modify orchestration engine to track per-request transparency setting
   - Update response formatting to include/exclude deliberation based on parameter
@@ -246,7 +246,7 @@
   - **Property 30: Transparency flag in dashboard**
   - **Validates: Requirements 5.5**
 
-- [ ] 16. Implement feature flags for all enhancements
+- [x] 16. Implement feature flags for all enhancements
   - Add feature flag configuration for each enhancement
   - Implement feature flag checking in relevant components
   - Add feature flag status to dashboard
