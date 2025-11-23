@@ -607,8 +607,6 @@ describe('Integration Tests - Full Deliberation Flow', () => {
 
   describe('Performance', () => {
     it('should process requests in parallel for better performance', async () => {
-      const startTime = Date.now();
-
       const request: UserRequest = {
         id: 'req-11',
         query: 'Parallel processing test',
@@ -616,8 +614,8 @@ describe('Integration Tests - Full Deliberation Flow', () => {
         timestamp: new Date()
       };
 
+      const startTime = Date.now();
       const decision = await orchestrationEngine.processRequest(request);
-
       const elapsed = Date.now() - startTime;
 
       // With parallel execution, should complete in ~10-50ms (mock delay)
