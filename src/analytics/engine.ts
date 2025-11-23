@@ -534,13 +534,20 @@ export class AnalyticsEngine implements IAnalyticsEngine {
     const safeLowerIndex = Math.max(0, Math.min(lowerIndex, n - 1));
     const safeUpperIndex = Math.max(0, Math.min(upperIndex, n - 1));
     
-    if (safeLowerIndex === safeUpperIndex) {
-      return sortedValues[safeLowerIndex];
+    // Ensure upperIndex >= lowerIndex to maintain ordering
+    const finalLowerIndex = Math.min(safeLowerIndex, safeUpperIndex);
+    const finalUpperIndex = Math.max(safeLowerIndex, safeUpperIndex);
+    
+    if (finalLowerIndex === finalUpperIndex) {
+      return sortedValues[finalLowerIndex];
     }
     
     // Linear interpolation
     const weight = position - Math.floor(position);
-    return sortedValues[safeLowerIndex] * (1 - weight) + sortedValues[safeUpperIndex] * weight;
+    const result = sortedValues[finalLowerIndex] * (1 - weight) + sortedValues[finalUpperIndex] * weight;
+    
+    // Ensure result is within bounds of the array (safety check for floating point precision)
+    return Math.max(sortedValues[0], Math.min(result, sortedValues[n - 1]));
   }
 
   /**

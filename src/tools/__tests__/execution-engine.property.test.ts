@@ -21,13 +21,24 @@ describe('Tool Execution Engine - Property Tests', () => {
   });
 
   afterAll(async () => {
+    // Wait for any pending async operations to complete
+    // The timeout test times out at 30s (DEFAULT_TIMEOUT_MS), so the 35s timer in the function
+    // will be cancelled. We only need a short delay for cleanup.
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // Drain event loop multiple times to ensure all callbacks complete
+    for (let i = 0; i < 10; i++) {
+      await new Promise(resolve => setImmediate(resolve));
+    }
+    
     await dbPool.end();
   });
 
   beforeEach(async () => {
+    // Create fresh engine instance for each test to avoid state leakage
     engine = new ToolExecutionEngine(dbPool);
 
-    // Register adapters
+    // Register adapters (fresh instances to avoid state leakage)
     functionAdapter = new FunctionToolAdapter();
     engine.registerAdapter(functionAdapter);
     engine.registerAdapter(new HTTPToolAdapter());
@@ -43,6 +54,17 @@ describe('Tool Execution Engine - Property Tests', () => {
     }
   });
 
+  afterEach(async () => {
+    // Clear any registered tools to prevent state leakage between tests
+    // Note: ToolExecutionEngine doesn't expose a clear method, but creating
+    // a new instance in beforeEach ensures clean state
+    
+    // Wait for any pending async operations and timers to complete
+    await new Promise(resolve => setImmediate(resolve));
+    jest.runOnlyPendingTimers();
+    jest.useRealTimers();
+  });
+
   /**
    * Property 7: Tool definition inclusion
    * Feature: council-enhancements, Property 7: For any council member that supports
@@ -55,6 +77,8 @@ describe('Tool Execution Engine - Property Tests', () => {
         fc.string({ minLength: 1, maxLength: 200 }),
         fc.constantFrom('function', 'http'),
         (toolName, description, adapter) => {
+          // Ensure fresh engine state for each property test iteration
+          // The engine is already created fresh in beforeEach, but ensure no state leakage
           const toolDef: ToolDefinition = {
             name: toolName,
             description,
@@ -66,10 +90,11 @@ describe('Tool Execution Engine - Property Tests', () => {
 
           const availableTools = engine.getAvailableTools();
 
-          // Assertions
+          // Assertions: Tool should be registered and retrievable
           expect(availableTools.length).toBeGreaterThan(0);
           const registered = availableTools.find(t => t.name === toolName);
           expect(registered).toBeDefined();
+          expect(registered?.name).toBe(toolName);
           expect(registered?.description).toBe(description);
           expect(registered?.adapter).toBe(adapter);
         }
@@ -91,14 +116,16 @@ describe('Tool Execution Engine - Property Tests', () => {
         fc.uuid(),
         fc.integer({ min: 1, max: 100 }),
         async (toolName, councilMemberId, requestId, inputValue) => {
-          // Register a test function
-          functionAdapter.registerFunction(toolName, async (params: any) => {
+          // Ensure fresh function adapter state for each iteration
+          // Register a test function with unique name to avoid conflicts
+          const uniqueToolName = `${toolName}-${requestId}`;
+          functionAdapter.registerFunction(uniqueToolName, async (params: any) => {
             return { result: params.value * 2 };
           });
 
-          // Register tool
+          // Register tool with unique name
           const toolDef: ToolDefinition = {
-            name: toolName,
+            name: uniqueToolName,
             description: 'Test tool',
             adapter: 'function',
             parameters: [
@@ -115,7 +142,7 @@ describe('Tool Execution Engine - Property Tests', () => {
 
           // Execute tool
           const result = await engine.executeTool(
-            toolName,
+            uniqueToolName,
             { value: inputValue },
             councilMemberId,
             `test-${requestId}`
@@ -123,7 +150,7 @@ describe('Tool Execution Engine - Property Tests', () => {
 
           // Assertions
           expect(result.success).toBe(true);
-          expect(result.toolName).toBe(toolName);
+          expect(result.toolName).toBe(uniqueToolName);
           expect(result.councilMemberId).toBe(councilMemberId);
           expect(result.result).toEqual({ result: inputValue * 2 });
           expect(result.latency).toBeGreaterThanOrEqual(0);

@@ -59,13 +59,16 @@ describe('API Gateway Idempotency Integration - Property Tests', () => {
       await redis.del(requestKeys);
     }
 
-    // Create mocks
+    // Create mocks (reset between runs to avoid state leakage)
     mockOrchestration = {
       processRequest: jest.fn(),
       distributeToCouncil: jest.fn(),
       conductDeliberation: jest.fn(),
       handleTimeout: jest.fn()
     } as jest.Mocked<IOrchestrationEngine>;
+    
+    // Reset all mocks
+    jest.clearAllMocks();
 
     mockSessionManager = {
       createSession: jest.fn().mockResolvedValue({ id: 'session-1' }),
@@ -127,8 +130,13 @@ describe('API Gateway Idempotency Integration - Property Tests', () => {
           expect(response.body.fromCache).toBeUndefined(); // No cache flag
 
           // Verify orchestration was called (eventually)
-          // Note: Since processing is async, we need to wait a bit
-          await new Promise(resolve => setTimeout(resolve, 100));
+          // Wait for async processing with retries to handle timing variability
+          let attempts = 0;
+          const maxAttempts = 10;
+          while (attempts < maxAttempts && !mockOrchestration.processRequest.mock.calls.length) {
+            await new Promise(resolve => setTimeout(resolve, 50));
+            attempts++;
+          }
           expect(mockOrchestration.processRequest).toHaveBeenCalled();
         }
       ),
