@@ -223,9 +223,11 @@ export class SynthesisEngine implements ISynthesisEngine {
 
     // Confidence based on weight distribution and agreement
     const weightValues = Array.from(weights.values());
-    const maxWeight = Math.max(...weightValues);
-    const minWeight = Math.min(...weightValues);
-    const weightSpread = maxWeight - minWeight;
+    // Handle empty weights case: if no weights provided, all members have equal weight (1.0),
+    // so weightSpread is 0
+    const weightSpread = weightValues.length === 0 
+      ? 0 
+      : Math.max(...weightValues) - Math.min(...weightValues);
 
     // High confidence if weights are well-distributed and agreement is high
     const confidence = (weightSpread < 0.5 && agreementLevel > 0.7) ? 'high' :
