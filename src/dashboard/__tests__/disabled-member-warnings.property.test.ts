@@ -40,7 +40,8 @@ describe('Property 32: Disabled member warnings', () => {
         status: 'healthy',
         successRate: 1.0,
         avgLatency: 100
-      })
+      }),
+      getAllProviderHealth: jest.fn().mockReturnValue([])
     };
 
     // Create mock red team tester
@@ -94,10 +95,8 @@ describe('Property 32: Disabled member warnings', () => {
             fields: []
           });
 
-          // Mock provider pool to return health statuses
-          for (const health of healthStatuses) {
-            mockProviderPool.getProviderHealth.mockReturnValueOnce(health as ProviderHealth);
-          }
+          // Mock provider pool to return all health statuses
+          mockProviderPool.getAllProviderHealth.mockReturnValueOnce(healthStatuses as ProviderHealth[]);
 
           // Get warnings
           const warnings = await dashboard.getDisabledMemberWarnings();
@@ -156,10 +155,8 @@ describe('Property 32: Disabled member warnings', () => {
             fields: []
           });
 
-          // Mock provider pool to return health statuses
-          for (const health of healthStatuses) {
-            mockProviderPool.getProviderHealth.mockReturnValueOnce(health as ProviderHealth);
-          }
+          // Mock provider pool to return all health statuses
+          mockProviderPool.getAllProviderHealth.mockReturnValueOnce(healthStatuses as ProviderHealth[]);
 
           // Get warnings
           const warnings = await dashboard.getDisabledMemberWarnings();
@@ -199,10 +196,8 @@ describe('Property 32: Disabled member warnings', () => {
             fields: []
           });
 
-          // Mock provider pool to return health statuses
-          for (const health of healthStatuses) {
-            mockProviderPool.getProviderHealth.mockReturnValueOnce(health as ProviderHealth);
-          }
+          // Mock provider pool to return all health statuses
+          mockProviderPool.getAllProviderHealth.mockReturnValueOnce(healthStatuses as ProviderHealth[]);
 
           // Get warnings
           const warnings = await dashboard.getDisabledMemberWarnings();

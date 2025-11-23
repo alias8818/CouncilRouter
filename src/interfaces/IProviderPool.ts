@@ -23,7 +23,12 @@ export interface IProviderPool {
    * Get health status of a provider
    */
   getProviderHealth(providerId: string): ProviderHealth;
-  
+
+  /**
+   * Get health status of all providers
+   */
+  getAllProviderHealth(): ProviderHealth[];
+
   /**
    * Mark a provider as disabled due to failures
    */
