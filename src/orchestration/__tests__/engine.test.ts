@@ -106,6 +106,15 @@ class MockProviderPool implements IProviderPool {
     };
   }
 
+  getAllProviderHealth(): ProviderHealth[] {
+    if (this.healthTracker) {
+      return this.healthTracker.getTrackedProviders().map((providerId) =>
+        this.getProviderHealth(providerId)
+      );
+    }
+    return Array.from(this.healthStatuses.values());
+  }
+
   markProviderDisabled(providerId: string, reason: string): void {
     this.disabledProviders.add(providerId);
     this.healthTracker?.markDisabled(providerId, reason);

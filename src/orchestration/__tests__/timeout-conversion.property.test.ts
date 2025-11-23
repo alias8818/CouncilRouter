@@ -90,7 +90,16 @@ class MockProviderPool implements IProviderPool {
       successRate: 1.0,
       avgLatency: 100
     };
-  }
+    }
+
+    getAllProviderHealth(): ProviderHealth[] {
+      if (this.healthStatuses.size > 0) {
+        return Array.from(this.healthStatuses.values());
+      }
+      return Array.from(this.disabledProviders).map((providerId) =>
+        this.getProviderHealth(providerId)
+      );
+    }
   
   markProviderDisabled(providerId: string, reason: string): void {
     this.disabledProviders.add(providerId);

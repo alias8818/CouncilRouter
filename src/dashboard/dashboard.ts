@@ -247,10 +247,36 @@ export class Dashboard implements IDashboard {
    * Returns array of provider health information including warnings for disabled members
    */
   async getProviderHealthStatus(): Promise<ProviderHealth[]> {
-    // Get all provider health from the provider pool directly
-    // This returns health for actual providers (openai, anthropic, google)
-    // rather than council member IDs (gpt-4-default, claude-3-balanced, etc.)
-    return this.providerPool.getAllProviderHealth();
+    const getAllHealth = (this.providerPool as any)?.getAllProviderHealth;
+
+    if (typeof getAllHealth === 'function') {
+      return getAllHealth.call(this.providerPool);
+    }
+
+    if (this.configManager) {
+      // Preferred fallback: derive unique providers from council configuration
+      const councilConfig = await this.configManager.getCouncilConfig();
+      const uniqueProviders = Array.from(new Set(councilConfig.members.map(member => member.provider)));
+
+      return uniqueProviders.map(providerId =>
+        this.providerPool.getProviderHealth(providerId)
+      );
+    }
+
+    // Final fallback: query database for council member IDs when config manager is unavailable
+    const result = await this.db.query(`
+      SELECT DISTINCT council_member_id
+      FROM council_members
+      WHERE council_member_id IS NOT NULL
+    `);
+
+    if (result.rows.length === 0) {
+      return [];
+    }
+
+    return result.rows.map(row =>
+      this.providerPool.getProviderHealth(row.council_member_id)
+    );
   }
 
   /**

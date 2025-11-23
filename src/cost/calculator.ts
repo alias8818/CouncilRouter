@@ -330,74 +330,98 @@ export class CostCalculator {
    * to prevent false matches on invalid dates like "2024-99-99"
    */
   private matchesPeriod(periodKey: string, alertPeriod: string): boolean {
-    // Exact match for period comparison
+    if (!periodKey || !alertPeriod) {
+      return false;
+    }
+
+    // Exact match for simple periods (e.g., "daily")
     if (periodKey === alertPeriod) {
       return true;
     }
 
-    // Check if periodKey ends with the alertPeriod after a separator
-    // This handles cases where periodKey is formatted like "2024-01-daily", "2024-01-hourly", etc.
-    if (periodKey.endsWith(`-${alertPeriod}`) || periodKey.endsWith(`_${alertPeriod}`)) {
-      const prefix = periodKey.slice(0, -(alertPeriod.length + 1)); // Everything before "-period"
+    const suffixLength = alertPeriod.length + 1; // include separator
+    const hasSuffix =
+      periodKey.endsWith(`-${alertPeriod}`) || periodKey.endsWith(`_${alertPeriod}`);
 
-      // Allow empty prefix (exact period match was already checked above)
-      if (prefix.length === 0) {
-        return false; // "-daily" without prefix should not match
-      }
+    if (!hasSuffix || periodKey.length <= suffixLength) {
+      return false;
+    }
 
-      // Validate date-like formats with reasonable ranges
-      // Pattern: YYYY or YYYY-MM or YYYY-MM-DD or YYYY-WXX or YYYYMMDD
-      // Allow week format (W followed by digits) in addition to numeric patterns
-      const isNumericPattern = /^\d{4}([-_]\d+)*$/.test(prefix) || /^\d+$/.test(prefix);
-      const isWeekPattern = /^\d{4}[-_]W\d+/.test(prefix);
-      
-      if (!isNumericPattern && !isWeekPattern) {
-        return false;
-      }
+    const prefix = periodKey.slice(0, -suffixLength);
+    if (prefix.length === 0) {
+      return false;
+    }
 
-      // Additional validation for date components
-      const parts = prefix.split(/[-_]/);
-
-      // First part should be a year (1900-2100 is reasonable)
-      const year = parseInt(parts[0], 10);
-      if (year < 1900 || year > 2100) {
-        return false;
-      }
-
-      // If there's a second part, it should be a valid month (01-12) or week (W01-W53) or day (001-366)
-      if (parts.length > 1) {
-        const second = parts[1];
-
-        // Week format: W01-W53
-        if (second.startsWith('W')) {
-          const week = parseInt(second.substring(1), 10);
-          if (week < 1 || week > 53) {
-            return false;
-          }
-        } else {
-          const monthOrDay = parseInt(second, 10);
-          // Could be month (1-12) or day of year (1-366)
-          if (monthOrDay < 1 || monthOrDay > 366) {
-            return false;
-          }
-          // If it's likely a month (01-12), be more strict
-          if (second.length === 2 && (monthOrDay < 1 || monthOrDay > 12)) {
-            return false;
-          }
-        }
-      }
-
-      // If there's a third part, it should be a valid day (01-31)
-      if (parts.length > 2) {
-        const day = parseInt(parts[2], 10);
-        if (day < 1 || day > 31) {
-          return false;
-        }
-      }
-
+    // Allow purely numeric prefixes (e.g., "20240115-daily" or "123456-weekly")
+    if (/^\d+$/.test(prefix)) {
       return true;
     }
 
-    return false;
+    // Normalize separators for validation
+    const normalized = prefix.replace(/_/g, '-');
+
+    // Reject any prefixes that contain non-numeric characters (letters, symbols)
+    if (/[^0-9-]/.test(normalized)) {
+      return false;
+    }
+
+    const parts = normalized.split('-');
+
+    // Reject consecutive separators (would produce empty strings)
+    if (parts.some(part => part.length === 0)) {
+      return false;
+    }
+
+    // Validate year range
+    const year = parseInt(parts[0], 10);
+    if (Number.isNaN(year) || year < 1900 || year > 2100) {
+      return false;
+    }
+
+    if (parts.length > 1) {
+      const monthSegment = parts[1];
+      const month = parseInt(monthSegment, 10);
+
+      if (Number.isNaN(month)) {
+        return false;
+      }
+
+      if (monthSegment.length === 2) {
+        // Treat 2-digit values as months (01-12)
+        if (month < 1 || month > 12) {
+          return false;
+        }
+      } else {
+        // Otherwise treat as ordinal within year (1-366)
+        if (month < 1 || month > 366) {
+          return false;
+        }
+      }
+    }
+
+    if (parts.length > 2) {
+      const day = parseInt(parts[2], 10);
+      if (Number.isNaN(day) || day < 1 || day > 31) {
+        return false;
+      }
+    }
+
+    if (parts.length > 3) {
+      const hour = parseInt(parts[3], 10);
+      if (Number.isNaN(hour) || hour < 0 || hour > 23) {
+        return false;
+      }
+    }
+
+    if (parts.length > 4) {
+      for (let i = 4; i < parts.length; i++) {
+        const value = parseInt(parts[i], 10);
+        if (Number.isNaN(value)) {
+          return false;
+        }
+      }
+    }
+
+    return true;
   }
 }
