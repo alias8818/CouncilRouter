@@ -67,6 +67,9 @@ jobs:
       - name: Install dependencies
         shell: pwsh
         run: |
+          # Note: Deprecation warnings for inflight@1.0.6 and glob@7.2.3 are expected
+          # These come from Jest's transitive dependencies and are harmless.
+          # They will be resolved when Jest updates its dependencies.
           if (Test-Path "package-lock.json") {
             npm ci
           } else {
@@ -230,6 +233,9 @@ jobs:
       - name: Install dependencies
         shell: pwsh
         run: |
+          # Note: Deprecation warnings for inflight@1.0.6 and glob@7.2.3 are expected
+          # These come from Jest's transitive dependencies and are harmless.
+          # They will be resolved when Jest updates its dependencies.
           if (Test-Path "package-lock.json") {
             npm ci
           } else {
