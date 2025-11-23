@@ -827,8 +827,18 @@ export class ConfigurationManager implements IConfigurationManager {
    * Serialize synthesis config (convert Maps to objects for JSON storage)
    */
   private serializeSynthesisConfig(config: SynthesisConfig): any {
+    const serializedStrategy: any = {
+      ...config.strategy
+    };
+
+    if (config.strategy.type === 'weighted-fusion' && (config.strategy as any).weights) {
+      const strategyWeights = (config.strategy as any).weights;
+      serializedStrategy.weights =
+        strategyWeights instanceof Map ? Object.fromEntries(strategyWeights) : strategyWeights;
+    }
+
     const serialized: any = {
-      strategy: config.strategy
+      strategy: serializedStrategy
     };
 
     if (config.moderatorStrategy) {
@@ -846,8 +856,14 @@ export class ConfigurationManager implements IConfigurationManager {
    * Deserialize synthesis config (convert objects to Maps)
    */
   private deserializeSynthesisConfig(data: any): SynthesisConfig {
+    const strategy: any = data.strategy ? { ...data.strategy } : undefined;
+    if (strategy?.type === 'weighted-fusion' && strategy.weights) {
+      strategy.weights =
+        strategy.weights instanceof Map ? strategy.weights : new Map(Object.entries(strategy.weights));
+    }
+
     const config: SynthesisConfig = {
-      strategy: data.strategy
+      strategy
     };
 
     if (data.moderatorStrategy) {
