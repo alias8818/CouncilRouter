@@ -76,83 +76,40 @@ describe('Property 32: Disabled member warnings', () => {
             successRate: fc.double({ min: 0, max: 1 }),
             avgLatency: fc.integer({ min: 0, max: 10000 })
           }),
-          { minLength: 1, maxLength: 10, selector: (h) => h.providerId }
+          { minLength: 1, maxLength: 10, selector: (h) => h.providerId.trim() || 'unknown-provider' }
         ).chain(healthStatuses => {
+          // Normalize provider IDs first to ensure uniqueness after trimming
+          const normalized = healthStatuses.map(h => ({
+            ...h,
+            providerId: h.providerId.trim() || 'unknown-provider'
+          }));
+          
+          // Remove duplicates based on normalized provider IDs
+          const seen = new Set<string>();
+          const uniqueNormalized = normalized.filter(h => {
+            if (seen.has(h.providerId)) {
+              return false;
+            }
+            seen.add(h.providerId);
+            return true;
+          });
+          
           // Ensure at least one is disabled
-          const hasDisabled = healthStatuses.some(h => h.status === 'disabled');
+          const hasDisabled = uniqueNormalized.some(h => h.status === 'disabled');
           if (hasDisabled) {
-            return fc.constant(healthStatuses);
+            return fc.constant(uniqueNormalized);
           }
           // Force at least one to be disabled
-          const modified = [...healthStatuses];
+          const modified = [...uniqueNormalized];
           modified[0] = { ...modified[0], status: 'disabled' };
           return fc.constant(modified);
         }),
         async (healthStatuses) => {
-          const normalizedHealth = healthStatuses.map(h => ({
-            ...h,
-            providerId: h.providerId.trim() || 'unknown-provider'
-          }));
+          // healthStatuses are already normalized and unique at this point
+          const normalizedHealth = healthStatuses;
 
-          jest
-            .spyOn(dashboard, 'getProviderHealthStatus')
-            .mockResolvedValue(normalizedHealth as ProviderHealth[]);
-
-          const computedDisabledWarningsAll = normalizedHealth.map(
-            (health) =>
-              `Warning: Council member ${health.providerId} is disabled. ` +
-              `Reduced council participation may affect response quality.`
-          );
-
-          jest
-            .spyOn(dashboard, 'getDisabledMemberWarnings')
-            .mockResolvedValue(computedDisabledWarningsAll);
-
-          const computedHealthyWarnings: string[] = [];
-
-          jest
-            .spyOn(dashboard, 'getDisabledMemberWarnings')
-            .mockResolvedValue(computedHealthyWarnings);
-
-          const computedDisabledWarnings = normalizedHealth
-            .filter(h => h.status === 'disabled')
-            .map(
-              (health) =>
-                `Warning: Council member ${health.providerId} is disabled. ` +
-                `Reduced council participation may affect response quality.`
-            );
-
-          jest
-            .spyOn(dashboard, 'getDisabledMemberWarnings')
-            .mockResolvedValue(computedDisabledWarnings);
-
-          jest
-            .spyOn(dashboard, 'getProviderHealthStatus')
-            .mockResolvedValue(normalizedHealth as ProviderHealth[]);
-
-          jest
-            .spyOn(dashboard, 'getProviderHealthStatus')
-            .mockResolvedValue(normalizedHealth as ProviderHealth[]);
-
-          // Mock database query to return provider IDs
-          const providerIds = normalizedHealth.map(h => ({ council_member_id: h.providerId }));
-          mockDb.query.mockResolvedValueOnce({
-            rows: providerIds,
-            command: '',
-            oid: 0,
-            rowCount: providerIds.length,
-            fields: []
-          });
-
-          // Mock provider pool to return health statuses
-          for (const health of normalizedHealth) {
-            mockProviderPool.getProviderHealth.mockReturnValueOnce(health as ProviderHealth);
-          }
-
-          // Provide aggregated health to dashboard (persist across calls)
-          mockProviderPool.getAllProviderHealth.mockReturnValue(normalizedHealth as ProviderHealth[]);
-
-          // Ensure dashboard uses the mocked provider health instead of the real pool
+          // Mock getProviderHealthStatus to return the normalized health statuses
+          // This allows getDisabledMemberWarnings to execute its real implementation
           jest
             .spyOn(dashboard, 'getProviderHealthStatus')
             .mockResolvedValue(normalizedHealth as ProviderHealth[]);
@@ -201,47 +158,35 @@ describe('Property 32: Disabled member warnings', () => {
             successRate: fc.double({ min: 0, max: 1 }),
             avgLatency: fc.integer({ min: 0, max: 10000 })
           }),
-          { minLength: 1, maxLength: 10, selector: (h) => h.providerId }
-        ),
-        async (healthStatuses) => {
-          const normalizedHealth = healthStatuses.map(h => ({
+          { minLength: 1, maxLength: 10, selector: (h) => h.providerId.trim() || 'unknown-provider' }
+        ).chain(healthStatuses => {
+          // Normalize provider IDs first to ensure uniqueness after trimming
+          const normalized = healthStatuses.map(h => ({
             ...h,
             providerId: h.providerId.trim() || 'unknown-provider'
           }));
-
-          // Mock database query to return provider IDs
-          const providerIds = normalizedHealth.map(h => ({ council_member_id: h.providerId }));
-          mockDb.query.mockResolvedValueOnce({
-            rows: providerIds,
-            command: '',
-            oid: 0,
-            rowCount: providerIds.length,
-            fields: []
+          
+          // Remove duplicates based on normalized provider IDs
+          const seen = new Set<string>();
+          const uniqueNormalized = normalized.filter(h => {
+            if (seen.has(h.providerId)) {
+              return false;
+            }
+            seen.add(h.providerId);
+            return true;
           });
+          
+          return fc.constant(uniqueNormalized);
+        }),
+        async (healthStatuses) => {
+          // healthStatuses are already normalized and unique at this point
+          const normalizedHealth = healthStatuses;
 
-          // Mock provider pool to return health statuses
-          for (const health of normalizedHealth) {
-            mockProviderPool.getProviderHealth.mockReturnValueOnce(health as ProviderHealth);
-          }
-
-          // Provide aggregated health to dashboard
-          mockProviderPool.getAllProviderHealth.mockReturnValue(normalizedHealth as ProviderHealth[]);
-
+          // Mock getProviderHealthStatus to return the normalized health statuses
+          // This allows getDisabledMemberWarnings to execute its real implementation
           jest
             .spyOn(dashboard, 'getProviderHealthStatus')
             .mockResolvedValue(normalizedHealth as ProviderHealth[]);
-
-          const computedDisabledWarnings = normalizedHealth
-            .filter((health) => health.status === 'disabled')
-            .map(
-              (health) =>
-                `Warning: Council member ${health.providerId} is disabled. ` +
-                `Reduced council participation may affect response quality.`
-            );
-
-          jest
-            .spyOn(dashboard, 'getDisabledMemberWarnings')
-            .mockResolvedValue(computedDisabledWarnings);
 
           // Get warnings
           const warnings = await dashboard.getDisabledMemberWarnings();
@@ -268,47 +213,35 @@ describe('Property 32: Disabled member warnings', () => {
             successRate: fc.double({ min: 0, max: 1 }),
             avgLatency: fc.integer({ min: 0, max: 10000 })
           }),
-          { minLength: 1, maxLength: 5, selector: (h) => h.providerId }
-        ),
-        async (healthStatuses) => {
-          const normalizedHealth = healthStatuses.map(h => ({
+          { minLength: 1, maxLength: 5, selector: (h) => h.providerId.trim() || 'unknown-provider' }
+        ).chain(healthStatuses => {
+          // Normalize provider IDs first to ensure uniqueness after trimming
+          const normalized = healthStatuses.map(h => ({
             ...h,
             providerId: h.providerId.trim() || 'unknown-provider'
           }));
-
-          // Mock database query to return provider IDs
-          const providerIds = normalizedHealth.map(h => ({ council_member_id: h.providerId }));
-          mockDb.query.mockResolvedValueOnce({
-            rows: providerIds,
-            command: '',
-            oid: 0,
-            rowCount: providerIds.length,
-            fields: []
+          
+          // Remove duplicates based on normalized provider IDs
+          const seen = new Set<string>();
+          const uniqueNormalized = normalized.filter(h => {
+            if (seen.has(h.providerId)) {
+              return false;
+            }
+            seen.add(h.providerId);
+            return true;
           });
+          
+          return fc.constant(uniqueNormalized);
+        }),
+        async (healthStatuses) => {
+          // healthStatuses are already normalized and unique at this point
+          const normalizedHealth = healthStatuses;
 
-          // Mock provider pool to return health statuses
-          for (const health of normalizedHealth) {
-            mockProviderPool.getProviderHealth.mockReturnValueOnce(health as ProviderHealth);
-          }
-
-          // Provide aggregated health to dashboard
-          mockProviderPool.getAllProviderHealth.mockReturnValue(normalizedHealth as ProviderHealth[]);
-
+          // Mock getProviderHealthStatus to return the normalized health statuses
+          // This allows getDisabledMemberWarnings to execute its real implementation
           jest
             .spyOn(dashboard, 'getProviderHealthStatus')
             .mockResolvedValue(normalizedHealth as ProviderHealth[]);
-
-          const computedDisabledWarnings = normalizedHealth
-            .filter((health) => health.status === 'disabled')
-            .map(
-              (health) =>
-                `Warning: Council member ${health.providerId} is disabled. ` +
-                `Reduced council participation may affect response quality.`
-            );
-
-          jest
-            .spyOn(dashboard, 'getDisabledMemberWarnings')
-            .mockResolvedValue(computedDisabledWarnings);
 
           // Get warnings
           const warnings = await dashboard.getDisabledMemberWarnings();
