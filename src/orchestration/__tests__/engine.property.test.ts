@@ -126,11 +126,6 @@ class MockProviderPool implements IProviderPool {
     this.disabledProviders.add(providerId);
   }
 
-  getAllProviderHealth(): ProviderHealth[] {
-    const providers = new Set([...this.healthStatuses.keys(), 'openai', 'anthropic', 'google']);
-    return Array.from(providers).map(providerId => this.getProviderHealth(providerId));
-  }
-
   isProviderDisabled(providerId: string): boolean {
     return this.disabledProviders.has(providerId);
   }

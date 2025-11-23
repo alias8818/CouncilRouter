@@ -107,8 +107,14 @@ describe('SynthesisEngine - Rotation Concurrency Property Test', () => {
 
           // Property 1: All members should have similar selection counts (balanced)
           const counts = Array.from(selectionCounts.values());
-          let minCount = counts.length > 0 ? Math.min(...counts) : 0;
-          const maxCount = counts.length > 0 ? Math.max(...counts) : 0;
+          
+          // Handle empty counts array to avoid Math.min(...[]) returning Infinity
+          let minCount = 0;
+          let maxCount = 0;
+          if (counts.length > 0) {
+            minCount = Math.min(...counts);
+            maxCount = Math.max(...counts);
+          }
 
           // If some members never got selected, treat the minimum as 0 explicitly
           if (selectionCounts.size < uniqueMembers.length) {
