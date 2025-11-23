@@ -23,6 +23,8 @@ export class SessionManager implements ISessionManager {
 
   // Cache encoders per model to avoid repeated initialization
   private encoders: Map<string, Tiktoken> = new Map();
+  private encoderAliases: Map<string, string> = new Map();
+  private readonly FALLBACK_ENCODER_MODEL = 'gpt-4o';
 
   constructor(db: Pool, redis: RedisClientType) {
     this.db = db;
@@ -419,22 +421,39 @@ export class SessionManager implements ISessionManager {
    * Get or create a tiktoken encoder for a specific model
    * Caches encoders to avoid repeated initialization overhead
    */
-  private getEncoder(model: string = 'gpt-4o'): Tiktoken {
-    if (!this.encoders.has(model)) {
+  private getEncoder(model?: string): Tiktoken {
+    const requestedModel = model ?? this.FALLBACK_ENCODER_MODEL;
+    const resolvedModel = this.encoderAliases.get(requestedModel) ?? requestedModel;
+
+    if (!this.encoders.has(resolvedModel)) {
       try {
-        // Try to get encoder for the specific model
-        this.encoders.set(model, encoding_for_model(model as any));
+        // Try to get encoder for the specific or aliased model
+        this.encoders.set(resolvedModel, encoding_for_model(resolvedModel as any));
       } catch {
-        // Fallback to gpt-4o encoding for unknown models
-        try {
-          this.encoders.set(model, encoding_for_model('gpt-4o' as any));
-        } catch {
-          // If even the fallback fails, throw error
-          throw new Error(`Failed to initialize tokenizer for model: ${model}`);
-        }
+        return this.getFallbackEncoder(requestedModel);
       }
     }
-    return this.encoders.get(model)!;
+
+    return this.encoders.get(resolvedModel)!;
+  }
+
+  private getFallbackEncoder(originalModel: string): Tiktoken {
+    try {
+      if (!this.encoders.has(this.FALLBACK_ENCODER_MODEL)) {
+        this.encoders.set(
+          this.FALLBACK_ENCODER_MODEL,
+          encoding_for_model(this.FALLBACK_ENCODER_MODEL as any)
+        );
+      }
+
+      if (originalModel !== this.FALLBACK_ENCODER_MODEL) {
+        this.encoderAliases.set(originalModel, this.FALLBACK_ENCODER_MODEL);
+      }
+
+      return this.encoders.get(this.FALLBACK_ENCODER_MODEL)!;
+    } catch {
+      throw new Error(`Failed to initialize tokenizer for model: ${originalModel}`);
+    }
   }
 
   /**
@@ -442,7 +461,7 @@ export class SessionManager implements ISessionManager {
    * Uses tiktoken for accurate token counting across different content types
    * Handles non-English text and code content correctly
    */
-  private estimateTokens(content: string, model: string = 'gpt-4o'): number {
+  private estimateTokens(content: string, model?: string): number {
     try {
       const encoder = this.getEncoder(model);
       const tokens = encoder.encode(content);
