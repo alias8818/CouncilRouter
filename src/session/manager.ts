@@ -13,12 +13,18 @@ import {
 import { Pool } from 'pg';
 import { createClient, RedisClientType } from 'redis';
 import { randomUUID } from 'crypto';
+import { encoding_for_model, Tiktoken } from '@dqbd/tiktoken';
 
 export class SessionManager implements ISessionManager {
   private db: Pool;
   private redis: RedisClientType;
   private readonly SESSION_TTL = 2592000; // 30 days in seconds
   private readonly TOKENS_PER_MESSAGE_ESTIMATE = 100; // Rough estimate for token counting
+
+  // Cache encoders per model to avoid repeated initialization
+  private encoders: Map<string, Tiktoken> = new Map();
+  private encoderAliases: Map<string, string> = new Map();
+  private readonly FALLBACK_ENCODER_MODEL = 'gpt-4o';
 
   constructor(db: Pool, redis: RedisClientType) {
     this.db = db;
@@ -412,14 +418,59 @@ export class SessionManager implements ISessionManager {
     }
 
   /**
-   * Estimate token count for a message
-   * Simple heuristic: ~4 characters per token
+   * Get or create a tiktoken encoder for a specific model
+   * Caches encoders to avoid repeated initialization overhead
    */
-  private estimateTokens(content: string): number {
-    // Rough estimate: ~4 characters per token for English text
-    // Less accurate for code, non-English text, or heavy punctuation
-    // TODO: Integrate precise tokenizer like tiktoken for production accuracy
-    return Math.ceil(content.length / 4);
+  private getEncoder(model?: string): Tiktoken {
+    const requestedModel = model ?? this.FALLBACK_ENCODER_MODEL;
+    const resolvedModel = this.encoderAliases.get(requestedModel) ?? requestedModel;
+
+    if (!this.encoders.has(resolvedModel)) {
+      try {
+        // Try to get encoder for the specific or aliased model
+        this.encoders.set(resolvedModel, encoding_for_model(resolvedModel as any));
+      } catch {
+        return this.getFallbackEncoder(requestedModel);
+      }
+    }
+
+    return this.encoders.get(resolvedModel)!;
+  }
+
+  private getFallbackEncoder(originalModel: string): Tiktoken {
+    try {
+      if (!this.encoders.has(this.FALLBACK_ENCODER_MODEL)) {
+        this.encoders.set(
+          this.FALLBACK_ENCODER_MODEL,
+          encoding_for_model(this.FALLBACK_ENCODER_MODEL as any)
+        );
+      }
+
+      if (originalModel !== this.FALLBACK_ENCODER_MODEL) {
+        this.encoderAliases.set(originalModel, this.FALLBACK_ENCODER_MODEL);
+      }
+
+      return this.encoders.get(this.FALLBACK_ENCODER_MODEL)!;
+    } catch {
+      throw new Error(`Failed to initialize tokenizer for model: ${originalModel}`);
+    }
+  }
+
+  /**
+   * Estimate token count for a message
+   * Uses tiktoken for accurate token counting across different content types
+   * Handles non-English text and code content correctly
+   */
+  private estimateTokens(content: string, model?: string): number {
+    try {
+      const encoder = this.getEncoder(model);
+      const tokens = encoder.encode(content);
+      return tokens.length;
+    } catch (error) {
+      // Absolute fallback for unknown models or encoding errors
+      // Use a more conservative estimate that works better for diverse content
+      return Math.ceil(content.length / 3.5);
+    }
   }
 
   /**

@@ -53,7 +53,7 @@
 - [x] 4. Checkpoint - Ensure all critical bug tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 5. Fix race condition in Session Manager cache updates
+- [x] 5. Fix race condition in Session Manager cache updates
   - Update addMessage and other methods to use forUpdate=true when reading sessions
   - Ensure atomic read-modify-write operations for session updates
   - Verify all session update paths use SELECT FOR UPDATE
@@ -102,17 +102,17 @@
 - [x] 9. Checkpoint - Ensure all major bug tests pass
   - Ensure all tests pass, ask the user if questions arise.
 
-- [ ] 10. Fix authorization error paths in API Gateway
+- [x] 10. Fix authorization error paths in API Gateway
   - Add explicit return statements after sending 401 Unauthorized responses
   - Ensure execution terminates immediately after authorization failures
   - Review all error response paths for explicit returns
   - _Requirements: 11.1, 11.2_
 
-- [ ] 10.1 Write property test for authorization error paths terminate execution
+- [x] 10.1 Write property test for authorization error paths terminate execution
   - **Property 25: Authorization error paths terminate execution**
   - **Validates: Requirements 11.1, 11.2**
 
-- [ ] 11. Fix word filtering comment mismatch in Synthesis Engine
+- [x] 11. Fix word filtering comment mismatch in Synthesis Engine
   - Update comment to accurately state "1 and 2 chars" instead of "1-2 chars"
   - Verify comment matches the filter logic (word.length > 2)
   - _Requirements: 7.1, 7.2_
@@ -169,18 +169,18 @@
   - **Property 16: Preset validation occurs first**
   - **Validates: Requirements 14.1**
 
-- [ ] 17. Improve token estimation in Session Manager
+- [x] 17. Improve token estimation in Session Manager
   - Install @dqbd/tiktoken package
   - Implement encoder caching per model
   - Replace simple heuristic with tiktoken-based estimation
   - Add fallback for unknown models
   - _Requirements: 12.1, 12.2, 12.3_
 
-- [ ] 17.1 Write property test for token estimation handles non-English text
+- [x] 17.1 Write property test for token estimation handles non-English text
   - **Property 19: Token estimation handles non-English text**
   - **Validates: Requirements 12.2**
 
-- [ ] 17.2 Write property test for token estimation handles code content
+- [x] 17.2 Write property test for token estimation handles code content
   - **Property 20: Token estimation handles code content**
   - **Validates: Requirements 12.3**
 
