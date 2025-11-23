@@ -12,7 +12,10 @@ import {
   SynthesisConfig,
   PerformanceConfig,
   TransparencyConfig,
-  ConfigPreset
+  DevilsAdvocateConfig,
+  ConfigPreset,
+  RetryPolicy,
+  ModelRankings
 } from '../types/core';
 
 /**
@@ -36,7 +39,9 @@ export class ConfigurationManager implements IConfigurationManager {
     deliberation: 'config:deliberation',
     synthesis: 'config:synthesis',
     performance: 'config:performance',
-    transparency: 'config:transparency'
+    transparency: 'config:transparency',
+    devilsAdvocate: 'config:devils_advocate',
+    modelRankings: 'config:model_rankings'
   };
 
   constructor(db: Pool, redis: RedisClientType) {
@@ -605,6 +610,98 @@ export class ConfigurationManager implements IConfigurationManager {
   }
 
   /**
+   * Get Devil's Advocate configuration
+   */
+  async getDevilsAdvocateConfig(): Promise<DevilsAdvocateConfig> {
+    // Try cache first
+    const cached = await this.redis.get(this.CACHE_KEYS.devilsAdvocate);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+
+    // Fetch from database
+    const result = await this.db.query(
+      `SELECT config_data FROM configurations 
+       WHERE config_type = 'devils_advocate' AND active = true 
+       ORDER BY version DESC LIMIT 1`
+    );
+
+    if (result.rows.length === 0) {
+      // Return default configuration
+      return this.getDefaultDevilsAdvocateConfig();
+    }
+
+    const config = result.rows[0].config_data;
+
+    // Cache it
+    await this.redis.set(this.CACHE_KEYS.devilsAdvocate, JSON.stringify(config));
+
+    return config;
+  }
+
+  /**
+   * Update Devil's Advocate configuration
+   */
+  async updateDevilsAdvocateConfig(config: DevilsAdvocateConfig): Promise<void> {
+    // Validate configuration
+    if (typeof config.enabled !== 'boolean') {
+      throw new ConfigurationValidationError('enabled must be a boolean');
+    }
+    if (typeof config.applyToCodeRequests !== 'boolean') {
+      throw new ConfigurationValidationError('applyToCodeRequests must be a boolean');
+    }
+    if (typeof config.applyToTextRequests !== 'boolean') {
+      throw new ConfigurationValidationError('applyToTextRequests must be a boolean');
+    }
+    if (!['light', 'moderate', 'thorough'].includes(config.intensityLevel)) {
+      throw new ConfigurationValidationError('intensityLevel must be one of: light, moderate, thorough');
+    }
+    if (!config.provider || typeof config.provider !== 'string') {
+      throw new ConfigurationValidationError('provider must be a non-empty string');
+    }
+    if (!config.model || typeof config.model !== 'string') {
+      throw new ConfigurationValidationError('model must be a non-empty string');
+    }
+
+    // Get current version
+    const versionResult = await this.db.query(
+      `SELECT COALESCE(MAX(version), 0) as max_version 
+       FROM configurations WHERE config_type = 'devils_advocate'`
+    );
+    const newVersion = versionResult.rows[0].max_version + 1;
+
+    // Deactivate old configurations
+    await this.db.query(
+      `UPDATE configurations SET active = false 
+       WHERE config_type = 'devils_advocate' AND active = true`
+    );
+
+    // Insert new configuration
+    await this.db.query(
+      `INSERT INTO configurations (id, config_type, config_data, version, created_at, active)
+       VALUES (gen_random_uuid(), 'devils_advocate', $1, $2, NOW(), true)`,
+      [JSON.stringify(config), newVersion]
+    );
+
+    // Invalidate cache
+    await this.redis.del(this.CACHE_KEYS.devilsAdvocate);
+  }
+
+  /**
+   * Get default Devil's Advocate configuration
+   */
+  private getDefaultDevilsAdvocateConfig(): DevilsAdvocateConfig {
+    return {
+      enabled: false,
+      applyToCodeRequests: true,
+      applyToTextRequests: false,
+      intensityLevel: 'moderate',
+      provider: 'openai',
+      model: 'gpt-4'
+    };
+  }
+
+  /**
    * Get default retry policy
    */
   private getDefaultRetryPolicy(): RetryPolicy {
@@ -844,7 +941,14 @@ export class ConfigurationManager implements IConfigurationManager {
             preset: 'balanced'
           },
           synthesis: {
-            strategy: { type: 'weighted-fusion', weights: new Map() }
+            strategy: {
+              type: 'weighted-fusion',
+              weights: new Map([
+                ['claude-sonnet-coding', 1.0],
+                ['gpt-coding', 1.0],
+                ['deepseek-coding', 1.0]
+              ])
+            }
           },
           performance: {
             globalTimeout: 120,
@@ -938,5 +1042,146 @@ export class ConfigurationManager implements IConfigurationManager {
     }
 
     return config;
+  }
+
+  /**
+   * Get model rankings for moderator selection
+   */
+  async getModelRankings(): Promise<ModelRankings> {
+    // Try cache first
+    const cached = await this.redis.get(this.CACHE_KEYS.modelRankings);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+
+    // Fetch from database
+    const result = await this.db.query(
+      'SELECT model_name, score FROM model_rankings ORDER BY score DESC'
+    );
+
+    if (result.rows.length === 0) {
+      // Initialize default rankings if none exist
+      await this.initializeDefaultModelRankings();
+      // Fetch again after initialization
+      const initResult = await this.db.query(
+        'SELECT model_name, score FROM model_rankings ORDER BY score DESC'
+      );
+      const rankings = this.buildRankingsMap(initResult.rows);
+      await this.redis.set(this.CACHE_KEYS.modelRankings, JSON.stringify(rankings));
+      return rankings;
+    }
+
+    const rankings = this.buildRankingsMap(result.rows);
+
+    // Cache it
+    await this.redis.set(this.CACHE_KEYS.modelRankings, JSON.stringify(rankings));
+
+    return rankings;
+  }
+
+  /**
+   * Update model rankings
+   */
+  async updateModelRankings(rankings: ModelRankings): Promise<void> {
+    // Validate rankings
+    for (const [modelName, score] of Object.entries(rankings)) {
+      if (typeof score !== 'number' || score < 0 || isNaN(score)) {
+        throw new ConfigurationValidationError(
+          `Invalid score for model ${modelName}: must be a non-negative number`
+        );
+      }
+    }
+
+    // Use a transaction to update all rankings atomically
+    const client = await this.db.connect();
+    try {
+      await client.query('BEGIN');
+
+      // Delete existing rankings
+      await client.query('DELETE FROM model_rankings');
+
+      // Insert new rankings
+      for (const [modelName, score] of Object.entries(rankings)) {
+        await client.query(
+          `INSERT INTO model_rankings (model_name, score, updated_at)
+           VALUES ($1, $2, NOW())
+           ON CONFLICT (model_name) DO UPDATE SET score = $2, updated_at = NOW()`,
+          [modelName, score]
+        );
+      }
+
+      await client.query('COMMIT');
+
+      // Invalidate cache
+      await this.redis.del(this.CACHE_KEYS.modelRankings);
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
+   * Initialize default model rankings
+   */
+  private async initializeDefaultModelRankings(): Promise<void> {
+    const defaultRankings: ModelRankings = {
+      // === Legacy / 2023–mid-2024 models (significantly surpassed in 2025) ===
+      'gpt-3.5-turbo': 65,
+      'gpt-4': 85,
+      'gpt-4-turbo': 90,
+      'gpt-4o': 94,
+      'claude-3-haiku': 72,
+      'claude-3-sonnet': 86,
+      'claude-3-opus': 93,
+      'claude-3.5-sonnet': 96,
+      'gemini-1.5-pro': 92,
+      'gemini-1.5-flash': 80,
+      'grok-1': 70,
+      'grok-2': 88,
+
+      // === Current 2025 frontier closed models ===
+      'gemini-2.5-pro': 114,
+      'gemini-3-pro': 113,
+      'claude-sonnet-4.5': 112,
+      'grok-4.1': 111,
+      'grok-4': 109,
+      'gpt-5.1': 110,
+      'gpt-5': 108,
+      'claude-opus-4.1': 109,
+      'o3': 107,
+      'o4-mini': 96,
+
+      // === Strong 2025 open-weight models ===
+      'deepseek-v3': 109,
+      'deepseek-r1': 108,
+      'qwen3-235b': 107,
+      'qwen3-72b': 105,
+      'llama-4-maverick': 106,
+      'minimax-m2': 104,
+
+      // === Legacy Google models (for backward compatibility) ===
+      'gemini-pro': 92,
+      'gemini-ultra': 97,
+      'palm-2': 80,
+      'claude-2': 85,
+
+      // === Fallback ===
+      'default': 50
+    };
+
+    await this.updateModelRankings(defaultRankings);
+  }
+
+  /**
+   * Build rankings map from database rows
+   */
+  private buildRankingsMap(rows: Array<{ model_name: string; score: number }>): ModelRankings {
+    const rankings: ModelRankings = {};
+    for (const row of rows) {
+      rankings[row.model_name] = parseFloat(row.score.toString());
+    }
+    return rankings;
   }
 }

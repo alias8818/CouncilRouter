@@ -24,7 +24,8 @@ import {
   DeliberationThread,
   SynthesisStrategy,
   ConsensusDecision,
-  UserRequest
+  UserRequest,
+  DevilsAdvocateConfig
 } from '../../types/core';
 
 // ============================================================================
@@ -97,6 +98,7 @@ class MockConfigurationManager implements IConfigurationManager {
   private performanceConfig: PerformanceConfig;
   private synthesisConfig: SynthesisConfig;
   private transparencyConfig: any;
+  private devilsAdvocateConfig: DevilsAdvocateConfig;
   
   constructor(
     councilConfig?: CouncilConfig,
@@ -145,6 +147,15 @@ class MockConfigurationManager implements IConfigurationManager {
       enabled: false,
       forcedTransparency: false
     };
+
+    this.devilsAdvocateConfig = {
+      enabled: false,
+      applyToCodeRequests: true,
+      applyToTextRequests: false,
+      intensityLevel: 'moderate',
+      provider: 'openai',
+      model: 'gpt-4'
+    };
   }
   
   async getCouncilConfig(): Promise<CouncilConfig> {
@@ -174,6 +185,14 @@ class MockConfigurationManager implements IConfigurationManager {
   async updateTransparencyConfig(config: any): Promise<void> {
     this.transparencyConfig = config;
   }
+
+  async getDevilsAdvocateConfig(): Promise<DevilsAdvocateConfig> {
+    return this.devilsAdvocateConfig;
+  }
+
+  async updateDevilsAdvocateConfig(config: DevilsAdvocateConfig): Promise<void> {
+    this.devilsAdvocateConfig = config;
+  }
   
   async applyPreset(): Promise<void> {
     // Not needed for tests
@@ -188,6 +207,7 @@ class MockSynthesisEngine implements ISynthesisEngine {
   }
   
   async synthesize(
+    request: UserRequest,
     thread: DeliberationThread,
     strategy: SynthesisStrategy
   ): Promise<ConsensusDecision> {

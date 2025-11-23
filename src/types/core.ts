@@ -158,6 +158,15 @@ export interface TransparencyConfig {
   forcedTransparency: boolean; // Always show deliberation regardless of user preference
 }
 
+export interface DevilsAdvocateConfig {
+  enabled: boolean;
+  applyToCodeRequests: boolean;
+  applyToTextRequests: boolean;
+  intensityLevel: 'light' | 'moderate' | 'thorough';
+  provider: string; // Which LLM provider to use for critique
+  model: string; // Which model to use for critique
+}
+
 export type ConfigPreset =
   | 'fast-council'
   | 'balanced-council'
@@ -419,3 +428,15 @@ export interface BudgetCheckResult {
   budgetCap: number;
   percentUsed: number;
 }
+
+// ============================================================================
+// Model Rankings Models
+// ============================================================================
+
+export interface ModelRanking {
+  modelName: string;
+  score: number;
+  notes?: string;
+}
+
+export type ModelRankings = Record<string, number>;

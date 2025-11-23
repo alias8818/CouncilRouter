@@ -7,9 +7,12 @@ export interface ValidationResult {
   isValid: boolean;
   hasBalancedBrackets: boolean;
   hasSyntaxErrors: boolean;
+  hasObviousSyntaxErrors: boolean; // Alias for hasSyntaxErrors for compatibility
+  isCriticalError: boolean; // Flags errors that should reject the response
   hasErrorHandling: boolean;
   hasDocumentation: boolean;
-  weight: number; // calculated multiplier
+  weight: number; // calculated multiplier (0.0 for critical errors)
+  errorMessages: string[]; // Array of error messages
 }
 
 /**
@@ -29,7 +32,10 @@ export class CodeValidator {
 
   // Patterns for syntax error detection
   private readonly unclosedStringPattern = /(["'`])(?:(?=(\\?))\2.)*?(?!\1)/g;
-  private readonly invalidOperatorPattern = /[=<>!+\-*/%&|^~]{3,}/g;
+  // Match 5+ consecutive operator characters (invalid - valid operators are 1-4 chars)
+  // Valid 3-char operators: ===, !==, >>>, <<=, >>=, **=, &&=, ||=, ??=
+  // Valid 4-char operator: >>>= (unsigned right shift assignment)
+  private readonly invalidOperatorPattern = /[=<>!+\-*/%&|^~]{5,}/g;
   private readonly malformedKeywordPattern = /\b(functoin|calss|retrun|improt)\b/g;
 
   /**
@@ -41,9 +47,12 @@ export class CodeValidator {
         isValid: false,
         hasBalancedBrackets: false,
         hasSyntaxErrors: true,
+        hasObviousSyntaxErrors: true,
+        isCriticalError: true,
         hasErrorHandling: false,
         hasDocumentation: false,
-        weight: 0.1 // Minimum weight
+        weight: 0.0, // Critical error gets zero weight
+        errorMessages: ['Empty or whitespace-only code provided']
       };
     }
 
@@ -52,20 +61,35 @@ export class CodeValidator {
     const hasErrorHandling = this.hasErrorHandling(code);
     const hasDocumentation = this.hasDocumentation(code);
 
+    // Critical error: obvious syntax errors should reject the response
+    const isCriticalError = hasSyntaxErrors;
+
+    const errorMessages: string[] = [];
+    if (!hasBalancedBrackets) {
+      errorMessages.push('Unbalanced brackets detected');
+    }
+    if (hasSyntaxErrors) {
+      errorMessages.push('Obvious syntax errors detected');
+    }
+
     const weight = this.calculateWeight({
       hasBalancedBrackets,
       hasSyntaxErrors,
       hasErrorHandling,
-      hasDocumentation
+      hasDocumentation,
+      isCriticalError
     });
 
     return {
       isValid: hasBalancedBrackets && !hasSyntaxErrors,
       hasBalancedBrackets,
       hasSyntaxErrors,
+      hasObviousSyntaxErrors: hasSyntaxErrors, // Alias for compatibility
+      isCriticalError,
       hasErrorHandling,
       hasDocumentation,
-      weight
+      weight,
+      errorMessages
     };
   }
 
@@ -143,7 +167,8 @@ export class CodeValidator {
         return true;
       }
 
-      // Check for invalid operators (3+ consecutive operators)
+      // Check for invalid operators (5+ consecutive operators)
+      // Valid operators are 1-4 characters (e.g., ===, !==, >>>, >>>=, <<=, >>=, **=, &&=, ||=, ??=)
       this.invalidOperatorPattern.lastIndex = 0;
       if (this.invalidOperatorPattern.test(searchText)) {
         return true;
@@ -228,7 +253,13 @@ export class CodeValidator {
     hasSyntaxErrors: boolean;
     hasErrorHandling: boolean;
     hasDocumentation: boolean;
+    isCriticalError: boolean;
   }): number {
+    // Critical errors get zero weight
+    if (validation.isCriticalError) {
+      return 0.0;
+    }
+
     let weight = 1.0;
 
     // Apply penalties

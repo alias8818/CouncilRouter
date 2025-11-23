@@ -13,6 +13,7 @@ import {
   ConsensusDecision,
   RetryPolicy
 } from '../../types/core';
+import { IProviderPool } from '../../interfaces/IProviderPool';
 
 // Mock Pool
 class MockPool {
@@ -24,6 +25,7 @@ class MockPool {
 describe('DevilsAdvocateModule', () => {
   let module: DevilsAdvocateModule;
   let mockPool: MockPool;
+  let mockProviderPool: IProviderPool;
   let testMembers: CouncilMember[];
 
   const defaultRetryPolicy: RetryPolicy = {
@@ -36,7 +38,26 @@ describe('DevilsAdvocateModule', () => {
 
   beforeEach(() => {
     mockPool = new MockPool();
-    module = new DevilsAdvocateModule(mockPool as unknown as Pool);
+    mockProviderPool = {
+      sendRequest: jest.fn().mockResolvedValue({
+        success: true,
+        content: JSON.stringify({
+          weaknesses: ['Weakness 1', 'Weakness 2'],
+          suggestions: ['Suggestion 1'],
+          severity: 'moderate'
+        }),
+        tokenUsage: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
+        latency: 500
+      }),
+      getProviderHealth: jest.fn(),
+      getAllProviderHealth: jest.fn(),
+      markProviderDisabled: jest.fn()
+    } as any;
+    
+    module = new DevilsAdvocateModule(
+      mockPool as unknown as Pool,
+      mockProviderPool
+    );
 
     testMembers = [
       {
@@ -290,57 +311,164 @@ describe('DevilsAdvocateModule', () => {
     });
   });
 
+  describe('critique', () => {
+    it('should generate critique using LLM', async () => {
+      const query = 'What is the best way to handle errors?';
+      const synthesis = 'Use try-catch blocks for error handling.';
+      const responses = [
+        { councilMemberId: 'member1', content: 'Response 1' },
+        { councilMemberId: 'member2', content: 'Response 2' }
+      ];
+
+      const critique = await module.critique(query, synthesis, responses);
+
+      expect(critique).toBeDefined();
+      expect(Array.isArray(critique.weaknesses)).toBe(true);
+      expect(Array.isArray(critique.suggestions)).toBe(true);
+      expect(['minor', 'moderate', 'critical']).toContain(critique.severity);
+      expect(mockProviderPool.sendRequest).toHaveBeenCalled();
+    });
+
+    it('should handle provider errors gracefully', async () => {
+      const failingProviderPool = {
+        sendRequest: jest.fn().mockResolvedValue({
+          success: false,
+          error: new Error('Provider error')
+        }),
+        getProviderHealth: jest.fn(),
+        getAllProviderHealth: jest.fn(),
+        markProviderDisabled: jest.fn()
+      } as any;
+
+      const moduleWithFailingProvider = new DevilsAdvocateModule(
+        mockPool as unknown as Pool,
+        failingProviderPool
+      );
+
+      const critique = await moduleWithFailingProvider.critique(
+        'query',
+        'synthesis',
+        []
+      );
+
+      expect(critique.weaknesses).toEqual([]);
+      expect(critique.severity).toBe('minor');
+    });
+  });
+
+  describe('rewrite', () => {
+    it('should rewrite synthesis based on critique', async () => {
+      const query = 'How to handle errors?';
+      const originalSynthesis = 'Use try-catch.';
+      const critique = {
+        weaknesses: ['Missing error types'],
+        suggestions: ['Add specific error handling'],
+        severity: 'moderate' as const
+      };
+
+      // Mock rewrite response
+      (mockProviderPool.sendRequest as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        content: 'Use try-catch blocks with specific error types.',
+        tokenUsage: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
+        latency: 500
+      });
+
+      const rewritten = await module.rewrite(query, originalSynthesis, critique);
+
+      expect(rewritten).toBeDefined();
+      expect(rewritten).not.toBe(originalSynthesis);
+      expect(mockProviderPool.sendRequest).toHaveBeenCalled();
+    });
+
+    it('should return original on provider error', async () => {
+      const failingProviderPool = {
+        sendRequest: jest.fn().mockResolvedValue({
+          success: false,
+          error: new Error('Provider error')
+        }),
+        getProviderHealth: jest.fn(),
+        getAllProviderHealth: jest.fn(),
+        markProviderDisabled: jest.fn()
+      } as any;
+
+      const moduleWithFailingProvider = new DevilsAdvocateModule(
+        mockPool as unknown as Pool,
+        failingProviderPool
+      );
+
+      const original = 'Original synthesis';
+      const rewritten = await moduleWithFailingProvider.rewrite(
+        'query',
+        original,
+        { weaknesses: [], suggestions: [], severity: 'minor' }
+      );
+
+      expect(rewritten).toBe(original);
+    });
+  });
+
   describe('synthesizeWithCritique', () => {
-    it('should synthesize decision incorporating critique', async () => {
-      const thread: DeliberationThread = {
-        rounds: [],
-        totalDuration: 0
-      };
+    it('should orchestrate critique and rewrite', async () => {
+      const query = 'How to handle errors?';
+      const synthesis = 'Use try-catch.';
+      const responses = [
+        { councilMemberId: 'member1', content: 'Response 1' }
+      ];
 
-      const critique = 'The consensus overlooks potential edge case X.';
-      const synthesizer = testMembers[0];
+      // Mock critique response
+      (mockProviderPool.sendRequest as jest.Mock)
+        .mockResolvedValueOnce({
+          success: true,
+          content: JSON.stringify({
+            weaknesses: ['Missing details'],
+            suggestions: ['Add more details'],
+            severity: 'moderate'
+          }),
+          tokenUsage: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
+          latency: 500
+        })
+        // Mock rewrite response
+        .mockResolvedValueOnce({
+          success: true,
+          content: 'Improved synthesis with details.',
+          tokenUsage: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
+          latency: 500
+        });
 
-      const decision = await module.synthesizeWithCritique(thread, critique, synthesizer);
-
-      expect(decision).toBeDefined();
-      expect(decision.content).toContain(critique);
-      expect(decision.contributingMembers).toContain(synthesizer.id);
-      expect(decision.confidence).toBe('medium');
-      expect(decision.agreementLevel).toBe(0.7);
-    });
-
-    it('should include synthesizer in contributing members', async () => {
-      const thread: DeliberationThread = {
-        rounds: [],
-        totalDuration: 0
-      };
-
-      const synthesizer = testMembers[1];
-      const decision = await module.synthesizeWithCritique(
-        thread,
-        'Critique content',
-        synthesizer
+      const improved = await module.synthesizeWithCritique(
+        query,
+        synthesis,
+        responses
       );
 
-      expect(decision.contributingMembers).toEqual([synthesizer.id]);
+      expect(improved).toBeDefined();
+      expect(improved).not.toBe(synthesis);
+      expect(mockProviderPool.sendRequest).toHaveBeenCalledTimes(2); // Critique + rewrite
     });
 
-    it('should set timestamp', async () => {
-      const thread: DeliberationThread = {
-        rounds: [],
-        totalDuration: 0
-      };
+    it('should return original if critique finds no issues', async () => {
+      // Mock critique with no issues
+      (mockProviderPool.sendRequest as jest.Mock).mockResolvedValueOnce({
+        success: true,
+        content: JSON.stringify({
+          weaknesses: [],
+          suggestions: [],
+          severity: 'minor'
+        }),
+        tokenUsage: { promptTokens: 100, completionTokens: 50, totalTokens: 150 },
+        latency: 500
+      });
 
-      const before = new Date();
-      const decision = await module.synthesizeWithCritique(
-        thread,
-        'Critique',
-        testMembers[0]
+      const synthesis = 'Original synthesis';
+      const improved = await module.synthesizeWithCritique(
+        'query',
+        synthesis,
+        []
       );
-      const after = new Date();
 
-      expect(decision.timestamp.getTime()).toBeGreaterThanOrEqual(before.getTime());
-      expect(decision.timestamp.getTime()).toBeLessThanOrEqual(after.getTime());
+      expect(improved).toBe(synthesis);
+      expect(mockProviderPool.sendRequest).toHaveBeenCalledTimes(1); // Only critique
     });
   });
 

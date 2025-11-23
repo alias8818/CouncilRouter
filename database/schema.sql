@@ -95,6 +95,19 @@ CREATE TABLE configurations (
 );
 
 -- ============================================================================
+-- Model rankings table
+-- ============================================================================
+CREATE TABLE model_rankings (
+  model_name VARCHAR(255) PRIMARY KEY,
+  score DECIMAL(5,2) NOT NULL,
+  notes TEXT,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_model_rankings_score ON model_rankings(score DESC);
+
+-- ============================================================================
 -- Provider health table
 -- ============================================================================
 CREATE TABLE provider_health (
@@ -210,3 +223,20 @@ CREATE TABLE budget_spending (
 
 CREATE INDEX idx_budget_spending_provider ON budget_spending(provider_id, model_id, period_type);
 CREATE INDEX idx_budget_spending_period ON budget_spending(period_start, period_end);
+
+-- ============================================================================
+-- Devil's Advocate logs table (Synthesis Context Injection)
+-- ============================================================================
+CREATE TABLE devils_advocate_logs (
+  id UUID PRIMARY KEY,
+  request_id UUID REFERENCES requests(id),
+  critique_content JSONB NOT NULL, -- Full critique object: {weaknesses, suggestions, severity}
+  original_length INTEGER NOT NULL,
+  improved_length INTEGER NOT NULL,
+  time_taken_ms INTEGER NOT NULL,
+  improved BOOLEAN NOT NULL,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE INDEX idx_devils_advocate_logs_request_id ON devils_advocate_logs(request_id);
+CREATE INDEX idx_devils_advocate_logs_created_at ON devils_advocate_logs(created_at);

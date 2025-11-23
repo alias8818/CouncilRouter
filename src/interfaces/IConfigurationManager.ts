@@ -4,7 +4,9 @@ import {
   SynthesisConfig,
   PerformanceConfig,
   TransparencyConfig,
-  ConfigPreset
+  DevilsAdvocateConfig,
+  ConfigPreset,
+  ModelRankings
 } from '../types/core';
 
 /**
@@ -48,7 +50,27 @@ export interface IConfigurationManager {
   updateTransparencyConfig(config: TransparencyConfig): Promise<void>;
 
   /**
+   * Get Devil's Advocate configuration
+   */
+  getDevilsAdvocateConfig(): Promise<DevilsAdvocateConfig>;
+
+  /**
+   * Update Devil's Advocate configuration
+   */
+  updateDevilsAdvocateConfig(config: DevilsAdvocateConfig): Promise<void>;
+
+  /**
    * Apply a configuration preset
    */
   applyPreset(preset: ConfigPreset): Promise<void>;
+
+  /**
+   * Get model rankings for moderator selection
+   */
+  getModelRankings(): Promise<ModelRankings>;
+
+  /**
+   * Update model rankings
+   */
+  updateModelRankings(rankings: ModelRankings): Promise<void>;
 }

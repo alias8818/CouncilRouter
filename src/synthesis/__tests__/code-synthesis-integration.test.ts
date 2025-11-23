@@ -10,7 +10,8 @@ import {
   Exchange,
   SynthesisStrategy,
   CouncilMember,
-  TokenUsage
+  TokenUsage,
+  UserRequest
 } from '../../types/core';
 
 describe('Code-Aware Synthesis Integration Tests', () => {
@@ -67,6 +68,12 @@ describe('Code-Aware Synthesis Integration Tests', () => {
     totalDuration: 1000
   });
 
+  const createRequest = (query: string = 'Test query'): UserRequest => ({
+    id: 'test-request-id',
+    query,
+    timestamp: new Date()
+  });
+
   describe('End-to-end synthesis with JavaScript code', () => {
     it('should synthesize JavaScript code responses', async () => {
       const exchanges = [
@@ -76,9 +83,10 @@ describe('Code-Aware Synthesis Integration Tests', () => {
       ];
 
       const thread = createThread(exchanges);
+      const request = createRequest('Generate a function to add two numbers');
       const strategy: SynthesisStrategy = { type: 'consensus-extraction' };
 
-      const result = await engine.synthesize(thread, strategy);
+      const result = await engine.synthesize(request, thread, strategy);
 
       expect(result).toBeDefined();
       expect(result.content).toBeDefined();
@@ -94,9 +102,10 @@ describe('Code-Aware Synthesis Integration Tests', () => {
       ];
 
       const thread = createThread(exchanges);
+      const request = createRequest('Generate a Python function to add two numbers');
       const strategy: SynthesisStrategy = { type: 'weighted-fusion', weights: new Map() };
 
-      const result = await engine.synthesize(thread, strategy);
+      const result = await engine.synthesize(request, thread, strategy);
 
       expect(result).toBeDefined();
       expect(result.content).toBeDefined();
@@ -113,9 +122,10 @@ describe('Code-Aware Synthesis Integration Tests', () => {
       ];
 
       const thread = createThread(exchanges);
+      const request = createRequest('Generate a function to add two numbers');
       const strategy: SynthesisStrategy = { type: 'consensus-extraction' };
 
-      const result = await engine.synthesize(thread, strategy);
+      const result = await engine.synthesize(request, thread, strategy);
 
       expect(result).toBeDefined();
       expect(result.content).toBeDefined();
@@ -132,12 +142,13 @@ describe('Code-Aware Synthesis Integration Tests', () => {
       ];
 
       const thread = createThread(exchanges);
+      const request = createRequest('Generate a function to add two numbers');
       const strategy: SynthesisStrategy = {
         type: 'meta-synthesis',
         moderatorStrategy: { type: 'strongest' }
       };
 
-      const result = await engine.synthesize(thread, strategy);
+      const result = await engine.synthesize(request, thread, strategy);
 
       expect(result).toBeDefined();
       expect(result.content).toBeDefined();
@@ -147,8 +158,9 @@ describe('Code-Aware Synthesis Integration Tests', () => {
       // Check that prompt contains code-specific instructions
       const callArgs = mockProviderPool.sendRequest.mock.calls[0];
       const prompt = callArgs[1]; // Second argument is the prompt
-      expect(prompt).toContain('CODE synthesis');
-      expect(prompt).toContain('functionally correct');
+      expect(prompt).toContain('CRITICAL REQUIREMENTS FOR PRODUCTION-READY CODE');
+      expect(prompt).toContain('Correctness');
+      expect(prompt).toContain('Security');
     });
   });
 
@@ -160,18 +172,20 @@ describe('Code-Aware Synthesis Integration Tests', () => {
       ];
 
       const thread = createThread(exchanges);
+      const request = createRequest('Generate a function');
       const weights = new Map([
         ['member1', 1.0],
         ['member2', 1.0]
       ]);
       const strategy: SynthesisStrategy = { type: 'weighted-fusion', weights };
 
-      const result = await engine.synthesize(thread, strategy);
+      const result = await engine.synthesize(request, thread, strategy);
 
       expect(result).toBeDefined();
       expect(result.content).toBeDefined();
-      // Member1 should have higher weight due to valid code
-      expect(result.content).toContain('member1');
+      // For code responses, we select a single best response (not concatenated)
+      // So the result should contain code, not member IDs
+      expect(result.content).toContain('function');
     });
   });
 
@@ -184,9 +198,10 @@ describe('Code-Aware Synthesis Integration Tests', () => {
       ];
 
       const thread = createThread(exchanges);
+      const request = createRequest('Generate a function to add two numbers');
       const strategy: SynthesisStrategy = { type: 'consensus-extraction' };
 
-      const result = await engine.synthesize(thread, strategy);
+      const result = await engine.synthesize(request, thread, strategy);
 
       expect(result).toBeDefined();
       expect(result.content).toBeDefined();
@@ -202,9 +217,10 @@ describe('Code-Aware Synthesis Integration Tests', () => {
       ];
 
       const thread = createThread(exchanges);
+      const request = createRequest('Generate a function to add two numbers');
       const strategy: SynthesisStrategy = { type: 'consensus-extraction' };
 
-      const result = await engine.synthesize(thread, strategy);
+      const result = await engine.synthesize(request, thread, strategy);
 
       expect(result).toBeDefined();
       expect(result.content).toBeDefined();
@@ -220,9 +236,10 @@ describe('Code-Aware Synthesis Integration Tests', () => {
       ];
 
       const thread = createThread(exchanges);
+      const request = createRequest('Generate a function to add two numbers');
       const strategy: SynthesisStrategy = { type: 'consensus-extraction' };
 
-      const result = await engine.synthesize(thread, strategy);
+      const result = await engine.synthesize(request, thread, strategy);
 
       expect(result).toBeDefined();
       expect(result.content).toBeDefined();
@@ -235,9 +252,10 @@ describe('Code-Aware Synthesis Integration Tests', () => {
       ];
 
       const thread = createThread(exchanges);
+      const request = createRequest('Generate a function to add two numbers');
       const strategy: SynthesisStrategy = { type: 'consensus-extraction' };
 
-      const result = await engine.synthesize(thread, strategy);
+      const result = await engine.synthesize(request, thread, strategy);
 
       expect(result).toBeDefined();
       expect(result.content).toBeDefined();
@@ -251,9 +269,10 @@ describe('Code-Aware Synthesis Integration Tests', () => {
       ];
 
       const thread = createThread(exchanges);
+      const request = createRequest('Generate a function to add two numbers');
       const strategy: SynthesisStrategy = { type: 'consensus-extraction' };
 
-      const result = await engine.synthesize(thread, strategy);
+      const result = await engine.synthesize(request, thread, strategy);
 
       expect(result).toBeDefined();
       expect(result.content).toBeDefined();

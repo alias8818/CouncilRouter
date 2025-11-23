@@ -136,27 +136,27 @@ export class APIGateway implements IAPIGateway {
     });
 
     // API v1 routes
-    // eslint-disable-next-line @typescript-eslint/no-misused-promises
+
     this.app.post('/api/v1/requests',
       this.authenticateRequest.bind(this),
       this.validateRequestBody.bind(this),
       this.submitRequest.bind(this)
     );
 
-    // eslint-disable-next-line @typescript-eslint/no-misused-promises
+
     this.app.get('/api/v1/requests/:requestId',
       this.authenticateRequest.bind(this),
       this.getRequest.bind(this)
     );
 
-    // eslint-disable-next-line @typescript-eslint/no-misused-promises
+
     this.app.get('/api/v1/requests/:requestId/stream',
       this.authenticateRequest.bind(this),
       this.streamRequest.bind(this)
     );
 
     // Error handling middleware
-    // eslint-disable-next-line @typescript-eslint/no-misused-promises
+
     this.app.use(this.errorHandler.bind(this));
   }
 

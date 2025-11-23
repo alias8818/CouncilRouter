@@ -41,16 +41,22 @@ export class ProviderPool implements IProviderPool {
     if (openaiKey) {
       this.adapters.set('openai', new OpenAIAdapter(openaiKey));
       this.initializeHealthTracking('openai');
+    } else {
+      console.warn('WARNING: OPENAI_API_KEY not found. OpenAI provider will not be available.');
     }
 
     if (anthropicKey) {
       this.adapters.set('anthropic', new AnthropicAdapter(anthropicKey));
       this.initializeHealthTracking('anthropic');
+    } else {
+      console.warn('WARNING: ANTHROPIC_API_KEY not found. Anthropic provider will not be available.');
     }
 
     if (googleKey) {
       this.adapters.set('google', new GoogleAdapter(googleKey));
       this.initializeHealthTracking('google');
+    } else {
+      console.warn('WARNING: GOOGLE_API_KEY not found. Google provider will not be available.');
     }
   }
 

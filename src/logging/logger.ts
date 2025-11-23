@@ -237,6 +237,43 @@ export class EventLogger implements IEventLogger {
   }
 
   /**
+   * Log Devil's Advocate activity
+   */
+  async logDevilsAdvocate(
+    requestId: string,
+    critique: {
+      weaknesses: string[];
+      suggestions: string[];
+      severity: 'minor' | 'moderate' | 'critical';
+    },
+    originalLength: number,
+    improvedLength: number,
+    timeTakenMs: number,
+    improved: boolean
+  ): Promise<void> {
+    try {
+      const query = `
+        INSERT INTO devils_advocate_logs (
+          id, request_id, critique_content, original_length, 
+          improved_length, time_taken_ms, improved, created_at
+        ) VALUES (gen_random_uuid(), $1, $2, $3, $4, $5, $6, NOW())
+      `;
+
+      await this.db.query(query, [
+        requestId,
+        JSON.stringify(critique),
+        originalLength,
+        improvedLength,
+        timeTakenMs,
+        improved
+      ]);
+    } catch (error) {
+      // Log error but don't fail the request
+      console.error('Error logging Devil\'s Advocate activity:', error);
+    }
+  }
+
+  /**
    * Generate a UUID for database records
    * CRITICAL FIX: Use crypto.randomUUID() instead of Math.random() for cryptographic security
    */

@@ -25,15 +25,25 @@ import {
   RetryPolicy,
   ConsensusDecision,
   DeliberationThread,
-  SynthesisStrategy
+  SynthesisStrategy,
+  DevilsAdvocateConfig
 } from '../../types/core';
 
 // Mock implementations for testing
 class MockConfigurationManager implements IConfigurationManager {
   private councilConfig: CouncilConfig;
+  private devilsAdvocateConfig: DevilsAdvocateConfig;
   
   constructor(councilConfig: CouncilConfig) {
     this.councilConfig = councilConfig;
+    this.devilsAdvocateConfig = {
+      enabled: false,
+      applyToCodeRequests: true,
+      applyToTextRequests: false,
+      intensityLevel: 'moderate',
+      provider: 'openai',
+      model: 'gpt-4'
+    };
   }
   
   async getCouncilConfig(): Promise<CouncilConfig> {
@@ -62,6 +72,14 @@ class MockConfigurationManager implements IConfigurationManager {
   
   async updateTransparencyConfig(config: any): Promise<void> {}
   
+  async getDevilsAdvocateConfig(): Promise<DevilsAdvocateConfig> {
+    return this.devilsAdvocateConfig;
+  }
+
+  async updateDevilsAdvocateConfig(config: DevilsAdvocateConfig): Promise<void> {
+    this.devilsAdvocateConfig = config;
+  }
+
   async applyPreset(): Promise<void> {}
 }
 

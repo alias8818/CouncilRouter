@@ -55,4 +55,20 @@ export interface IEventLogger {
     providerId: string,
     error: Error
   ): Promise<void>;
+
+  /**
+   * Log Devil's Advocate activity
+   */
+  logDevilsAdvocate(
+    requestId: string,
+    critique: {
+      weaknesses: string[];
+      suggestions: string[];
+      severity: 'minor' | 'moderate' | 'critical';
+    },
+    originalLength: number,
+    improvedLength: number,
+    timeTakenMs: number,
+    improved: boolean
+  ): Promise<void>;
 }

@@ -7,7 +7,7 @@ import { CodeDetector } from '../code-detector';
 import { CodeSimilarityCalculator } from '../code-similarity';
 import { CodeValidator } from '../code-validator';
 import { SynthesisEngine } from '../engine';
-import { Exchange, DeliberationThread, SynthesisStrategy } from '../../types/core';
+import { Exchange, DeliberationThread, SynthesisStrategy, UserRequest } from '../../types/core';
 
 describe('Code-Aware Synthesis Performance Tests', () => {
   let codeDetector: CodeDetector;
@@ -126,9 +126,14 @@ describe('Code-Aware Synthesis Performance Tests', () => {
       };
 
       const strategy: SynthesisStrategy = { type: 'consensus-extraction' };
+      const request: UserRequest = {
+        id: 'test-request-id',
+        query: 'Generate a function to add two numbers',
+        timestamp: new Date()
+      };
 
       const start = Date.now();
-      await engine.synthesize(thread, strategy);
+      await engine.synthesize(request, thread, strategy);
       const duration = Date.now() - start;
 
       // Should complete within 500ms (excluding mock provider call)

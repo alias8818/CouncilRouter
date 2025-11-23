@@ -119,7 +119,7 @@ export class OrchestrationEngine implements IOrchestrationEngine {
         const partialResponses = this.partialResponsesByRequest.get(request.id) || [];
         // Clean up tracking
         this.partialResponsesByRequest.delete(request.id);
-        return await this.handleTimeout(partialResponses);
+        return await this.handleTimeout(request, partialResponses);
       }
 
       // Clean up tracking
@@ -133,6 +133,7 @@ export class OrchestrationEngine implements IOrchestrationEngine {
 
       // Synthesize consensus decision
       const consensusDecision = await this.synthesisEngine.synthesize(
+        request,
         deliberationThread,
         synthesisConfig.strategy
       );
@@ -367,6 +368,7 @@ export class OrchestrationEngine implements IOrchestrationEngine {
    * occurs before all successful response callbacks have executed.
    */
   async handleTimeout(
+    request: UserRequest,
     partialResponses: ProviderResponse[] | TrackedResponse[]
   ): Promise<ConsensusDecision> {
     // Use the partial responses passed as parameter (collected from getPartialResults)
@@ -411,6 +413,7 @@ export class OrchestrationEngine implements IOrchestrationEngine {
 
     // Synthesize with partial responses
     const consensusDecision = await this.synthesisEngine.synthesize(
+      request,
       deliberationThread,
       synthesisConfig.strategy
     );

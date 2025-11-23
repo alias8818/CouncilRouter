@@ -18,6 +18,15 @@ export interface DevilsAdvocateCritique {
 }
 
 /**
+ * Critique interface for Devil's Advocate module
+ */
+export interface Critique {
+  weaknesses: string[];
+  suggestions: string[];
+  severity: 'minor' | 'moderate' | 'critical';
+}
+
+/**
  * Devil's Advocate Module Interface
  * Implements critique-based synthesis for robust reasoning
  */
@@ -38,13 +47,42 @@ export interface IDevilsAdvocateModule {
   ): string;
 
   /**
+   * Generate critique using LLM
+   * @param query - Original user query
+   * @param synthesis - Synthesized response to critique
+   * @param responses - Original council member responses
+   */
+  critique(
+    query: string,
+    synthesis: string,
+    responses: Array<{ councilMemberId: string; content: string }>
+  ): Promise<Critique>;
+
+  /**
+   * Rewrite synthesis based on critique
+   * @param query - Original user query
+   * @param originalSynthesis - Original synthesized response
+   * @param critique - Critique containing weaknesses and suggestions
+   */
+  rewrite(
+    query: string,
+    originalSynthesis: string,
+    critique: Critique
+  ): Promise<string>;
+
+  /**
    * Synthesize with critique incorporation
+   * @param query - Original user query
+   * @param synthesis - Synthesized response
+   * @param responses - Original council member responses
+   * @param requestId - Optional request ID for logging
    */
   synthesizeWithCritique(
-    thread: DeliberationThread,
-    critique: string,
-    synthesizer: CouncilMember
-  ): Promise<ConsensusDecision>;
+    query: string,
+    synthesis: string,
+    responses: Array<{ councilMemberId: string; content: string }>,
+    requestId?: string
+  ): Promise<string>;
 
   /**
    * Adjust confidence based on critique strength

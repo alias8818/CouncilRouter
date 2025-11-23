@@ -303,16 +303,21 @@ describe('Code-Aware Synthesis - Property-Based Tests', () => {
 
   /**
    * Property 20: Minimum weight floor
-   * For any validation result, the final weight should never be less than 0.1
-   * Validates: Requirements 11.5
+   * For any validation result, the final weight should be >= 0.0 (0.0 for critical errors, >= 0.1 otherwise)
+   * Validates: Requirements 11.5, 2.1 (critical error handling)
    */
-  test('Property 20: Validation weight should never be less than 0.1', () => {
+  test('Property 20: Validation weight should be >= 0.0 (0.0 allowed for critical errors)', () => {
     fc.assert(
       fc.property(
         fc.string({ minLength: 0, maxLength: 500 }),
         (code) => {
           const result = codeValidator.validateCode(code);
-          expect(result.weight).toBeGreaterThanOrEqual(0.1);
+          // Critical errors can have weight 0.0, otherwise should be >= 0.1
+          if (result.isCriticalError) {
+            expect(result.weight).toBe(0.0);
+          } else {
+            expect(result.weight).toBeGreaterThanOrEqual(0.1);
+          }
         }
       ),
       { numRuns: getPropertyTestRuns() }

@@ -7,7 +7,7 @@ import { CodeDetector } from '../code-detector';
 import { CodeValidator } from '../code-validator';
 import { CodeSimilarityCalculator } from '../code-similarity';
 import { SynthesisEngine } from '../engine';
-import { Exchange, DeliberationThread, SynthesisStrategy } from '../../types/core';
+import { Exchange, DeliberationThread, SynthesisStrategy, UserRequest } from '../../types/core';
 
 describe('Code-Aware Synthesis Error Handling', () => {
   let codeDetector: CodeDetector;
@@ -93,9 +93,14 @@ describe('Code-Aware Synthesis Error Handling', () => {
       };
 
       const strategy: SynthesisStrategy = { type: 'consensus-extraction' };
+      const request: UserRequest = {
+        id: 'test-request-id',
+        query: 'Test query',
+        timestamp: new Date()
+      };
 
       // Should not throw even if code detection fails
-      await expect(engine.synthesize(thread, strategy)).resolves.toBeDefined();
+      await expect(engine.synthesize(request, thread, strategy)).resolves.toBeDefined();
     });
   });
 });

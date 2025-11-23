@@ -6,85 +6,42 @@
 import { ISynthesisEngine } from '../interfaces/ISynthesisEngine';
 import { IProviderPool } from '../interfaces/IProviderPool';
 import { IConfigurationManager } from '../interfaces/IConfigurationManager';
+import { IDevilsAdvocateModule } from '../interfaces/IDevilsAdvocateModule';
 import {
   DeliberationThread,
   SynthesisStrategy,
   ConsensusDecision,
   CouncilMember,
   ModeratorStrategy,
-  Exchange
+  Exchange,
+  UserRequest
 } from '../types/core';
 import { CodeDetector } from './code-detector';
 import { CodeSimilarityCalculator } from './code-similarity';
 import { CodeValidator } from './code-validator';
 
-/**
- * Model rankings for strongest moderator selection
- * Higher score = stronger model
- * Updated: November 22, 2025 - Current frontier models
- */
-const MODEL_RANKINGS: Record<string, number> = {
-  // === Legacy / 2023–mid-2024 models (significantly surpassed in 2025) ===
-  'gpt-3.5-turbo': 65,
-  'gpt-4': 85,
-  'gpt-4-turbo': 90,
-  'gpt-4o': 94,                  // was the 2024 frontier; now upper-mid tier
-  'claude-3-haiku': 72,
-  'claude-3-sonnet': 86,
-  'claude-3-opus': 93,
-  'claude-3.5-sonnet': 96,       // brief 2024.5 peak, quickly overtaken
-  'gemini-1.5-pro': 92,
-  'gemini-1.5-flash': 80,
-  'grok-1': 70,
-  'grok-2': 88,
-
-  // === Current 2025 frontier closed models (as of 22 Nov 2025) ===
-  // Sources: Chatbot Arena (Gemini 2.5 Pro still #1 Elo ~1451), Artificial Analysis,
-  // LiveBench, EQ-Bench3 (Grok 4.1 leads), SWE-bench Verified, GPQA Diamond, AIME 2025, IOI-style leaderboards
-  'gemini-2.5-pro': 114,         // Current Chatbot Arena leader, strongest multimodal + search integration
-  'gemini-3-pro': 113,           // Very close behind; newer but slightly lower Elo in latest snapshot
-  'claude-sonnet-4.5': 112,      // Best-in-class for coding, agentic workflows, long-refactor tasks; consistent #1 on SWE-bench Verified
-  'grok-4.1': 111,               // Leads EQ-Bench3, strongest pure reasoning/math (AIME 2025, GPQA), excellent uncensored performance
-  'grok-4': 109,
-  'gpt-5.1': 110,                // Excellent all-rounder, especially adaptive reasoning + Codex variant for code
-  'gpt-5': 108,
-  'claude-opus-4.1': 109,        // Slightly behind Sonnet 4.5 on coding but stronger on some long-horizon tasks
-  'o3': 107,                     // Still extremely strong reasoning model, now mid-frontier
-  'o4-mini': 96,                 // Fast reasoning tier
-
-  // === Strong 2025 open-weight models (often used as cost-effective council members) ===
-  'deepseek-v3': 109,            // Frequently beats closed models on reasoning/coding when non-thinking mode disabled
-  'deepseek-r1': 108,
-  'qwen3-235b': 107,
-  'qwen3-72b': 105,
-  'llama-4-maverick': 106,       // Meta's latest Llama series, strong coding + multimodal
-  'minimax-m2': 104,             // Outstanding agentic/coding open model
-
-  // === Legacy Google models (for backward compatibility) ===
-  'gemini-pro': 92,
-  'gemini-ultra': 97,
-  'palm-2': 80,
-  'claude-2': 85,
-
-  // === Fallback ===
-  'default': 50
-};
+import { ModelRankings } from '../types/core';
 
 export class SynthesisEngine implements ISynthesisEngine {
   private rotationIndex: number = 0;
   private rotationLock: Promise<void> = Promise.resolve();
   private providerPool: IProviderPool;
   private configManager: IConfigurationManager;
+  private devilsAdvocate?: IDevilsAdvocateModule;
   private codeDetector: CodeDetector;
   private codeSimilarityCalculator: CodeSimilarityCalculator;
   private codeValidator: CodeValidator;
+  private modelRankingsCache: ModelRankings | null = null;
+  private rankingsCachePromise: Promise<ModelRankings> | null = null;
 
   constructor(
     providerPool: IProviderPool,
-    configManager: IConfigurationManager
+    configManager: IConfigurationManager,
+    devilsAdvocate?: IDevilsAdvocateModule
   ) {
     this.providerPool = providerPool;
     this.configManager = configManager;
+    this.devilsAdvocate = devilsAdvocate;
     this.codeDetector = new CodeDetector();
     this.codeSimilarityCalculator = new CodeSimilarityCalculator();
     this.codeValidator = new CodeValidator();
@@ -94,9 +51,18 @@ export class SynthesisEngine implements ISynthesisEngine {
    * Synthesize a consensus decision from deliberation thread
    */
   async synthesize(
+    request: UserRequest,
     thread: DeliberationThread,
     strategy: SynthesisStrategy
   ): Promise<ConsensusDecision> {
+    // Extract query from request
+    const query = request.query;
+
+    // Validate query (null/empty check)
+    if (!query || query.trim().length === 0) {
+      console.warn('User query is null or empty, proceeding with degraded synthesis');
+    }
+
     // Extract all exchanges from all rounds
     const allExchanges = thread.rounds.flatMap(round => round.exchanges);
 
@@ -117,20 +83,68 @@ export class SynthesisEngine implements ISynthesisEngine {
 
     switch (strategy.type) {
       case 'consensus-extraction':
-        ({ content, confidence, agreementLevel } = this.consensusExtraction(allExchanges));
+        ({ content, confidence, agreementLevel } = this.consensusExtraction(allExchanges, query));
         break;
 
       case 'weighted-fusion':
-        ({ content, confidence, agreementLevel } = this.weightedFusion(allExchanges, strategy.weights));
+        ({ content, confidence, agreementLevel } = this.weightedFusion(allExchanges, strategy.weights, query));
         break;
 
       case 'meta-synthesis':
-        ({ content, confidence, agreementLevel } = await this.metaSynthesis(allExchanges, strategy.moderatorStrategy));
+        ({ content, confidence, agreementLevel } = await this.metaSynthesis(allExchanges, strategy.moderatorStrategy, query));
         break;
 
       default:
         // Fallback to consensus extraction
-        ({ content, confidence, agreementLevel } = this.consensusExtraction(allExchanges));
+        ({ content, confidence, agreementLevel } = this.consensusExtraction(allExchanges, query));
+    }
+
+    // Conditionally invoke Devil's Advocate if enabled and matches request type
+    if (this.devilsAdvocate) {
+      try {
+        const devilsAdvocateConfig = await this.configManager.getDevilsAdvocateConfig();
+
+        if (devilsAdvocateConfig.enabled) {
+          // Detect if this is a code request
+          const isCodeRequest = allExchanges.some(e => {
+            try {
+              return this.codeDetector.detectCode(e.content);
+            } catch {
+              return false;
+            }
+          });
+
+          // Check if Devil's Advocate should be applied to this request type
+          const shouldApply = (isCodeRequest && devilsAdvocateConfig.applyToCodeRequests) ||
+                              (!isCodeRequest && devilsAdvocateConfig.applyToTextRequests);
+
+          if (shouldApply) {
+            // Prepare responses for Devil's Advocate
+            const responses = allExchanges.map(e => ({
+              councilMemberId: e.councilMemberId,
+              content: e.content
+            }));
+
+            // Invoke Devil's Advocate
+            const improvedContent = await this.devilsAdvocate.synthesizeWithCritique(
+              query,
+              content,
+              responses,
+              request.id
+            );
+
+            // Use improved content if it differs
+            if (improvedContent !== content) {
+              content = improvedContent;
+              // Optionally adjust confidence based on critique
+              // For now, we keep the original confidence
+            }
+          }
+        }
+      } catch (error) {
+        // Log error but don't fail synthesis
+        console.error('Devil\'s Advocate error, using original synthesis:', error);
+      }
     }
 
     return {
@@ -147,7 +161,7 @@ export class SynthesisEngine implements ISynthesisEngine {
    * Consensus Extraction Strategy
    * Extracts areas of agreement and disagreement, produces final answer reflecting majority
    */
-  private consensusExtraction(exchanges: Exchange[]): {
+  private consensusExtraction(exchanges: Exchange[], _query?: string): {
     content: string;
     confidence: 'high' | 'medium' | 'low';
     agreementLevel: number;
@@ -158,8 +172,27 @@ export class SynthesisEngine implements ISynthesisEngine {
     // Apply validation weights if code is detected
     const validationWeights = this.weightByValidation(exchanges);
 
+    // Detect if responses contain code
+    const isCodeRequest = exchanges.some(e => {
+      try {
+        return this.codeDetector.detectCode(e.content);
+      } catch {
+        return false;
+      }
+    });
+
+    // Filter out responses with critical errors
+    const validExchanges = exchanges.filter(exchange => {
+      const validation = validationWeights.get(exchange.councilMemberId);
+      // If validation weight is 0.0, it's a critical error
+      return validation !== undefined && validation > 0.0;
+    });
+
+    // If all exchanges have critical errors, use original exchanges (degraded mode)
+    const exchangesToUse = validExchanges.length > 0 ? validExchanges : exchanges;
+
     // Group responses by similarity
-    const responseGroups = this.groupSimilarResponses(exchanges);
+    const responseGroups = this.groupSimilarResponses(exchangesToUse);
 
     // Find majority position (largest group, weighted by validation if code detected)
     const majorityGroup = responseGroups.reduce((largest, current) => {
@@ -177,8 +210,21 @@ export class SynthesisEngine implements ISynthesisEngine {
       return currentWeightedSize > largestWeightedSize ? current : largest;
     });
 
-    // Extract consensus from majority group
-    const majorityContent = majorityGroup.map(e => e.content).join('\n\n');
+    // For code: select single best response from majority group based on validation weight
+    // For text: keep existing concatenation logic
+    let majorityContent: string;
+    if (isCodeRequest) {
+      // Select single best response from majority group
+      const bestResponse = majorityGroup.reduce((best, current) => {
+        const bestValidation = validationWeights.get(best.councilMemberId) || 0;
+        const currentValidation = validationWeights.get(current.councilMemberId) || 0;
+        return currentValidation > bestValidation ? current : best;
+      });
+      majorityContent = bestResponse.content;
+    } else {
+      // Text: concatenate majority group responses
+      majorityContent = majorityGroup.map(e => e.content).join('\n\n');
+    }
 
     // Build synthesis with areas of agreement and disagreement
     let synthesis = '';
@@ -188,15 +234,17 @@ export class SynthesisEngine implements ISynthesisEngine {
       synthesis = `All council members agree:\n\n${majorityContent}`;
     } else {
       // Partial agreement
-      synthesis = `Majority position (${majorityGroup.length}/${exchanges.length} members):\n\n${majorityContent}`;
+      synthesis = `Majority position (${majorityGroup.length}/${exchangesToUse.length} members):\n\n${majorityContent}`;
 
-      // Add minority positions if they exist
-      const minorityGroups = responseGroups.filter(g => g !== majorityGroup);
-      if (minorityGroups.length > 0) {
-        synthesis += '\n\nAlternative perspectives:\n\n';
-        minorityGroups.forEach((group, idx) => {
-          synthesis += `Position ${idx + 2} (${group.length} members):\n${group[0].content}\n\n`;
-        });
+      // Add minority positions if they exist (only for text, not code)
+      if (!isCodeRequest) {
+        const minorityGroups = responseGroups.filter(g => g !== majorityGroup);
+        if (minorityGroups.length > 0) {
+          synthesis += '\n\nAlternative perspectives:\n\n';
+          minorityGroups.forEach((group, idx) => {
+            synthesis += `Position ${idx + 2} (${group.length} members):\n${group[0].content}\n\n`;
+          });
+        }
       }
     }
 
@@ -210,7 +258,7 @@ export class SynthesisEngine implements ISynthesisEngine {
    * Weighted Fusion Strategy
    * Weights each council member's contribution according to configured weights
    */
-  private weightedFusion(exchanges: Exchange[], weights: Map<string, number>): {
+  private weightedFusion(exchanges: Exchange[], weights: Map<string, number>, _query?: string): {
     content: string;
     confidence: 'high' | 'medium' | 'low';
     agreementLevel: number;
@@ -221,17 +269,51 @@ export class SynthesisEngine implements ISynthesisEngine {
     // Apply validation weights if code is detected
     const validationWeights = this.weightByValidation(exchanges);
 
+    // Detect if responses contain code
+    const isCodeRequest = exchanges.some(e => {
+      try {
+        return this.codeDetector.detectCode(e.content);
+      } catch {
+        return false;
+      }
+    });
+
+    // Filter out responses with critical errors
+    const validExchanges = exchanges.filter(exchange => {
+      const validation = validationWeights.get(exchange.councilMemberId);
+      // If validation weight is 0.0, it's a critical error
+      return validation !== undefined && validation > 0.0;
+    });
+
+    // If all exchanges have critical errors, use original exchanges (degraded mode)
+    const exchangesToUse = validExchanges.length > 0 ? validExchanges : exchanges;
+
     // Multiply base weights by validation weights
     const finalWeights = new Map<string, number>();
-    exchanges.forEach(exchange => {
+    exchangesToUse.forEach(exchange => {
       const baseWeight = weights.get(exchange.councilMemberId) || 1.0;
       const validationWeight = validationWeights.get(exchange.councilMemberId) || 1.0;
       finalWeights.set(exchange.councilMemberId, baseWeight * validationWeight);
     });
 
+    // For code: select highest-weighted response (no concatenation)
+    // For text: keep existing weighted concatenation logic
+    if (isCodeRequest) {
+      // Select highest-weighted response
+      const bestExchange = exchangesToUse.reduce((best, current) => {
+        const bestWeight = finalWeights.get(best.councilMemberId) || 0;
+        const currentWeight = finalWeights.get(current.councilMemberId) || 0;
+        return currentWeight > bestWeight ? current : best;
+      });
+
+      const confidence = agreementLevel > 0.8 ? 'high' : agreementLevel > 0.5 ? 'medium' : 'low';
+      return { content: bestExchange.content, confidence, agreementLevel };
+    }
+
+    // Text: weighted concatenation
     // Group exchanges by council member
     const exchangesByMember = new Map<string, Exchange[]>();
-    exchanges.forEach(exchange => {
+    exchangesToUse.forEach(exchange => {
       const existing = exchangesByMember.get(exchange.councilMemberId) || [];
       existing.push(exchange);
       exchangesByMember.set(exchange.councilMemberId, existing);
@@ -276,7 +358,8 @@ export class SynthesisEngine implements ISynthesisEngine {
    */
   private async metaSynthesis(
     exchanges: Exchange[],
-    moderatorStrategy?: ModeratorStrategy
+    moderatorStrategy: ModeratorStrategy | undefined,
+    query?: string
   ): Promise<{
     content: string;
     confidence: 'high' | 'medium' | 'low';
@@ -295,18 +378,8 @@ export class SynthesisEngine implements ISynthesisEngine {
         moderatorStrategy || { type: 'strongest' }
       );
 
-      // Construct prompt for moderator
-      let prompt = 'You are the Moderator for an AI Council. Your task is to synthesize the responses from multiple AI models into a single, coherent, and comprehensive answer.\n\n';
-
-      prompt += 'Here are the responses from the council members:\n\n';
-
-      exchanges.forEach((exchange, _index) => {
-        prompt += `--- Council Member ${exchange.councilMemberId} ---\n`;
-        prompt += `${exchange.content}\n\n`;
-      });
-
       // Detect if responses contain code
-      const hasCode = exchanges.some(e => {
+      const isCodeRequest = exchanges.some(e => {
         try {
           return this.codeDetector.detectCode(e.content);
         } catch {
@@ -314,22 +387,54 @@ export class SynthesisEngine implements ISynthesisEngine {
         }
       });
 
-      // Use code-specific instructions if code detected
-      if (hasCode) {
-        prompt += 'Instructions for CODE synthesis:\n';
-        prompt += '1. Identify the functionally correct solutions (ignore style differences).\n';
-        prompt += '2. Combine the best error handling from all responses.\n';
-        prompt += '3. Include the most comprehensive edge case handling.\n';
-        prompt += '4. Prefer solutions with better time/space complexity.\n';
-        prompt += '5. Ensure the final code is syntactically valid.\n';
-        prompt += '6. Add comments explaining key decisions.\n\n';
+      // Filter out responses with critical errors
+      const validationWeights = this.weightByValidation(exchanges);
+      const validExchanges = exchanges.filter(exchange => {
+        const validation = validationWeights.get(exchange.councilMemberId);
+        return validation !== undefined && validation > 0.0;
+      });
+      const exchangesToUse = validExchanges.length > 0 ? validExchanges : exchanges;
+
+      // Construct prompt for moderator
+      let prompt = 'You are the Moderator for an AI Council. Your task is to synthesize the responses from multiple AI models into a single, coherent, and comprehensive answer.\n\n';
+
+      // Include original user query
+      if (query && query.trim().length > 0) {
+        // Sanitize query to prevent prompt injection (basic sanitization)
+        const sanitizedQuery = query.replace(/```/g, '').substring(0, 2000);
+        prompt += 'ORIGINAL USER QUERY:\n';
+        prompt += `${sanitizedQuery}\n\n`;
+      }
+
+      prompt += 'Here are the responses from the council members:\n\n';
+
+      exchangesToUse.forEach((exchange, _index) => {
+        prompt += `--- Council Member ${exchange.councilMemberId} ---\n`;
+        prompt += `${exchange.content}\n\n`;
+      });
+
+      // Use code-specific prompt template for code requests
+      if (isCodeRequest) {
+        prompt += 'CRITICAL REQUIREMENTS FOR PRODUCTION-READY CODE:\n';
+        prompt += '1. Correctness: Code must be syntactically correct and logically sound. Validate that the code addresses the original user requirements.\n';
+        prompt += '2. Security: Check for common vulnerabilities (injection, XSS, etc.). Ensure input validation and secure coding practices.\n';
+        prompt += '3. Error Handling: Include proper try-catch blocks and error messages. Handle edge cases gracefully.\n';
+        prompt += '4. Best Practices: Follow language-specific conventions and patterns. Use appropriate data structures and algorithms.\n';
+        prompt += '5. User Constraints: Strictly adhere to requirements in the original query. Ensure all requested functionality is implemented.\n';
+        prompt += '6. Completeness: Ensure all requested functionality is implemented. Do not leave TODO comments or incomplete implementations.\n\n';
+        prompt += 'Synthesize a single, production-ready code solution that addresses the original query.\n';
+        prompt += 'Do NOT concatenate multiple solutions. Select or combine the best elements.\n';
       } else {
         prompt += 'Instructions:\n';
         prompt += '1. Identify the core consensus among the models.\n';
         prompt += '2. Highlight any significant disagreements or alternative perspectives.\n';
         prompt += '3. Synthesize the best parts of each response into a final, high-quality answer.\n';
         prompt += '4. Do not just list the responses; integrate them.\n';
-        prompt += '5. If there are conflicts, explain the trade-offs.\n\n';
+        prompt += '5. If there are conflicts, explain the trade-offs.\n';
+        if (query && query.trim().length > 0) {
+          prompt += '6. Ensure your response directly addresses the original user query.\n';
+        }
+        prompt += '\n';
       }
       prompt += 'Provide your synthesized response now:';
 
@@ -692,7 +797,8 @@ export class SynthesisEngine implements ISynthesisEngine {
 
       case 'strongest':
         // Select based on model rankings
-        return this.selectStrongestMember(members);
+        // eslint-disable-next-line @typescript-eslint/return-await
+        return await this.selectStrongestMember(members);
 
       default:
         return members[0];
@@ -730,12 +836,12 @@ export class SynthesisEngine implements ISynthesisEngine {
   /**
    * Select the strongest member based on model rankings
    */
-  private selectStrongestMember(members: CouncilMember[]): CouncilMember {
+  private async selectStrongestMember(members: CouncilMember[]): Promise<CouncilMember> {
     let strongest = members[0];
-    let highestScore = this.getModelScore(strongest);
+    let highestScore = await this.getModelScore(strongest);
 
     for (const member of members) {
-      const score = this.getModelScore(member);
+      const score = await this.getModelScore(member);
       if (score > highestScore) {
         highestScore = score;
         strongest = member;
@@ -746,18 +852,47 @@ export class SynthesisEngine implements ISynthesisEngine {
   }
 
   /**
+   * Get model rankings from configuration manager (with caching)
+   */
+  private async getModelRankings(): Promise<ModelRankings> {
+    // Return cached rankings if available
+    if (this.modelRankingsCache) {
+      return this.modelRankingsCache;
+    }
+
+    // If a fetch is already in progress, wait for it
+    if (this.rankingsCachePromise) {
+      const rankings = await this.rankingsCachePromise;
+      this.modelRankingsCache = rankings;
+      return rankings;
+    }
+
+    // Fetch rankings and cache them
+    this.rankingsCachePromise = this.configManager.getModelRankings();
+    try {
+      const rankings = await this.rankingsCachePromise;
+      this.modelRankingsCache = rankings;
+      return rankings;
+    } finally {
+      this.rankingsCachePromise = null;
+    }
+  }
+
+  /**
    * Get ranking score for a model
    */
-  private getModelScore(member: CouncilMember): number {
+  private async getModelScore(member: CouncilMember): Promise<number> {
+    const rankings = await this.getModelRankings();
+
     // Try exact match first
-    if (MODEL_RANKINGS[member.model]) {
-      return MODEL_RANKINGS[member.model];
+    if (rankings[member.model]) {
+      return rankings[member.model];
     }
 
     // Try partial match (e.g., "gpt-4-turbo-preview" matches "gpt-4-turbo")
     // Prefer longer matches to avoid matching "gpt-4" when "gpt-4-turbo" is available
     let bestMatch: { modelName: string; score: number } | null = null;
-    for (const [modelName, score] of Object.entries(MODEL_RANKINGS)) {
+    for (const [modelName, score] of Object.entries(rankings)) {
       if (member.model.includes(modelName)) {
         if (!bestMatch || modelName.length > bestMatch.modelName.length) {
           bestMatch = { modelName, score };
@@ -770,6 +905,6 @@ export class SynthesisEngine implements ISynthesisEngine {
     }
 
     // Return default score
-    return MODEL_RANKINGS['default'];
+    return rankings['default'] || 50;
   }
 }

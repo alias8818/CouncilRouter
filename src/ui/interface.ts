@@ -48,7 +48,7 @@ export class UserInterface {
     this.app.get('/', this.serveMainPage.bind(this));
 
     // API configuration endpoint for UI
-    // eslint-disable-next-line @typescript-eslint/no-misused-promises
+
     this.app.get('/api/ui/config', this.getUIConfig.bind(this));
   }
 

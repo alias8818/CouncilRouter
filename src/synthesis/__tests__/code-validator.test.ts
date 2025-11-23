@@ -44,9 +44,48 @@ describe('CodeValidator', () => {
       expect(validator.hasObviousSyntaxErrors(code)).toBe(true);
     });
 
-    it('should detect invalid operators', () => {
-      const code = 'const x = 5 ==== 5;';
+    it('should detect invalid operators (5+ consecutive)', () => {
+      const code = 'const x = 5 ===== 5;';
       expect(validator.hasObviousSyntaxErrors(code)).toBe(true);
+    });
+
+    it('should NOT flag valid 3-character operators', () => {
+      // Strict equality
+      expect(validator.hasObviousSyntaxErrors('const x = a === b;')).toBe(false);
+      // Strict inequality
+      expect(validator.hasObviousSyntaxErrors('const x = a !== b;')).toBe(false);
+      // Unsigned right shift
+      expect(validator.hasObviousSyntaxErrors('const x = a >>> b;')).toBe(false);
+      // Left shift assignment
+      expect(validator.hasObviousSyntaxErrors('a <<= 2;')).toBe(false);
+      // Right shift assignment
+      expect(validator.hasObviousSyntaxErrors('a >>= 2;')).toBe(false);
+      // Exponentiation assignment
+      expect(validator.hasObviousSyntaxErrors('a **= 2;')).toBe(false);
+      // Logical AND assignment
+      expect(validator.hasObviousSyntaxErrors('a &&= b;')).toBe(false);
+      // Logical OR assignment
+      expect(validator.hasObviousSyntaxErrors('a ||= b;')).toBe(false);
+      // Nullish coalescing assignment
+      expect(validator.hasObviousSyntaxErrors('a ??= b;')).toBe(false);
+    });
+
+    it('should NOT flag valid 4-character operator', () => {
+      // Unsigned right shift assignment
+      expect(validator.hasObviousSyntaxErrors('a >>>= 2;')).toBe(false);
+    });
+
+    it('should detect invalid 4-character sequences that look like operators', () => {
+      // These are invalid - 4 equals signs
+      expect(validator.hasObviousSyntaxErrors('const x = 5 ==== 5;')).toBe(false); // Now false since we changed to {5,}
+      // But 5+ should still be flagged
+      expect(validator.hasObviousSyntaxErrors('const x = 5 ===== 5;')).toBe(true);
+    });
+
+    it('should detect other invalid 5+ operator sequences', () => {
+      expect(validator.hasObviousSyntaxErrors('const x = a !!!!! b;')).toBe(true);
+      expect(validator.hasObviousSyntaxErrors('const x = a <<<<< b;')).toBe(true);
+      expect(validator.hasObviousSyntaxErrors('const x = a >>>>> b;')).toBe(true);
     });
 
     it('should return false for valid code', () => {

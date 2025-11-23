@@ -3,7 +3,8 @@ import {
   SynthesisStrategy,
   ConsensusDecision,
   CouncilMember,
-  ModeratorStrategy
+  ModeratorStrategy,
+  UserRequest
 } from '../types/core';
 
 /**
@@ -13,8 +14,12 @@ import {
 export interface ISynthesisEngine {
   /**
    * Synthesize a consensus decision from deliberation thread
+   * @param request - Original user request containing the query
+   * @param thread - Deliberation thread with council member exchanges
+   * @param strategy - Synthesis strategy to apply
    */
   synthesize(
+    request: UserRequest,
     thread: DeliberationThread,
     strategy: SynthesisStrategy
   ): Promise<ConsensusDecision>;

@@ -77,7 +77,7 @@ describe('UI Example Server - Initialization', () => {
   describe('startServers() - Component initialization (Requirement 5.1)', () => {
     test('should initialize all components', async () => {
       // Import the example module dynamically to test initialization
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
+       
       const exampleModule = require('../example');
       
       // Verify constructors are called

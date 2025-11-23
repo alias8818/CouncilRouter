@@ -10,7 +10,8 @@ import {
   CouncilMember,
   SynthesisStrategy,
   ModeratorStrategy,
-  TokenUsage
+  TokenUsage,
+  UserRequest
 } from '../../types/core';
 
 describe('SynthesisEngine', () => {
@@ -73,6 +74,13 @@ describe('SynthesisEngine', () => {
     totalDuration: 1000
   });
 
+  // Helper function to create test user request
+  const createRequest = (query: string = 'Test query'): UserRequest => ({
+    id: 'test-request-id',
+    query,
+    timestamp: new Date()
+  });
+
   // Helper function to create test council member
   const createMember = (
     id: string,
@@ -101,9 +109,10 @@ describe('SynthesisEngine', () => {
           createExchange('member3', 'The answer is 42')
         ];
         const thread = createThread(exchanges);
+        const request = createRequest('What is the answer?');
         const strategy: SynthesisStrategy = { type: 'consensus-extraction' };
 
-        const result = await engine.synthesize(thread, strategy);
+        const result = await engine.synthesize(request, thread, strategy);
 
         expect(result.content).toContain('All council members agree');
         expect(result.confidence).toBe('high');
@@ -119,9 +128,10 @@ describe('SynthesisEngine', () => {
           createExchange('member3', 'The answer is 100')
         ];
         const thread = createThread(exchanges);
+        const request = createRequest('What is the answer?');
         const strategy: SynthesisStrategy = { type: 'consensus-extraction' };
 
-        const result = await engine.synthesize(thread, strategy);
+        const result = await engine.synthesize(request, thread, strategy);
 
         expect(result.content).toContain('Majority position');
         expect(result.content).toContain('Alternative perspectives');
@@ -134,10 +144,11 @@ describe('SynthesisEngine', () => {
           rounds: [],
           totalDuration: 0
         };
+        const request = createRequest('Test query');
         const strategy: SynthesisStrategy = { type: 'consensus-extraction' };
 
         // Fixed: Now throws error instead of returning placeholder
-        await expect(engine.synthesize(thread, strategy))
+        await expect(engine.synthesize(request, thread, strategy))
           .rejects
           .toThrow('Cannot synthesize consensus: no council member responses available');
       });
@@ -151,6 +162,7 @@ describe('SynthesisEngine', () => {
           createExchange('member3', 'Response from member 3')
         ];
         const thread = createThread(exchanges);
+        const request = createRequest('Test query');
         const weights = new Map([
           ['member1', 2.0],
           ['member2', 1.0],
@@ -158,7 +170,7 @@ describe('SynthesisEngine', () => {
         ]);
         const strategy: SynthesisStrategy = { type: 'weighted-fusion', weights };
 
-        const result = await engine.synthesize(thread, strategy);
+        const result = await engine.synthesize(request, thread, strategy);
 
         expect(result.content).toContain('Weighted synthesis');
         expect(result.content).toContain('[Weight: 2.00] member1');
@@ -173,13 +185,14 @@ describe('SynthesisEngine', () => {
           createExchange('member2', 'High weight response')
         ];
         const thread = createThread(exchanges);
+        const request = createRequest('Test query');
         const weights = new Map([
           ['member1', 0.5],
           ['member2', 2.0]
         ]);
         const strategy: SynthesisStrategy = { type: 'weighted-fusion', weights };
 
-        const result = await engine.synthesize(thread, strategy);
+        const result = await engine.synthesize(request, thread, strategy);
 
         const member2Index = result.content.indexOf('member2');
         const member1Index = result.content.indexOf('member1');
@@ -195,10 +208,11 @@ describe('SynthesisEngine', () => {
           createExchange('member3', 'Third perspective')
         ];
         const thread = createThread(exchanges);
+        const request = createRequest('Test query');
         const moderatorStrategy: ModeratorStrategy = { type: 'permanent', memberId: 'member1' };
         const strategy: SynthesisStrategy = { type: 'meta-synthesis', moderatorStrategy };
 
-        const result = await engine.synthesize(thread, strategy);
+        const result = await engine.synthesize(request, thread, strategy);
 
         expect(mockProviderPool.sendRequest).toHaveBeenCalledTimes(1);
         const [[moderator, prompt]] = mockProviderPool.sendRequest.mock.calls;
@@ -233,9 +247,10 @@ describe('SynthesisEngine', () => {
           ],
           totalDuration: 2000
         };
+        const request = createRequest('Test query');
         const strategy: SynthesisStrategy = { type: 'consensus-extraction' };
 
-        const result = await engine.synthesize(thread, strategy);
+        const result = await engine.synthesize(request, thread, strategy);
 
         expect(result.contributingMembers).toHaveLength(2);
         expect(result.content).toBeTruthy();
@@ -330,9 +345,10 @@ describe('SynthesisEngine', () => {
         createExchange('member3', 'The quick brown fox jumps over the lazy dog')
       ];
       const thread = createThread(exchanges);
+      const request = createRequest('Test query');
       const strategy: SynthesisStrategy = { type: 'consensus-extraction' };
 
-      const result = await engine.synthesize(thread, strategy);
+      const result = await engine.synthesize(request, thread, strategy);
 
       expect(result.agreementLevel).toBeGreaterThan(0.9);
     });
@@ -344,9 +360,10 @@ describe('SynthesisEngine', () => {
         createExchange('member3', 'Mountains are tall')
       ];
       const thread = createThread(exchanges);
+      const request = createRequest('Test query');
       const strategy: SynthesisStrategy = { type: 'consensus-extraction' };
 
-      const result = await engine.synthesize(thread, strategy);
+      const result = await engine.synthesize(request, thread, strategy);
 
       expect(result.agreementLevel).toBeLessThan(0.3);
     });

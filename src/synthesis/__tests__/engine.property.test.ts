@@ -12,7 +12,8 @@ import {
   CouncilMember,
   SynthesisStrategy,
   ModeratorStrategy,
-  TokenUsage
+  TokenUsage,
+  UserRequest
 } from '../../types/core';
 
 describe('SynthesisEngine - Property-Based Tests', () => {
@@ -133,6 +134,12 @@ describe('SynthesisEngine - Property-Based Tests', () => {
     })
   });
 
+  const userRequestArb = fc.record({
+    id: fc.uuid(),
+    query: fc.string({ minLength: 1, maxLength: 500 }),
+    timestamp: fc.constant(new Date())
+  });
+
   /**
    * Property-Based Test: Synthesis produces single output
    * Feature: ai-council-proxy, Property 2: Synthesis produces single output
@@ -142,10 +149,11 @@ describe('SynthesisEngine - Property-Based Tests', () => {
   test('Property 2: For any set of council member responses, synthesis should produce exactly one consensus decision', async () => {
     await fc.assert(
       fc.asyncProperty(
+        userRequestArb,
         deliberationThreadArb,
         synthesisStrategyArb,
-        async (thread, strategy) => {
-          const result = await engine.synthesize(thread, strategy);
+        async (request, thread, strategy) => {
+          const result = await engine.synthesize(request, thread, strategy);
 
           // Should produce exactly one consensus decision
           expect(result).toBeDefined();
@@ -241,7 +249,12 @@ describe('SynthesisEngine - Property-Based Tests', () => {
             weights
           };
 
-          const result = await engine.synthesize(thread, strategy);
+          const request: UserRequest = {
+            id: 'test-request-id',
+            query: 'Test query',
+            timestamp: new Date()
+          };
+          const result = await engine.synthesize(request, thread, strategy);
 
           // Result should contain weighted synthesis indicator
           expect(result.content).toContain('Weighted synthesis');
@@ -383,7 +396,12 @@ describe('SynthesisEngine - Property-Based Tests', () => {
         deliberationThreadArb,
         synthesisStrategyArb,
         async (thread, strategy) => {
-          const result = await engine.synthesize(thread, strategy);
+          const request: UserRequest = {
+            id: 'test-request-id',
+            query: 'Test query',
+            timestamp: new Date()
+          };
+          const result = await engine.synthesize(request, thread, strategy);
 
           // The consensus decision should record the synthesis strategy used
           expect(result.synthesisStrategy).toEqual(strategy);

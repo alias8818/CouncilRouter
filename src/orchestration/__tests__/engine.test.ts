@@ -20,7 +20,10 @@ import {
   DeliberationThread,
   SynthesisStrategy,
   ConsensusDecision,
-  RetryPolicy
+  RetryPolicy,
+  DevilsAdvocateConfig,
+  ModelRankings,
+  ConfigPreset
 } from '../../types/core';
 
 import { ProviderHealthTracker } from '../../providers/health-tracker';
@@ -132,6 +135,8 @@ class MockConfigurationManager implements IConfigurationManager {
   private performanceConfig: PerformanceConfig;
   private synthesisConfig: SynthesisConfig;
   private transparencyConfig: any;
+  private devilsAdvocateConfig: DevilsAdvocateConfig;
+  private modelRankings: ModelRankings;
 
   constructor() {
     const defaultRetryPolicy: RetryPolicy = {
@@ -182,6 +187,17 @@ class MockConfigurationManager implements IConfigurationManager {
       enabled: false,
       forcedTransparency: false
     };
+
+    this.devilsAdvocateConfig = {
+      enabled: false,
+      applyToCodeRequests: true,
+      applyToTextRequests: false,
+      intensityLevel: 'moderate',
+      provider: 'openai',
+      model: 'gpt-4'
+    };
+
+    this.modelRankings = {};
   }
 
   setCouncilConfig(config: CouncilConfig): void {
@@ -220,13 +236,30 @@ class MockConfigurationManager implements IConfigurationManager {
     this.transparencyConfig = config;
   }
 
-  async applyPreset(): Promise<void> {
+  async getDevilsAdvocateConfig(): Promise<DevilsAdvocateConfig> {
+    return this.devilsAdvocateConfig;
+  }
+
+  async updateDevilsAdvocateConfig(config: DevilsAdvocateConfig): Promise<void> {
+    this.devilsAdvocateConfig = config;
+  }
+
+  async getModelRankings(): Promise<ModelRankings> {
+    return this.modelRankings;
+  }
+
+  async updateModelRankings(rankings: ModelRankings): Promise<void> {
+    this.modelRankings = rankings;
+  }
+
+  async applyPreset(_preset: ConfigPreset): Promise<void> {
     // Not needed for tests
   }
 }
 
 class MockSynthesisEngine implements ISynthesisEngine {
   async synthesize(
+    request: UserRequest,
     thread: DeliberationThread,
     strategy: SynthesisStrategy
   ): Promise<ConsensusDecision> {

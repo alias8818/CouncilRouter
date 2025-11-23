@@ -212,8 +212,8 @@ describe('Property: Disagreement measures member-to-member difference', () => {
     // - Member 2 says "apple orange banana" (identical)
     // - Consensus says "grape melon watermelon" (completely different)
     // 
-    // With the BUG: overlap1 = low, overlap2 = low, abs(overlap1-overlap2) = ~0, disagreement = 0 ✓
-    // With the FIX: direct comparison shows identical, disagreement = 0 ✓
+    // REGRESSION TEST: Previously buggy behavior (overlap1 = low, overlap2 = low, abs(overlap1-overlap2) = ~0, disagreement = 0)
+    // Fixed behavior: direct comparison shows identical, disagreement = 0 ✓
     // Both would pass this case.
     //
     // Now try:
@@ -221,8 +221,8 @@ describe('Property: Disagreement measures member-to-member difference', () => {
     // - Member 2 says "grape melon watermelon pear"
     // - Consensus says "apple orange banana grape" (matches member 1)
     //
-    // With the BUG: overlap1 = high (~1.0), overlap2 = low (~0.25), abs(overlap1-overlap2) = ~0.75 > 0.3, disagreement = 1 ✓
-    // With the FIX: direct comparison shows ~25% overlap, disagreement = 1 ✓
+    // REGRESSION TEST: Previously buggy behavior (overlap1 = high (~1.0), overlap2 = low (~0.25), abs(overlap1-overlap2) = ~0.75 > 0.3, disagreement = 1)
+    // Fixed behavior: direct comparison shows ~25% overlap, disagreement = 1 ✓
     // Both would pass this case too.
     //
     // The key case:
@@ -230,24 +230,24 @@ describe('Property: Disagreement measures member-to-member difference', () => {
     // - Member 2 says "apple orange banana" (identical)
     // - Consensus says "apple orange" (partial match - high overlap with member 1, high overlap with member 2)
     //
-    // With the BUG: overlap1 = ~0.67, overlap2 = ~0.67, abs(overlap1-overlap2) = 0, disagreement = 0 ✓
-    // With the FIX: direct comparison shows identical, disagreement = 0 ✓
+    // REGRESSION TEST: Previously buggy behavior (overlap1 = ~0.67, overlap2 = ~0.67, abs(overlap1-overlap2) = 0, disagreement = 0)
+    // Fixed behavior: direct comparison shows identical, disagreement = 0 ✓
     //
     // Actually, let me try a different approach:
     // - Member 1 says "apple orange banana grape melon"
     // - Member 2 says "apple orange banana grape melon" (identical)
     // - Consensus says "apple orange banana" (subset - member 1 has 60% overlap, member 2 has 60% overlap)
     //
-    // With the BUG: overlap1 = 0.6, overlap2 = 0.6, abs(0.6-0.6) = 0 < 0.3, disagreement = 0 ✓
-    // With the FIX: direct comparison = 1.0, disagreement = 0 ✓
+    // REGRESSION TEST: Previously buggy behavior (overlap1 = 0.6, overlap2 = 0.6, abs(0.6-0.6) = 0 < 0.3, disagreement = 0)
+    // Fixed behavior: direct comparison = 1.0, disagreement = 0 ✓
     //
     // Let me try the opposite:
     // - Member 1 says "apple orange banana"
     // - Member 2 says "grape melon watermelon"
     // - Consensus says "apple orange banana grape melon watermelon" (superset of both)
     //
-    // With the BUG: overlap1 = 0.5, overlap2 = 0.5, abs(0.5-0.5) = 0 < 0.3, disagreement = 0 ✗ (WRONG!)
-    // With the FIX: direct comparison = 0, disagreement = 1 ✓ (CORRECT!)
+    // REGRESSION TEST: Previously buggy behavior (overlap1 = 0.5, overlap2 = 0.5, abs(0.5-0.5) = 0 < 0.3, disagreement = 0) ✗ (WRONG!)
+    // Fixed behavior: direct comparison = 0, disagreement = 1 ✓ (CORRECT!)
 
     (mockDb.query as jest.Mock)
       .mockResolvedValueOnce({
@@ -269,9 +269,9 @@ describe('Property: Disagreement measures member-to-member difference', () => {
 
     const matrix = await analyticsEngine.computeAgreementMatrix();
 
-    // With the bug: both members have similar overlap with consensus (~0.5 each)
-    // so abs(overlap1 - overlap2) < 0.3, resulting in disagreement = 0
-    // With the fix: members have 0% overlap with each other, so disagreement = 1
+    // REGRESSION TEST: Previously buggy behavior - both members had similar overlap with consensus (~0.5 each)
+    // so abs(overlap1 - overlap2) < 0.3, resulting in disagreement = 0 (incorrect)
+    // Fixed behavior: members have 0% overlap with each other, so disagreement = 1 (correct)
     const member1Index = matrix.members.indexOf(member1Id);
     const member2Index = matrix.members.indexOf(member2Id);
 
