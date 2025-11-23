@@ -1,5 +1,3 @@
-// @ts-nocheck
-
 /**
  * Unit Test: Weighted-Fusion Synthesis Config Serialization
  * Ensures strategy weights survive the update/get round trip.

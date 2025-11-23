@@ -273,7 +273,7 @@ export class CodeDetector {
     // If no markdown blocks but code was detected via keywords,
     // try to extract code-like segments
     const segments: string[] = [];
-    
+
     try {
       // Split content by lines and look for code-like lines
       const lines = content.split('\n');
@@ -283,13 +283,13 @@ export class CodeDetector {
 
       for (const line of lines) {
         const trimmedLine = line.trim();
-        
+
         // Check if line looks like code (must have keywords/operators, not just text)
-        const isCodeLine = this.looksLikeCode(trimmedLine) || 
+        const isCodeLine = this.looksLikeCode(trimmedLine) ||
                           trimmedLine.match(/^[{}();=]+$/) ||
                           trimmedLine.match(/^\s*[a-zA-Z_$][a-zA-Z0-9_$]*\s*[=:]/) ||
                           trimmedLine.match(/^\s*(function|def|class|const|let|var|if|for|while|return|import|export)\b/);
-        
+
         if (isCodeLine && trimmedLine.length > 0) {
           // If we were in a segment and hit a non-code line, save the previous segment
           if (inCodeSegment && consecutiveCodeLines === 0 && currentSegment.length > 0) {
@@ -299,7 +299,7 @@ export class CodeDetector {
             }
             currentSegment = [];
           }
-          
+
           // Start or continue a code segment
           if (!inCodeSegment) {
             inCodeSegment = true;

@@ -15,7 +15,6 @@ import { IConfigurationManager } from '../../interfaces/IConfigurationManager';
 import { ISynthesisEngine } from '../../interfaces/ISynthesisEngine';
 import {
   UserRequest,
-  CouncilMember,
   ProviderResponse,
   ProviderHealth,
   CouncilConfig,
@@ -25,8 +24,7 @@ import {
   ConversationContext,
   DeliberationThread,
   SynthesisStrategy,
-  ConsensusDecision,
-  RetryPolicy
+  ConsensusDecision
 } from '../../types/core';
 
 // ============================================================================
@@ -53,8 +51,8 @@ class MockProviderPool implements IProviderPool {
   
   async sendRequest(
     member: CouncilMember,
-    prompt: string,
-    context?: ConversationContext
+    _prompt: string,
+    _context?: ConversationContext
   ): Promise<ProviderResponse> {
     // Simulate delay to trigger timeout
     if (this.delayMs > 0) {
@@ -387,7 +385,7 @@ describe('Property Test: Orchestration Engine Timeout Error Messages', () => {
     
     try {
       await engine.distributeToCouncil(request, [testMember]);
-    } catch (error) {
+    } catch (_error) {
       // Expected to fail when all members timeout
     }
     

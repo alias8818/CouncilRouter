@@ -4,7 +4,7 @@
  */
 
 import { Pool } from 'pg';
-import { createClient, RedisClientType } from 'redis';
+import { RedisClientType } from 'redis';
 import { IConfigurationManager } from '../interfaces/IConfigurationManager';
 import {
   CouncilConfig,

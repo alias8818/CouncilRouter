@@ -1,5 +1,4 @@
 import { Request, Response, NextFunction } from 'express';
-import { APIRequestBody, APIResponse } from '../types/core';
 
 /**
  * API Gateway Interface

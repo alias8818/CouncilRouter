@@ -32,7 +32,6 @@ export class SignatureExtractor {
     }
 
     const signatures: FunctionSignature[] = [];
-    const seenSignatures = new Set<string>();
 
     // Try each language pattern in order (more specific first)
     // Order matters: TypeScript before JavaScript, Java/C# before others
@@ -70,10 +69,6 @@ export class SignatureExtractor {
               returnType = undefined;
             }
 
-            // Create a unique key for deduplication (name + parameters)
-            // Prefer signatures with return types over those without
-            const signatureKey = `${name}:${parameters.join(',')}`;
-
             // Find existing signature with same name
             const existingIndex = signatures.findIndex(s => s.name === name);
 
@@ -108,7 +103,7 @@ export class SignatureExtractor {
               }
             }
           }
-        } catch (error) {
+        } catch (_error) {
           // Skip malformed signatures
           continue;
         }

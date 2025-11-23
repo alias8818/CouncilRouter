@@ -21,7 +21,9 @@ import {
 
 /**
  * Result of a council member request with metadata
+ * @internal
  */
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 interface CouncilMemberResult {
   member: CouncilMember;
   response: ProviderResponse;
@@ -294,13 +296,13 @@ export class OrchestrationEngine implements IOrchestrationEngine {
       );
 
       // Send deliberation request to council member
-      const startTime = Date.now();
+      const _startTime = Date.now();
       const providerResponse = await this.providerPool.sendRequest(
         member,
         deliberationPrompt,
         undefined // No conversation context for deliberation
       );
-      const endTime = Date.now();
+      const _endTime = Date.now();
 
       if (!providerResponse.success) {
         // If deliberation fails, use original response

@@ -15,7 +15,6 @@ import { IConfigurationManager } from '../../interfaces/IConfigurationManager';
 import { ISynthesisEngine } from '../../interfaces/ISynthesisEngine';
 import {
   UserRequest,
-  CouncilMember,
   ProviderResponse,
   ProviderHealth,
   CouncilConfig,
@@ -25,8 +24,7 @@ import {
   ConversationContext,
   DeliberationThread,
   SynthesisStrategy,
-  ConsensusDecision,
-  RetryPolicy
+  ConsensusDecision
 } from '../../types/core';
 
 // ============================================================================
@@ -269,7 +267,7 @@ describe('Property Test: Orchestration Engine Timeout Conversion', () => {
   test('should convert timeout from seconds to milliseconds before setTimeout', async () => {
     // Spy on setTimeout to track timeout values
     const originalSetTimeout = global.setTimeout;
-    const setTimeoutCalls: Array<{ callback: Function; delay: number }> = [];
+    const setTimeoutCalls: Array<{ callback: (...args: any[]) => void; delay: number }> = [];
     
     global.setTimeout = jest.fn((callback: any, delay?: number) => {
       setTimeoutCalls.push({ callback, delay: delay || 0 });
@@ -305,7 +303,7 @@ describe('Property Test: Orchestration Engine Timeout Conversion', () => {
             // Execute request (this will trigger timeout setup)
             try {
               await engine.processRequest(request);
-            } catch (error) {
+            } catch (_error) {
               // May fail, but we're testing timeout conversion
             }
             

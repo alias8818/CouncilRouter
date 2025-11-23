@@ -6,8 +6,7 @@
 import { Pool } from 'pg';
 import {
   IDevilsAdvocateModule,
-  DevilsAdvocateStrategy,
-  DevilsAdvocateCritique
+  DevilsAdvocateStrategy
 } from '../interfaces/IDevilsAdvocateModule';
 import {
   CouncilMember,

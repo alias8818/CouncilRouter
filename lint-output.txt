@@ -1,0 +1,731 @@
+
+> ai-council-proxy@1.0.0 lint
+> eslint .
+
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\__tests__\integration\full-deliberation-flow.test.ts
+   17:3   warning  'ConsensusDecision' is defined but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+   39:44  warning  'prompt' is defined but never used. Allowed unused args must match /^_/u                   @typescript-eslint/no-unused-vars
+  101:5   warning  'context' is defined but never used. Allowed unused args must match /^_/u                  @typescript-eslint/no-unused-vars
+  246:7   warning  'sessionManager' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\__tests__\security\security-suite.test.ts
+   11:10  warning  'APIGateway' is defined but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+  107:11  warning  Avoid calling `expect` conditionally`                                               jest/no-conditional-expect
+  324:65  warning  'ttl' is defined but never used. Allowed unused args must match /^_/u               @typescript-eslint/no-unused-vars
+  324:78  warning  'value' is defined but never used. Allowed unused args must match /^_/u             @typescript-eslint/no-unused-vars
+  374:11  warning  Avoid calling `expect` conditionally`                                               jest/no-conditional-expect
+  398:11  warning  Avoid calling `expect` conditionally`                                               jest/no-conditional-expect
+  422:11  warning  Avoid calling `expect` conditionally`                                               jest/no-conditional-expect
+  460:13  warning  'userId2' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  477:13  warning  'roles' is assigned a value but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+  511:9   warning  Avoid calling `expect` conditionally`                                               jest/no-conditional-expect
+  532:9   warning  Avoid calling `expect` conditionally`                                               jest/no-conditional-expect
+  736:9   warning  Avoid calling `expect` conditionally`                                               jest/no-conditional-expect
+  781:9   warning  Avoid calling `expect` conditionally`                                               jest/no-conditional-expect
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\analytics\__tests__\agreement-matrix.property.test.ts
+  77:17  warning  Avoid calling `expect` conditionally`  jest/no-conditional-expect
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\analytics\__tests__\analytics-member-ids.property.test.ts
+  28:30  warning  'values' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\analytics\__tests__\influence-score.property.test.ts
+  12:10  warning  'Pool' is defined but never used. Allowed unused vars must match /^_/u               @typescript-eslint/no-unused-vars
+  13:10  warning  'createClient' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+  59:23  warning  'memberId' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\analytics\__tests__\null-handling.property.test.ts
+  234:23  warning  'memberId' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\analytics\__tests__\percentile-calculation-mathematical.property.test.ts
+  19:15  warning  'query' is defined but never used. Allowed unused args must match /^_/u   @typescript-eslint/no-unused-vars
+  19:30  warning  'values' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+  25:13  warning  'key' is defined but never used. Allowed unused args must match /^_/u     @typescript-eslint/no-unused-vars
+  29:15  warning  'key' is defined but never used. Allowed unused args must match /^_/u     @typescript-eslint/no-unused-vars
+  29:28  warning  'ttl' is defined but never used. Allowed unused args must match /^_/u     @typescript-eslint/no-unused-vars
+  29:41  warning  'value' is defined but never used. Allowed unused args must match /^_/u   @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\analytics\__tests__\percentile-latency.property.test.ts
+  12:10  warning  'Pool' is defined but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+  13:10  warning  'createClient' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\analytics\engine.ts
+   28:3   warning  Async method 'calculatePerformanceMetrics' has too many lines (152). Maximum allowed is 100  max-lines-per-function
+   28:3   warning  Async method 'calculatePerformanceMetrics' has a complexity of 22. Maximum allowed is 15     complexity
+  105:7   warning  Forbidden non-null assertion                                                                 @typescript-eslint/no-non-null-assertion
+  132:7   warning  Forbidden non-null assertion                                                                 @typescript-eslint/no-non-null-assertion
+  184:3   warning  Async method 'computeAgreementMatrix' has a complexity of 16. Maximum allowed is 15          complexity
+  286:3   warning  Async method 'calculateInfluenceScores' has a complexity of 19. Maximum allowed is 15        complexity
+  348:21  warning  Forbidden non-null assertion                                                                 @typescript-eslint/no-non-null-assertion
+  383:3   warning  Async method 'aggregateCostAnalytics' has a complexity of 16. Maximum allowed is 15          complexity
+  501:1   warning  File has too many lines (584). Maximum allowed is 500                                        max-lines
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\api\__tests__\api-round-trip-consistency.property.test.ts
+   51:5   warning  'request' is defined but never used. Allowed unused args must match /^_/u              @typescript-eslint/no-unused-vars
+   52:5   warning  'councilMembers' is defined but never used. Allowed unused args must match /^_/u       @typescript-eslint/no-unused-vars
+   58:5   warning  'initialResponses' is defined but never used. Allowed unused args must match /^_/u     @typescript-eslint/no-unused-vars
+   59:5   warning  'rounds' is defined but never used. Allowed unused args must match /^_/u               @typescript-eslint/no-unused-vars
+   65:5   warning  'partialResponses' is defined but never used. Allowed unused args must match /^_/u     @typescript-eslint/no-unused-vars
+  101:22  warning  'sessionId' is defined but never used. Allowed unused args must match /^_/u            @typescript-eslint/no-unused-vars
+  101:41  warning  'entry' is defined but never used. Allowed unused args must match /^_/u                @typescript-eslint/no-unused-vars
+  106:5   warning  'sessionId' is defined but never used. Allowed unused args must match /^_/u            @typescript-eslint/no-unused-vars
+  107:5   warning  'maxTokens' is defined but never used. Allowed unused args must match /^_/u            @typescript-eslint/no-unused-vars
+  116:32  warning  'inactivityThreshold' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+  122:20  warning  'request' is defined but never used. Allowed unused args must match /^_/u              @typescript-eslint/no-unused-vars
+  123:28  warning  'requestId' is defined but never used. Allowed unused args must match /^_/u            @typescript-eslint/no-unused-vars
+  123:47  warning  'response' is defined but never used. Allowed unused args must match /^_/u             @typescript-eslint/no-unused-vars
+  124:30  warning  'requestId' is defined but never used. Allowed unused args must match /^_/u            @typescript-eslint/no-unused-vars
+  124:49  warning  'round' is defined but never used. Allowed unused args must match /^_/u                @typescript-eslint/no-unused-vars
+  125:30  warning  'requestId' is defined but never used. Allowed unused args must match /^_/u            @typescript-eslint/no-unused-vars
+  125:49  warning  'decision' is defined but never used. Allowed unused args must match /^_/u             @typescript-eslint/no-unused-vars
+  126:17  warning  'requestId' is defined but never used. Allowed unused args must match /^_/u            @typescript-eslint/no-unused-vars
+  126:36  warning  'cost' is defined but never used. Allowed unused args must match /^_/u                 @typescript-eslint/no-unused-vars
+  127:28  warning  'providerId' is defined but never used. Allowed unused args must match /^_/u           @typescript-eslint/no-unused-vars
+  127:48  warning  'error' is defined but never used. Allowed unused args must match /^_/u                @typescript-eslint/no-unused-vars
+  171:14  warning  'error' is defined but never used. Allowed unused caught errors must match /^_/u       @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\api\__tests__\authentication-validation.property.test.ts
+   29:24  warning  'request' is defined but never used. Allowed unused args must match /^_/u              @typescript-eslint/no-unused-vars
+   41:5   warning  'request' is defined but never used. Allowed unused args must match /^_/u              @typescript-eslint/no-unused-vars
+   42:5   warning  'councilMembers' is defined but never used. Allowed unused args must match /^_/u       @typescript-eslint/no-unused-vars
+   48:5   warning  'initialResponses' is defined but never used. Allowed unused args must match /^_/u     @typescript-eslint/no-unused-vars
+   49:5   warning  'rounds' is defined but never used. Allowed unused args must match /^_/u               @typescript-eslint/no-unused-vars
+   55:5   warning  'partialResponses' is defined but never used. Allowed unused args must match /^_/u     @typescript-eslint/no-unused-vars
+   91:22  warning  'sessionId' is defined but never used. Allowed unused args must match /^_/u            @typescript-eslint/no-unused-vars
+   91:41  warning  'entry' is defined but never used. Allowed unused args must match /^_/u                @typescript-eslint/no-unused-vars
+   96:5   warning  'sessionId' is defined but never used. Allowed unused args must match /^_/u            @typescript-eslint/no-unused-vars
+   97:5   warning  'maxTokens' is defined but never used. Allowed unused args must match /^_/u            @typescript-eslint/no-unused-vars
+  106:32  warning  'inactivityThreshold' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+  112:20  warning  'request' is defined but never used. Allowed unused args must match /^_/u              @typescript-eslint/no-unused-vars
+  113:28  warning  'requestId' is defined but never used. Allowed unused args must match /^_/u            @typescript-eslint/no-unused-vars
+  113:47  warning  'response' is defined but never used. Allowed unused args must match /^_/u             @typescript-eslint/no-unused-vars
+  114:30  warning  'requestId' is defined but never used. Allowed unused args must match /^_/u            @typescript-eslint/no-unused-vars
+  114:49  warning  'round' is defined but never used. Allowed unused args must match /^_/u                @typescript-eslint/no-unused-vars
+  115:30  warning  'requestId' is defined but never used. Allowed unused args must match /^_/u            @typescript-eslint/no-unused-vars
+  115:49  warning  'decision' is defined but never used. Allowed unused args must match /^_/u             @typescript-eslint/no-unused-vars
+  116:17  warning  'requestId' is defined but never used. Allowed unused args must match /^_/u            @typescript-eslint/no-unused-vars
+  116:36  warning  'cost' is defined but never used. Allowed unused args must match /^_/u                 @typescript-eslint/no-unused-vars
+  117:28  warning  'providerId' is defined but never used. Allowed unused args must match /^_/u           @typescript-eslint/no-unused-vars
+  117:48  warning  'error' is defined but never used. Allowed unused args must match /^_/u                @typescript-eslint/no-unused-vars
+  149:14  warning  'error' is defined but never used. Allowed unused caught errors must match /^_/u       @typescript-eslint/no-unused-vars
+  248:13  warning  Avoid calling `expect` conditionally`                                                  jest/no-conditional-expect
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\api\__tests__\authentication.test.ts
+  256:5  warning  Tests should not be skipped  jest/no-disabled-tests
+  270:5  warning  Tests should not be skipped  jest/no-disabled-tests
+  308:5  warning  Tests should not be skipped  jest/no-disabled-tests
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\api\__tests__\gateway.test.ts
+  12:10  warning  'ConsensusDecision' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\api\__tests__\idempotency-integration.property.test.ts
+  16:29  warning  'UserRequest' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\api\__tests__\request-identifier-generation.property.test.ts
+   29:24  warning  'request' is defined but never used. Allowed unused args must match /^_/u              @typescript-eslint/no-unused-vars
+   41:5   warning  'request' is defined but never used. Allowed unused args must match /^_/u              @typescript-eslint/no-unused-vars
+   42:5   warning  'councilMembers' is defined but never used. Allowed unused args must match /^_/u       @typescript-eslint/no-unused-vars
+   48:5   warning  'initialResponses' is defined but never used. Allowed unused args must match /^_/u     @typescript-eslint/no-unused-vars
+   49:5   warning  'rounds' is defined but never used. Allowed unused args must match /^_/u               @typescript-eslint/no-unused-vars
+   55:5   warning  'partialResponses' is defined but never used. Allowed unused args must match /^_/u     @typescript-eslint/no-unused-vars
+   91:22  warning  'sessionId' is defined but never used. Allowed unused args must match /^_/u            @typescript-eslint/no-unused-vars
+   91:41  warning  'entry' is defined but never used. Allowed unused args must match /^_/u                @typescript-eslint/no-unused-vars
+   96:5   warning  'sessionId' is defined but never used. Allowed unused args must match /^_/u            @typescript-eslint/no-unused-vars
+   97:5   warning  'maxTokens' is defined but never used. Allowed unused args must match /^_/u            @typescript-eslint/no-unused-vars
+  106:32  warning  'inactivityThreshold' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+  112:20  warning  'request' is defined but never used. Allowed unused args must match /^_/u              @typescript-eslint/no-unused-vars
+  113:28  warning  'requestId' is defined but never used. Allowed unused args must match /^_/u            @typescript-eslint/no-unused-vars
+  113:47  warning  'response' is defined but never used. Allowed unused args must match /^_/u             @typescript-eslint/no-unused-vars
+  114:30  warning  'requestId' is defined but never used. Allowed unused args must match /^_/u            @typescript-eslint/no-unused-vars
+  114:49  warning  'round' is defined but never used. Allowed unused args must match /^_/u                @typescript-eslint/no-unused-vars
+  115:30  warning  'requestId' is defined but never used. Allowed unused args must match /^_/u            @typescript-eslint/no-unused-vars
+  115:49  warning  'decision' is defined but never used. Allowed unused args must match /^_/u             @typescript-eslint/no-unused-vars
+  116:17  warning  'requestId' is defined but never used. Allowed unused args must match /^_/u            @typescript-eslint/no-unused-vars
+  116:36  warning  'cost' is defined but never used. Allowed unused args must match /^_/u                 @typescript-eslint/no-unused-vars
+  117:28  warning  'providerId' is defined but never used. Allowed unused args must match /^_/u           @typescript-eslint/no-unused-vars
+  117:48  warning  'error' is defined but never used. Allowed unused args must match /^_/u                @typescript-eslint/no-unused-vars
+  150:14  warning  'error' is defined but never used. Allowed unused caught errors must match /^_/u       @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\api\__tests__\streaming-initiation.property.test.ts
+  109:5   warning  'maxTokens' is defined but never used. Allowed unused args must match /^_/u            @typescript-eslint/no-unused-vars
+  127:32  warning  'inactivityThreshold' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+  171:10  warning  'parseSSEEvents' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\api\__tests__\streaming.test.ts
+   30:7  warning  'app' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  458:7  warning  'app' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\api\gateway.ts
+    67:3   warning  Constructor has too many parameters (7). Maximum allowed is 5                              max-params
+    93:37  warning  Forbidden non-null assertion                                                               @typescript-eslint/no-non-null-assertion
+   124:7   warning  Unexpected console statement. Only these console methods are allowed: warn, error          no-console
+   200:16  error    'error' is defined but never used. Allowed unused caught errors must match /^_/u           @typescript-eslint/no-unused-vars
+   274:16  error    Unexpected control character(s) in regular expression: \x00, \x08, \x0b, \x0c, \x0e, \x1f  no-control-regex
+   342:3   warning  Async method 'submitRequest' has too many lines (243). Maximum allowed is 100              max-lines-per-function
+   342:3   warning  Async method 'submitRequest' has a complexity of 37. Maximum allowed is 15                 complexity
+   349:22  warning  Forbidden non-null assertion                                                               @typescript-eslint/no-non-null-assertion
+   386:13  warning  Blocks are nested too deeply (5). Maximum allowed is 4                                     max-depth
+   407:20  error    'waitError' is defined but never used. Allowed unused caught errors must match /^_/u       @typescript-eslint/no-unused-vars
+   445:15  warning  Blocks are nested too deeply (5). Maximum allowed is 4                                     max-depth
+   466:22  error    'waitError' is defined but never used. Allowed unused caught errors must match /^_/u       @typescript-eslint/no-unused-vars
+   501:1   warning  File has too many lines (1105). Maximum allowed is 500                                     max-lines
+   656:7   warning  Forbidden non-null assertion                                                               @typescript-eslint/no-non-null-assertion
+   773:17  warning  Unexpected any. Specify a different type                                                   @typescript-eslint/no-explicit-any
+   906:15  warning  Unexpected any. Specify a different type                                                   @typescript-eslint/no-explicit-any
+   939:5   error    'next' is defined but never used. Allowed unused args must match /^_/u                     @typescript-eslint/no-unused-vars
+  1039:22  error    'error' is defined but never used. Allowed unused caught errors must match /^_/u           @typescript-eslint/no-unused-vars
+  1059:9   warning  Unexpected console statement. Only these console methods are allowed: warn, error          no-console
+  1076:17  error    'requestId' is assigned a value but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+  1081:18  error    'error' is defined but never used. Allowed unused caught errors must match /^_/u           @typescript-eslint/no-unused-vars
+  1099:11  warning  Unexpected console statement. Only these console methods are allowed: warn, error          no-console
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\budget\budget-enforcer.ts
+  203:78  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  285:34  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\config\__tests__\configuration-immediacy.property.test.ts
+   13:10  warning  'createClient' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+   15:25  warning  'RetryPolicy' is defined but never used. Allowed unused vars must match /^_/u   @typescript-eslint/no-unused-vars
+  246:17  warning  Avoid calling `expect` conditionally`                                           jest/no-conditional-expect
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\config\__tests__\feature-flags.test.ts
+  6:54  warning  'FeatureFlags' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\config\__tests__\forced-transparency-override.property.test.ts
+  13:10  warning  'createClient' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  72:13  warning  Avoid calling `expect` conditionally`                                           jest/no-conditional-expect
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\config\__tests__\manager-edge-cases.test.ts
+  11:45  warning  'SynthesisConfig' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\config\__tests__\manager.property.test.ts
+  13:10  warning  'createClient' is defined but never used. Allowed unused vars must match /^_/u   @typescript-eslint/no-unused-vars
+  15:10  warning  'CouncilConfig' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  15:25  warning  'CouncilMember' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  15:40  warning  'RetryPolicy' is defined but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\config\__tests__\per-provider-config.property.test.ts
+  13:10  warning  'createClient' is defined but never used. Allowed unused vars must match /^_/u   @typescript-eslint/no-unused-vars
+  15:25  warning  'CouncilMember' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  15:40  warning  'RetryPolicy' is defined but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\config\__tests__\preset-validation-first.property.test.ts
+   13:32  warning  'ConfigurationValidationError' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+   89:13  warning  Avoid calling `expect` conditionally`                                                           jest/no-conditional-expect
+   95:13  warning  Avoid calling `expect` conditionally`                                                           jest/no-conditional-expect
+  144:9   warning  Avoid calling `expect` conditionally`                                                           jest/no-conditional-expect
+  168:7   warning  Avoid calling `expect` conditionally`                                                           jest/no-conditional-expect
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\config\__tests__\retry-policy-validation.property.test.ts
+  124:13  warning  Avoid calling `expect` conditionally`  jest/no-conditional-expect
+  126:13  warning  Avoid calling `expect` conditionally`  jest/no-conditional-expect
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\config\__tests__\synthesis-weighted-serialization.test.ts
+  1:1  error  Do not use "@ts-nocheck" because it alters compilation errors  @typescript-eslint/ban-ts-comment
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\config\manager.ts
+    7:10  error    'createClient' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+   16:3   error    'CouncilMember' is defined but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+  483:3   warning  Method 'validateSynthesisConfig' has a complexity of 16. Maximum allowed is 15     complexity
+  499:43  warning  Unexpected any. Specify a different type                                           @typescript-eslint/no-explicit-any
+  501:1   warning  File has too many lines (944). Maximum allowed is 500                              max-lines
+  518:43  warning  Unexpected any. Specify a different type                                           @typescript-eslint/no-explicit-any
+  625:3   warning  Method 'getPresetConfigurations' has too many lines (243). Maximum allowed is 100  max-lines-per-function
+  872:58  warning  Unexpected any. Specify a different type                                           @typescript-eslint/no-explicit-any
+  883:42  warning  Unexpected any. Specify a different type                                           @typescript-eslint/no-explicit-any
+  894:62  warning  Unexpected any. Specify a different type                                           @typescript-eslint/no-explicit-any
+  895:31  warning  Unexpected any. Specify a different type                                           @typescript-eslint/no-explicit-any
+  899:75  warning  Unexpected any. Specify a different type                                           @typescript-eslint/no-explicit-any
+  900:51  warning  Unexpected any. Specify a different type                                           @typescript-eslint/no-explicit-any
+  905:23  warning  Unexpected any. Specify a different type                                           @typescript-eslint/no-explicit-any
+  923:44  warning  Unexpected any. Specify a different type                                           @typescript-eslint/no-explicit-any
+  924:21  warning  Unexpected any. Specify a different type                                           @typescript-eslint/no-explicit-any
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\cost\__tests__\cost-aggregation-correctness.property.test.ts
+  12:26  warning  'CostCalculation' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\cost\__tests__\cost-alert-triggering.property.test.ts
+  153:13  warning  Avoid calling `expect` conditionally`  jest/no-conditional-expect
+  316:13  warning  Avoid calling `expect` conditionally`  jest/no-conditional-expect
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\cost\__tests__\cost-calculation-accuracy.property.test.ts
+  13:26  warning  'PricingConfig' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  14:10  warning  'CouncilMember' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\cost\__tests__\cost-member-attribution.property.test.ts
+  13:10  warning  'CouncilMember' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  13:25  warning  'TokenUsage' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  13:37  warning  'RetryPolicy' is defined but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\cost\__tests__\cost-period-matching.property.test.ts
+  58:13  warning  Avoid calling `expect` conditionally`  jest/no-conditional-expect
+  62:13  warning  Avoid calling `expect` conditionally`  jest/no-conditional-expect
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\cost\calculator.ts
+  332:3  warning  Method 'matchesPeriod' has too many lines (111). Maximum allowed is 100  max-lines-per-function
+  332:3  warning  Method 'matchesPeriod' has a complexity of 36. Maximum allowed is 15     complexity
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\dashboard\__tests__\dashboard.test.ts
+    13:10  warning  'RequestSummary' is defined but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+   466:10  warning  'DeliberationThread' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  1638:11  warning  'warnings' is assigned a value but never used. Allowed unused vars must match /^_/u   @typescript-eslint/no-unused-vars
+  1676:11  warning  'warnings' is assigned a value but never used. Allowed unused vars must match /^_/u   @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\dashboard\__tests__\deliberation-chronological-ordering.property.test.ts
+  14:10  warning  'DeliberationThread' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  14:30  warning  'Exchange' is defined but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\dashboard\dashboard.ts
+   61:19  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  191:7   warning  Forbidden non-null assertion              @typescript-eslint/no-non-null-assertion
+  250:48  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\interfaces\IAPIGateway.ts
+  2:10  error  'APIRequestBody' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  2:26  error  'APIResponse' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\interfaces\IOrchestrationEngine.ts
+  42:44  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\interfaces\IToolExecutionEngine.ts
+  28:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\logging\__tests__\complete-logging.property.test.ts
+  15:3  warning  'UserRequest' is defined but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+  16:3  warning  'InitialResponse' is defined but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+  17:3  warning  'DeliberationRound' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  18:3  warning  'ConsensusDecision' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  19:3  warning  'TokenUsage' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\logging\__tests__\logged-member-ids.property.test.ts
+  14:10  warning  'InitialResponse' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\logging\__tests__\response-attribution.property.test.ts
+  15:3  warning  'InitialResponse' is defined but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+  16:3  warning  'DeliberationRound' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  17:3  warning  'TokenUsage' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\orchestration\__tests__\engine.property.test.ts
+    14:3   warning  'UserRequest' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+    64:5   warning  'context' is defined but never used. Allowed unused args must match /^_/u         @typescript-eslint/no-unused-vars
+   113:44  warning  'reason' is defined but never used. Allowed unused args must match /^_/u          @typescript-eslint/no-unused-vars
+   403:20  warning  'error' is defined but never used. Allowed unused caught errors must match /^_/u  @typescript-eslint/no-unused-vars
+   496:22  warning  'error' is defined but never used. Allowed unused caught errors must match /^_/u  @typescript-eslint/no-unused-vars
+   508:13  warning  Avoid calling `expect` conditionally`                                             jest/no-conditional-expect
+   550:20  warning  'error' is defined but never used. Allowed unused caught errors must match /^_/u  @typescript-eslint/no-unused-vars
+   894:20  warning  'error' is defined but never used. Allowed unused caught errors must match /^_/u  @typescript-eslint/no-unused-vars
+   912:13  warning  Avoid calling `expect` conditionally`                                             jest/no-conditional-expect
+  1017:15  warning  Avoid calling `expect` conditionally`                                             jest/no-conditional-expect
+  1020:15  warning  Avoid calling `expect` conditionally`                                             jest/no-conditional-expect
+  1021:15  warning  Avoid calling `expect` conditionally`                                             jest/no-conditional-expect
+  1022:15  warning  Avoid calling `expect` conditionally`                                             jest/no-conditional-expect
+  1025:15  warning  Avoid calling `expect` conditionally`                                             jest/no-conditional-expect
+  1026:15  warning  Avoid calling `expect` conditionally`                                             jest/no-conditional-expect
+  1027:15  warning  Avoid calling `expect` conditionally`                                             jest/no-conditional-expect
+  1035:15  warning  Avoid calling `expect` conditionally`                                             jest/no-conditional-expect
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\orchestration\__tests__\engine.test.ts
+  49:5  warning  'prompt' is defined but never used. Allowed unused args must match /^_/u   @typescript-eslint/no-unused-vars
+  50:5  warning  'context' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\orchestration\__tests__\graceful-degradation.property.test.ts
+  14:3   warning  'UserRequest' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  48:5   warning  'prompt' is defined but never used. Allowed unused args must match /^_/u       @typescript-eslint/no-unused-vars
+  49:5   warning  'context' is defined but never used. Allowed unused args must match /^_/u      @typescript-eslint/no-unused-vars
+  80:44  warning  'reason' is defined but never used. Allowed unused args must match /^_/u       @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\orchestration\__tests__\member-id-preservation.property.test.ts
+   29:3   warning  'UserRequest' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+   51:5   warning  'prompt' is defined but never used. Allowed unused args must match /^_/u          @typescript-eslint/no-unused-vars
+   52:5   warning  'context' is defined but never used. Allowed unused args must match /^_/u         @typescript-eslint/no-unused-vars
+   87:44  warning  'reason' is defined but never used. Allowed unused args must match /^_/u          @typescript-eslint/no-unused-vars
+  321:20  warning  'error' is defined but never used. Allowed unused caught errors must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\orchestration\__tests__\timeout-conversion.property.test.ts
+   17:3   warning  'UserRequest' is defined but never used. Allowed unused vars must match /^_/u                                            @typescript-eslint/no-unused-vars
+  100:44  warning  'reason' is defined but never used. Allowed unused args must match /^_/u                                                 @typescript-eslint/no-unused-vars
+  272:46  error    The `Function` type accepts any function-like value.
+Prefer explicitly defining any function parameters and return type  @typescript-eslint/no-unsafe-function-type
+  308:22  warning  'error' is defined but never used. Allowed unused caught errors must match /^_/u                                         @typescript-eslint/no-unused-vars
+  329:15  warning  Avoid calling `expect` conditionally`                                                                                    jest/no-conditional-expect
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\orchestration\__tests__\timeout-error-messages.property.test.ts
+   56:5   warning  'prompt' is defined but never used. Allowed unused args must match /^_/u           @typescript-eslint/no-unused-vars
+   57:5   warning  'context' is defined but never used. Allowed unused args must match /^_/u          @typescript-eslint/no-unused-vars
+   93:44  warning  'reason' is defined but never used. Allowed unused args must match /^_/u           @typescript-eslint/no-unused-vars
+  285:17  warning  'engine' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  328:13  warning  Avoid calling `expect` conditionally`                                              jest/no-conditional-expect
+  330:13  warning  Avoid calling `expect` conditionally`                                              jest/no-conditional-expect
+  390:14  warning  'error' is defined but never used. Allowed unused caught errors must match /^_/u   @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\orchestration\engine.ts
+   25:11  error    'CouncilMemberResult' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  297:13  error    'startTime' is assigned a value but never used. Allowed unused vars must match /^_/u   @typescript-eslint/no-unused-vars
+  303:13  error    'endTime' is assigned a value but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  376:37  warning  Unexpected any. Specify a different type                                               @typescript-eslint/no-explicit-any
+  501:1   warning  File has too many lines (540). Maximum allowed is 500                                  max-lines
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\providers\__tests__\disabled-state-synchronization.property.test.ts
+   13:10  warning  'ProviderPool' is defined but never used. Allowed unused vars must match /^_/u              @typescript-eslint/no-unused-vars
+   14:10  warning  'OrchestrationEngine' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+   19:3   warning  'ProviderHealth' is defined but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+   20:3   warning  'UserRequest' is defined but never used. Allowed unused vars must match /^_/u               @typescript-eslint/no-unused-vars
+   25:3   warning  'RetryPolicy' is defined but never used. Allowed unused vars must match /^_/u               @typescript-eslint/no-unused-vars
+   32:7   warning  'MockConfigurationManager' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+   63:34  warning  'config' is defined but never used. Allowed unused args must match /^_/u                    @typescript-eslint/no-unused-vars
+   68:7   warning  'MockSynthesisEngine' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+  126:17  warning  'councilConfig' is assigned a value but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\providers\__tests__\failure-tracking-consistency.property.test.ts
+   14:10  warning  'OrchestrationEngine' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+   20:3   warning  'UserRequest' is defined but never used. Allowed unused vars must match /^_/u               @typescript-eslint/no-unused-vars
+   25:3   warning  'RetryPolicy' is defined but never used. Allowed unused vars must match /^_/u               @typescript-eslint/no-unused-vars
+   32:7   warning  'MockConfigurationManager' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+   63:34  warning  'config' is defined but never used. Allowed unused args must match /^_/u                    @typescript-eslint/no-unused-vars
+   68:7   warning  'MockSynthesisEngine' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+   89:7   warning  'TestableProviderPool' is defined but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+   97:19  warning  'providerId' is defined but never used. Allowed unused args must match /^_/u                @typescript-eslint/no-unused-vars
+   97:39  warning  'response' is defined but never used. Allowed unused args must match /^_/u                  @typescript-eslint/no-unused-vars
+  141:17  warning  'councilConfig' is assigned a value but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\providers\__tests__\pool-failure-scenarios.test.ts
+   13:25  warning  'ProviderResponse' is defined but never used. Allowed unused vars must match /^_/u             @typescript-eslint/no-unused-vars
+   13:43  warning  'RetryPolicy' is defined but never used. Allowed unused vars must match /^_/u                  @typescript-eslint/no-unused-vars
+  287:13  warning  'response3' is assigned a value but never used. Allowed unused vars must match /^_/u           @typescript-eslint/no-unused-vars
+  288:13  warning  'response4' is assigned a value but never used. Allowed unused vars must match /^_/u           @typescript-eslint/no-unused-vars
+  503:13  warning  'initialSuccessRate' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  515:13  warning  'member' is assigned a value but never used. Allowed unused vars must match /^_/u              @typescript-eslint/no-unused-vars
+  573:13  warning  'newPool' is assigned a value but never used. Allowed unused vars must match /^_/u             @typescript-eslint/no-unused-vars
+  575:13  warning  'member' is assigned a value but never used. Allowed unused vars must match /^_/u              @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\providers\adapters\__tests__\base.test.ts
+  15:5  warning  'prompt' is defined but never used. Allowed unused args must match /^_/u   @typescript-eslint/no-unused-vars
+  16:5  warning  'context' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\providers\adapters\__tests__\retry.property.test.ts
+   23:5   warning  'prompt' is defined but never used. Allowed unused args must match /^_/u   @typescript-eslint/no-unused-vars
+   24:5   warning  'context' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+  197:15  warning  'prompt' is defined but never used. Allowed unused args must match /^_/u   @typescript-eslint/no-unused-vars
+  198:15  warning  'context' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\providers\adapters\__tests__\timeout-conversion.property.test.ts
+   13:76  warning  'RetryPolicy' is defined but never used. Allowed unused vars must match /^_/u                                            @typescript-eslint/no-unused-vars
+   24:5   warning  'prompt' is defined but never used. Allowed unused args must match /^_/u                                                 @typescript-eslint/no-unused-vars
+   25:5   warning  'context' is defined but never used. Allowed unused args must match /^_/u                                                @typescript-eslint/no-unused-vars
+  103:46  error    The `Function` type accepts any function-like value.
+Prefer explicitly defining any function parameters and return type  @typescript-eslint/no-unsafe-function-type
+  134:22  warning  'error' is defined but never used. Allowed unused caught errors must match /^_/u                                         @typescript-eslint/no-unused-vars
+  154:15  warning  Avoid calling `expect` conditionally`                                                                                    jest/no-conditional-expect
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\providers\adapters\__tests__\timeout-error-messages.property.test.ts
+  13:76  warning  'RetryPolicy' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  24:5   warning  'prompt' is defined but never used. Allowed unused args must match /^_/u       @typescript-eslint/no-unused-vars
+  25:5   warning  'context' is defined but never used. Allowed unused args must match /^_/u      @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\providers\adapters\__tests__\timeout.property.test.ts
+   21:5   warning  'prompt' is defined but never used. Allowed unused args must match /^_/u   @typescript-eslint/no-unused-vars
+   22:5   warning  'context' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+   89:42  warning  'delayMs' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+  163:42  warning  'delayMs' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\providers\adapters\anthropic.ts
+  61:22  warning  Unexpected any. Specify a different type                                          @typescript-eslint/no-explicit-any
+  93:14  error    'error' is defined but never used. Allowed unused caught errors must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\providers\adapters\base.ts
+    6:76  error    'RetryPolicy' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+   35:6   warning  Unexpected any. Specify a different type                                       @typescript-eslint/no-explicit-any
+   40:46  warning  Unexpected any. Specify a different type                                       @typescript-eslint/no-explicit-any
+   50:30  warning  Unexpected any. Specify a different type                                       @typescript-eslint/no-explicit-any
+  138:33  warning  Unexpected any. Specify a different type                                       @typescript-eslint/no-explicit-any
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\providers\adapters\google.ts
+  58:22  warning  Unexpected any. Specify a different type                                          @typescript-eslint/no-explicit-any
+  89:14  error    'error' is defined but never used. Allowed unused caught errors must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\providers\adapters\openai.ts
+  63:22  warning  Unexpected any. Specify a different type                                          @typescript-eslint/no-explicit-any
+  87:14  error    'error' is defined but never used. Allowed unused caught errors must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\providers\health-tracker.ts
+   88:24  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  123:24  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+  185:26  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\providers\pool.ts
+  124:26  warning  Forbidden non-null assertion  @typescript-eslint/no-non-null-assertion
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\redteam\__tests__\result-recording.property.test.ts
+  155:13  warning  Avoid calling `expect` conditionally`  jest/no-conditional-expect
+  156:13  warning  Avoid calling `expect` conditionally`  jest/no-conditional-expect
+  164:13  warning  Avoid calling `expect` conditionally`  jest/no-conditional-expect
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\redteam\__tests__\security-warning.property.test.ts
+  105:15  warning  Avoid calling `expect` conditionally`  jest/no-conditional-expect
+  109:15  warning  Avoid calling `expect` conditionally`  jest/no-conditional-expect
+  112:15  warning  Avoid calling `expect` conditionally`  jest/no-conditional-expect
+  114:15  warning  Avoid calling `expect` conditionally`  jest/no-conditional-expect
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\redteam\tester.ts
+   11:62  error    'CouncilMember' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  188:7   warning  Forbidden non-null assertion                                                     @typescript-eslint/no-non-null-assertion
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\session\__tests__\atomic-updates.property.test.ts
+  101:17  warning  'transactionCallCount' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  118:22  warning  'id' is assigned a value but never used. Allowed unused vars must match /^_/u                    @typescript-eslint/no-unused-vars
+  118:26  warning  'sessionId' is assigned a value but never used. Allowed unused vars must match /^_/u             @typescript-eslint/no-unused-vars
+  130:22  warning  'lastActivityAt' is assigned a value but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+  130:53  warning  'sessionId' is assigned a value but never used. Allowed unused vars must match /^_/u             @typescript-eslint/no-unused-vars
+  254:84  warning  'params' is defined but never used. Allowed unused args must match /^_/u                         @typescript-eslint/no-unused-vars
+  344:84  warning  'params' is defined but never used. Allowed unused args must match /^_/u                         @typescript-eslint/no-unused-vars
+  415:13  warning  Avoid calling `expect` conditionally`                                                            jest/no-conditional-expect
+  425:13  warning  Avoid calling `expect` conditionally`                                                            jest/no-conditional-expect
+  426:13  warning  Avoid calling `expect` conditionally`                                                            jest/no-conditional-expect
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\session\__tests__\manager-advanced.test.ts
+  237:13  warning  'entry2' is assigned a value but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+  442:13  warning  'content' is assigned a value but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+  445:13  warning  'mockEncoder' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  532:13  warning  'oldDate' is assigned a value but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+  552:13  warning  'oldDate' is assigned a value but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+  572:13  warning  'recentDate' is assigned a value but never used. Allowed unused vars must match /^_/u   @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\session\__tests__\manager.property.test.ts
+    8:10  warning  'HistoryEntry' is defined but never used. Allowed unused vars must match /^_/u                    @typescript-eslint/no-unused-vars
+   10:10  warning  'createClient' is defined but never used. Allowed unused vars must match /^_/u                    @typescript-eslint/no-unused-vars
+  213:19  warning  'hasSubstantialContent' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  238:15  warning  Avoid calling `expect` conditionally`                                                             jest/no-conditional-expect
+  240:15  warning  Avoid calling `expect` conditionally`                                                             jest/no-conditional-expect
+  245:15  warning  Avoid calling `expect` conditionally`                                                             jest/no-conditional-expect
+  248:15  warning  Avoid calling `expect` conditionally`                                                             jest/no-conditional-expect
+  249:15  warning  Avoid calling `expect` conditionally`                                                             jest/no-conditional-expect
+  481:19  warning  'recentActivity' is assigned a value but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\session\__tests__\manager.test.ts
+  6:10  warning  'Session' is defined but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+  8:10  warning  'createClient' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\session\__tests__\token-estimation.property.test.ts
+  196:15  warning  Avoid calling `expect` conditionally`                                                     jest/no-conditional-expect
+  197:15  warning  Avoid calling `expect` conditionally`                                                     jest/no-conditional-expect
+  203:15  warning  Avoid calling `expect` conditionally`                                                     jest/no-conditional-expect
+  204:15  warning  Avoid calling `expect` conditionally`                                                     jest/no-conditional-expect
+  316:15  warning  Avoid calling `expect` conditionally`                                                     jest/no-conditional-expect
+  317:15  warning  Avoid calling `expect` conditionally`                                                     jest/no-conditional-expect
+  322:15  warning  Avoid calling `expect` conditionally`                                                     jest/no-conditional-expect
+  323:15  warning  Avoid calling `expect` conditionally`                                                     jest/no-conditional-expect
+  327:21  warning  'naiveEstimate' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  331:15  warning  Avoid calling `expect` conditionally`                                                     jest/no-conditional-expect
+  332:15  warning  Avoid calling `expect` conditionally`                                                     jest/no-conditional-expect
+  403:13  warning  Avoid calling `expect` conditionally`                                                     jest/no-conditional-expect
+  404:13  warning  Avoid calling `expect` conditionally`                                                     jest/no-conditional-expect
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\session\manager.ts
+   14:10  error    'createClient' is defined but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+  442:78  warning  Unexpected any. Specify a different type                                          @typescript-eslint/no-explicit-any
+  448:12  warning  Forbidden non-null assertion                                                      @typescript-eslint/no-non-null-assertion
+  456:61  warning  Unexpected any. Specify a different type                                          @typescript-eslint/no-explicit-any
+  464:14  warning  Forbidden non-null assertion                                                      @typescript-eslint/no-non-null-assertion
+  480:14  error    'error' is defined but never used. Allowed unused caught errors must match /^_/u  @typescript-eslint/no-unused-vars
+  492:3   warning  Method 'summarizeMessages' has a complexity of 16. Maximum allowed is 15          complexity
+  501:1   warning  File has too many lines (559). Maximum allowed is 500                             max-lines
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\synthesis\__tests__\code-aware-synthesis.property.test.ts
+   13:20  warning  'DeliberationThread' is defined but never used. Allowed unused vars must match /^_/u                 @typescript-eslint/no-unused-vars
+   13:40  warning  'SynthesisStrategy' is defined but never used. Allowed unused vars must match /^_/u                  @typescript-eslint/no-unused-vars
+   17:7   warning  'codeDetector' is assigned a value but never used. Allowed unused vars must match /^_/u              @typescript-eslint/no-unused-vars
+   19:7   warning  'logicAnalyzer' is assigned a value but never used. Allowed unused vars must match /^_/u             @typescript-eslint/no-unused-vars
+   20:7   warning  'codeSimilarityCalculator' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+   32:73  warning  's' is defined but never used. Allowed unused args must match /^_/u                                  @typescript-eslint/no-unused-vars
+  103:13  warning  Avoid calling `expect` conditionally`                                                                jest/no-conditional-expect
+  120:10  warning  'code' is defined but never used. Allowed unused args must match /^_/u                               @typescript-eslint/no-unused-vars
+  156:13  warning  Avoid calling `expect` conditionally`                                                                jest/no-conditional-expect
+  188:13  warning  Avoid calling `expect` conditionally`                                                                jest/no-conditional-expect
+  217:13  warning  Avoid calling `expect` conditionally`                                                                jest/no-conditional-expect
+  246:13  warning  Avoid calling `expect` conditionally`                                                                jest/no-conditional-expect
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\synthesis\__tests__\code-security.test.ts
+  44:9  warning  Avoid calling `expect` conditionally`  jest/no-conditional-expect
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\synthesis\__tests__\code-synthesis-integration.test.ts
+   9:3  warning  'DeliberationRound' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  12:3  warning  'CouncilMember' is defined but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+  13:3  warning  'TokenUsage' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\synthesis\__tests__\devils-advocate.test.ts
+   11:3   warning  'DeliberationRound' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+   12:3   warning  'Exchange' is defined but never used. Allowed unused vars must match /^_/u           @typescript-eslint/no-unused-vars
+   13:3   warning  'ConsensusDecision' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+   19:15  warning  'text' is defined but never used. Allowed unused args must match /^_/u               @typescript-eslint/no-unused-vars
+   19:29  warning  'params' is defined but never used. Allowed unused args must match /^_/u             @typescript-eslint/no-unused-vars
+  118:17  warning  'weight' is assigned a value but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\synthesis\__tests__\engine.property.test.ts
+    9:3   warning  'DeliberationThread' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+   10:3   warning  'DeliberationRound' is defined but never used. Allowed unused vars must match /^_/u   @typescript-eslint/no-unused-vars
+   11:3   warning  'Exchange' is defined but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+   15:3   warning  'TokenUsage' is defined but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+  258:15  warning  Avoid calling `expect` conditionally`                                                 jest/no-conditional-expect
+  259:15  warning  Avoid calling `expect` conditionally`                                                 jest/no-conditional-expect
+  396:13  warning  Avoid calling `expect` conditionally`                                                 jest/no-conditional-expect
+  402:15  warning  Avoid calling `expect` conditionally`                                                 jest/no-conditional-expect
+  404:17  warning  Avoid calling `expect` conditionally`                                                 jest/no-conditional-expect
+  411:13  warning  Avoid calling `expect` conditionally`                                                 jest/no-conditional-expect
+  413:15  warning  Avoid calling `expect` conditionally`                                                 jest/no-conditional-expect
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\synthesis\__tests__\engine.test.ts
+   8:3  warning  'DeliberationRound' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  13:3  warning  'TokenUsage' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\synthesis\__tests__\rotation-concurrency.property.test.ts
+  136:15  warning  Avoid calling `expect` conditionally`  jest/no-conditional-expect
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\synthesis\code-detector.ts
+  107:3   warning  Method 'extractCode' has a complexity of 17. Maximum allowed is 15          complexity
+  257:3   warning  Method 'extractCodeSegments' has a complexity of 32. Maximum allowed is 15  complexity
+  297:13  warning  Blocks are nested too deeply (5). Maximum allowed is 4                      max-depth
+  318:13  warning  Blocks are nested too deeply (5). Maximum allowed is 4                      max-depth
+  320:15  warning  Blocks are nested too deeply (6). Maximum allowed is 4                      max-depth
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\synthesis\devils-advocate.ts
+   10:3   error    'DevilsAdvocateCritique' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+   56:72  warning  Unexpected any. Specify a different type                                                  @typescript-eslint/no-explicit-any
+  117:38  warning  Unexpected any. Specify a different type                                                  @typescript-eslint/no-explicit-any
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\synthesis\engine.ts
+  251:31  warning  Forbidden non-null assertion                                                   @typescript-eslint/no-non-null-assertion
+  277:3   warning  Async method 'metaSynthesis' has too many lines (103). Maximum allowed is 100  max-lines-per-function
+  303:36  error    'index' is defined but never used. Allowed unused args must match /^_/u        @typescript-eslint/no-unused-vars
+  501:1   warning  File has too many lines (773). Maximum allowed is 500                          max-lines
+  680:9   error    Unexpected lexical declaration in case block                                   no-case-declarations
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\synthesis\signature-extractor.ts
+   29:3   warning  Method 'extractFunctionSignatures' has a complexity of 25. Maximum allowed is 15           complexity
+   35:11  error    'seenSignatures' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+   69:13  warning  Blocks are nested too deeply (5). Maximum allowed is 4                                     max-depth
+   75:19  error    'signatureKey' is assigned a value but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+   80:13  warning  Blocks are nested too deeply (5). Maximum allowed is 4                                     max-depth
+   82:15  warning  Blocks are nested too deeply (6). Maximum allowed is 4                                     max-depth
+  102:15  warning  Blocks are nested too deeply (6). Maximum allowed is 4                                     max-depth
+  111:18  error    'error' is defined but never used. Allowed unused caught errors must match /^_/u           @typescript-eslint/no-unused-vars
+  132:18  warning  Arrow function has a complexity of 17. Maximum allowed is 15                               complexity
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\tools\__tests__\execution-engine.property.test.ts
+  250:13  warning  Avoid calling `expect` conditionally`  jest/no-conditional-expect
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\tools\__tests__\tool-adapter.test.ts
+  188:32  warning  'params' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\tools\__tests__\tool-execution-engine.test.ts
+  9:26  warning  'ToolResult' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\tools\execution-engine.ts
+   72:32  warning  Unexpected any. Specify a different type                                   @typescript-eslint/no-explicit-any
+  199:3   warning  Method 'validateParameters' has a complexity of 16. Maximum allowed is 15  complexity
+  201:32  warning  Unexpected any. Specify a different type                                   @typescript-eslint/no-explicit-any
+  253:32  warning  Unexpected any. Specify a different type                                   @typescript-eslint/no-explicit-any
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\tools\tool-adapter.ts
+  17:32  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  18:14  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  28:62  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  28:77  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  45:43  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  45:59  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  47:47  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  47:63  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  51:62  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  51:77  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\types\core.ts
+  248:13  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  250:84  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  267:15  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  363:13  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  368:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  377:12  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  386:30  warning  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\ui\__tests__\deliberation-disabled.property.test.ts
+   60:16  warning  'consensusContent' is defined but never used. Allowed unused args must match /^_/u   @typescript-eslint/no-unused-vars
+   60:34  warning  'deliberationItems' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+  110:13  warning  Avoid calling `expect` conditionally`                                                jest/no-conditional-expect
+  111:13  warning  Avoid calling `expect` conditionally`                                                jest/no-conditional-expect
+  127:16  warning  'content' is defined but never used. Allowed unused args must match /^_/u            @typescript-eslint/no-unused-vars
+  142:13  warning  Avoid calling `expect` conditionally`                                                jest/no-conditional-expect
+  143:13  warning  Avoid calling `expect` conditionally`                                                jest/no-conditional-expect
+  146:13  warning  Avoid calling `expect` conditionally`                                                jest/no-conditional-expect
+  174:13  warning  Avoid calling `expect` conditionally`                                                jest/no-conditional-expect
+  175:13  warning  Avoid calling `expect` conditionally`                                                jest/no-conditional-expect
+  203:13  warning  Avoid calling `expect` conditionally`                                                jest/no-conditional-expect
+  204:13  warning  Avoid calling `expect` conditionally`                                                jest/no-conditional-expect
+  207:13  warning  Avoid calling `expect` conditionally`                                                jest/no-conditional-expect
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\ui\__tests__\deliberation-hiding.property.test.ts
+   64:16  warning  'consensusContent' is defined but never used. Allowed unused args must match /^_/u   @typescript-eslint/no-unused-vars
+   64:34  warning  'councilMembers' is defined but never used. Allowed unused args must match /^_/u     @typescript-eslint/no-unused-vars
+   64:50  warning  'deliberationItems' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+  105:16  warning  'responseContent' is defined but never used. Allowed unused args must match /^_/u    @typescript-eslint/no-unused-vars
+  118:13  warning  Avoid calling `expect` conditionally`                                                jest/no-conditional-expect
+  127:13  warning  Avoid calling `expect` conditionally`                                                jest/no-conditional-expect
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\ui\__tests__\example-server.test.ts
+   67:13  warning  'createClient' is assigned a value but never used. Allowed unused vars must match /^_/u             @typescript-eslint/no-unused-vars
+   67:30  error    A `require()` style import is forbidden                                                             @typescript-eslint/no-require-imports
+   68:16  error    A `require()` style import is forbidden                                                             @typescript-eslint/no-require-imports
+   79:13  warning  'exampleModule' is assigned a value but never used. Allowed unused vars must match /^_/u            @typescript-eslint/no-unused-vars
+   79:29  error    A `require()` style import is forbidden                                                             @typescript-eslint/no-require-imports
+  112:32  error    A `require()` style import is forbidden                                                             @typescript-eslint/no-require-imports
+  167:7   warning  'mockOrchestrationEngine' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  168:7   warning  'mockSessionManager' is assigned a value but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+  169:7   warning  'mockEventLogger' is assigned a value but never used. Allowed unused vars must match /^_/u          @typescript-eslint/no-unused-vars
+  170:7   warning  'mockProviderPool' is assigned a value but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+  334:13  warning  'createClient' is assigned a value but never used. Allowed unused vars must match /^_/u             @typescript-eslint/no-unused-vars
+  334:30  error    A `require()` style import is forbidden                                                             @typescript-eslint/no-require-imports
+  335:16  error    A `require()` style import is forbidden                                                             @typescript-eslint/no-require-imports
+  363:13  warning  'pool' is assigned a value but never used. Allowed unused vars must match /^_/u                     @typescript-eslint/no-unused-vars
+  380:32  error    A `require()` style import is forbidden                                                             @typescript-eslint/no-require-imports
+  488:16  error    A `require()` style import is forbidden                                                             @typescript-eslint/no-require-imports
+  506:11  warning  'pool' is assigned a value but never used. Allowed unused vars must match /^_/u                     @typescript-eslint/no-unused-vars
+  531:11  warning  'pool' is assigned a value but never used. Allowed unused vars must match /^_/u                     @typescript-eslint/no-unused-vars
+  549:30  error    A `require()` style import is forbidden                                                             @typescript-eslint/no-require-imports
+  561:30  error    A `require()` style import is forbidden                                                             @typescript-eslint/no-require-imports
+  685:16  error    A `require()` style import is forbidden                                                             @typescript-eslint/no-require-imports
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\ui\__tests__\interface.test.ts
+  46:14  warning  'error' is defined but never used. Allowed unused caught errors must match /^_/u  @typescript-eslint/no-unused-vars
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\ui\__tests__\session-identifier.property.test.ts
+   60:16  warning  'query' is defined but never used. Allowed unused args must match /^_/u      @typescript-eslint/no-unused-vars
+  119:16  warning  'query' is defined but never used. Allowed unused args must match /^_/u      @typescript-eslint/no-unused-vars
+  119:23  warning  'streaming' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+  161:13  warning  Avoid calling `expect` conditionally`                                        jest/no-conditional-expect
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\ui\__tests__\transparency-button.property.test.ts
+   59:16  warning  'transparencyEnabled' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+  110:13  warning  Avoid calling `expect` conditionally`                                                  jest/no-conditional-expect
+  111:13  warning  Avoid calling `expect` conditionally`                                                  jest/no-conditional-expect
+  112:13  warning  Avoid calling `expect` conditionally`                                                  jest/no-conditional-expect
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\ui\example.ts
+  35:65  warning  Unexpected any. Specify a different type                                           @typescript-eslint/no-explicit-any
+  36:60  warning  Unexpected any. Specify a different type                                           @typescript-eslint/no-explicit-any
+  57:14  warning  Unexpected any. Specify a different type                                           @typescript-eslint/no-explicit-any
+  61:3   warning  Unexpected console statement. Only these console methods are allowed: warn, error  no-console
+  69:3   warning  Unexpected console statement. Only these console methods are allowed: warn, error  no-console
+  70:3   warning  Unexpected console statement. Only these console methods are allowed: warn, error  no-console
+  73:24  error    Promise returned in function argument where a void return was expected             @typescript-eslint/no-misused-promises
+  74:5   warning  Unexpected console statement. Only these console methods are allowed: warn, error  no-console
+  79:5   warning  Don't use process.exit(); throw an error instead                                   no-process-exit
+  87:5   warning  Don't use process.exit(); throw an error instead                                   no-process-exit
+
+C:\Users\jermb\OneDrive\Documents\GitHub\CouncilRouter\src\ui\interface.ts
+   76:14  error    'error' is defined but never used. Allowed unused caught errors must match /^_/u   @typescript-eslint/no-unused-vars
+   84:3   warning  Async method 'generateHTML' has too many lines (624). Maximum allowed is 100       max-lines-per-function
+  501:1   warning  File has too many lines (741). Maximum allowed is 500                              max-lines
+  715:9   warning  Unexpected console statement. Only these console methods are allowed: warn, error  no-console
+  735:11  warning  Unexpected console statement. Only these console methods are allowed: warn, error  no-console
+
+Γ£û 524 problems (44 errors, 480 warnings)
+

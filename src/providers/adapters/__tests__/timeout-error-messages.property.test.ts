@@ -10,7 +10,7 @@
 
 import * as fc from 'fast-check';
 import { BaseProviderAdapter } from '../base';
-import { CouncilMember, ProviderResponse, ConversationContext, TokenUsage, RetryPolicy } from '../../../types/core';
+import { CouncilMember, ProviderResponse, ConversationContext, TokenUsage } from '../../../types/core';
 
 // ============================================================================
 // Test Adapter Implementation
@@ -21,8 +21,8 @@ class TimeoutErrorTestAdapter extends BaseProviderAdapter {
   
   async sendRequest(
     member: CouncilMember,
-    prompt: string,
-    context?: ConversationContext
+    _prompt: string,
+    _context?: ConversationContext
   ): Promise<ProviderResponse> {
     if (!this.testRequestFn) {
       throw new Error('testRequestFn not set');

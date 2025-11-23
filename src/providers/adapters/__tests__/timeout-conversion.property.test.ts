@@ -10,7 +10,7 @@
 
 import * as fc from 'fast-check';
 import { BaseProviderAdapter } from '../base';
-import { CouncilMember, ProviderResponse, ConversationContext, TokenUsage, RetryPolicy } from '../../../types/core';
+import { CouncilMember, ProviderResponse, ConversationContext, TokenUsage } from '../../../types/core';
 
 // ============================================================================
 // Test Adapter Implementation
@@ -21,8 +21,8 @@ class TimeoutConversionTestAdapter extends BaseProviderAdapter {
   
   async sendRequest(
     member: CouncilMember,
-    prompt: string,
-    context?: ConversationContext
+    _prompt: string,
+    _context?: ConversationContext
   ): Promise<ProviderResponse> {
     if (!this.testRequestFn) {
       throw new Error('testRequestFn not set');
@@ -100,7 +100,7 @@ describe('Property Test: Base Provider Adapter Timeout Conversion', () => {
    */
   test('should convert timeout from seconds to milliseconds before setTimeout', async () => {
     // Spy on setTimeout to track timeout values
-    const setTimeoutCalls: Array<{ callback: Function; delay: number; timerId: NodeJS.Timeout }> = [];
+    const setTimeoutCalls: Array<{ callback: (...args: any[]) => void; delay: number; timerId: NodeJS.Timeout }> = [];
     const activeTimers: Set<NodeJS.Timeout> = new Set();
     
     global.setTimeout = jest.fn((callback: any, delay?: number) => {
@@ -131,7 +131,7 @@ describe('Property Test: Base Provider Adapter Timeout Conversion', () => {
             // Execute request (this will trigger timeout setup)
             try {
               await adapter.sendRequest(member, 'test prompt');
-            } catch (error) {
+            } catch (_error) {
               // May fail, but we're testing timeout conversion
             }
             

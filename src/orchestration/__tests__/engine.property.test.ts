@@ -12,7 +12,6 @@ import { ProviderHealthTracker, getSharedHealthTracker } from '../../providers/h
 import { getPropertyTestRuns } from '../../__tests__/test-helpers';
 import {
   UserRequest,
-  CouncilMember,
   ProviderResponse,
   ProviderHealth,
   CouncilConfig,
@@ -22,8 +21,7 @@ import {
   ConversationContext,
   DeliberationThread,
   SynthesisStrategy,
-  ConsensusDecision,
-  RetryPolicy
+  ConsensusDecision
 } from '../../types/core';
 
 // ============================================================================
@@ -400,7 +398,7 @@ describe('Property Test: Active Configuration Enforcement', () => {
           // Execute request with updated configuration
           try {
             await engine.processRequest(request);
-          } catch (error) {
+          } catch (_error) {
             // May fail if all members fail, but we still check the distribution
           }
           
@@ -493,7 +491,7 @@ describe('Property Test: Automatic Member Disabling', () => {
           for (let i = 0; i < numFailures; i++) {
             try {
               await engine.distributeToCouncil(request, councilConfig.members);
-            } catch (error) {
+            } catch (_error) {
               // May throw if all members fail, continue
             }
           }
@@ -547,7 +545,7 @@ describe('Property Test: Automatic Member Disabling', () => {
           // Execute request
           try {
             await engine.processRequest(request);
-          } catch (error) {
+          } catch (_error) {
             // May fail if minimum quorum not met
           }
           
@@ -891,7 +889,7 @@ describe('Property Test: Global Timeout Synthesis Trigger', () => {
           
           try {
             result = await engine.processRequest(request);
-          } catch (error) {
+          } catch (_error) {
             // May fail if all members timeout
             timedOut = true;
           }

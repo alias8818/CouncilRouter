@@ -197,7 +197,7 @@ export class APIGateway implements IAPIGateway {
         const decoded = jwt.verify(token, this.jwtSecret) as { userId: string };
         req.userId = decoded.userId;
         next();
-      } catch (error) {
+      } catch (_error) {
         res.status(401).json(this.createErrorResponse(
           'INVALID_TOKEN',
           'Invalid or expired authentication token',
@@ -271,6 +271,7 @@ export class APIGateway implements IAPIGateway {
     // Preserve tab (0x09), newline (0x0A), and carriage return (0x0D) for legitimate multi-line input
     let sanitizedQuery = body.query
       .replace(/\0/g, '') // Remove null bytes
+      // eslint-disable-next-line no-control-regex
       .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, ''); // Remove control characters but preserve \t (0x09), \n (0x0A), and \r (0x0D)
     sanitizedQuery = sanitizedQuery.trim();
 
@@ -404,7 +405,7 @@ export class APIGateway implements IAPIGateway {
               ));
             }
             return;
-          } catch (waitError) {
+          } catch (_waitError) {
             // Timeout or error waiting - check cache again to get request ID
             const updatedStatus = await this.idempotencyCache.checkKey(scopedIdempotencyKey);
             let actualRequestId = 'unknown';
@@ -463,7 +464,7 @@ export class APIGateway implements IAPIGateway {
                 ));
               }
               return;
-            } catch (waitError) {
+            } catch (_waitError) {
               // Timeout waiting - return 202 with the existing request ID
               const response: APIResponse = {
                 requestId: status.result?.requestId || 'unknown',
@@ -536,7 +537,7 @@ export class APIGateway implements IAPIGateway {
 
       // Process request asynchronously
       // Don't await - fire and forget, but catch errors to prevent unhandled rejections
-      this.processRequestAsync(userRequest, body.streaming || false, scopedIdempotencyKey).catch(async (error) => {
+      void this.processRequestAsync(userRequest, body.streaming || false, scopedIdempotencyKey).catch(async (error) => {
         if ((error)?.handledByProcessRequestAsync) {
           return;
         }
@@ -936,7 +937,7 @@ export class APIGateway implements IAPIGateway {
     error: Error,
     req: Request,
     res: Response,
-    next: NextFunction
+    _next: NextFunction
   ): void {
     // Log full error details server-side
     console.error('API Error:', {
@@ -1036,7 +1037,7 @@ export class APIGateway implements IAPIGateway {
             try {
               this.sendSSE(res, 'error', 'Connection expired due to timeout');
               res.end();
-            } catch (error) {
+            } catch (_error) {
               // Ignore errors when closing stale connections
             }
           });
@@ -1073,12 +1074,12 @@ export class APIGateway implements IAPIGateway {
     }
 
     // Close all streaming connections
-    for (const [requestId, connections] of this.streamingConnections.entries()) {
+    for (const [_requestId, connections] of this.streamingConnections.entries()) {
       connections.forEach(res => {
         try {
           this.sendSSE(res, 'error', 'Server shutting down');
           res.end();
-        } catch (error) {
+        } catch (_error) {
           // Ignore errors when closing connections
         }
       });

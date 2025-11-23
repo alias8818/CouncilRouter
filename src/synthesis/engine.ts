@@ -300,7 +300,7 @@ export class SynthesisEngine implements ISynthesisEngine {
 
       prompt += 'Here are the responses from the council members:\n\n';
 
-      exchanges.forEach((exchange, index) => {
+      exchanges.forEach((exchange, _index) => {
         prompt += `--- Council Member ${exchange.councilMemberId} ---\n`;
         prompt += `${exchange.content}\n\n`;
       });
@@ -407,12 +407,12 @@ export class SynthesisEngine implements ISynthesisEngine {
         // Use extractCodeSegments which handles both markdown blocks
         // and keyword-detected code segments
         const blocks = this.codeDetector.extractCodeSegments(e.content);
-        
+
         // If we found code segments, use them; otherwise fall back to text similarity
         if (blocks.length > 0) {
           return blocks.join('\n');
         }
-        
+
         // No code segments found - this shouldn't happen if detectCode returned true,
         // but if it does, fall back to text similarity for this exchange
         return null;
@@ -420,7 +420,7 @@ export class SynthesisEngine implements ISynthesisEngine {
 
       // Filter out null entries (exchanges where no code was actually extracted)
       const validCodeBlocks = codeBlocks.filter((block): block is string => block !== null);
-      
+
       // If we couldn't extract code from any exchanges, fall back to text similarity
       if (validCodeBlocks.length === 0) {
         console.warn('Code detected but extraction failed, falling back to text similarity');
@@ -676,17 +676,18 @@ export class SynthesisEngine implements ISynthesisEngine {
     }
 
     switch (strategy.type) {
-      case 'permanent':
+      case 'permanent': {
         const permanentMember = members.find(m => m.id === strategy.memberId);
         if (!permanentMember) {
           throw new Error(`Permanent moderator ${strategy.memberId} not found`);
         }
         return permanentMember;
+      }
 
       case 'rotate':
         // Use a promise-based lock to ensure atomic rotation across concurrent async calls
         // This guarantees each call gets a unique sequential index
-        return this.getNextRotationMember(members);
+        return await this.getNextRotationMember(members);
 
       case 'strongest':
         // Select based on model rankings

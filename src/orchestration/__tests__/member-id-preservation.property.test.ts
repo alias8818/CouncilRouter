@@ -14,7 +14,6 @@ import { IProviderPool } from '../../interfaces/IProviderPool';
 import { IConfigurationManager } from '../../interfaces/IConfigurationManager';
 import { ISynthesisEngine } from '../../interfaces/ISynthesisEngine';
 import {
-  CouncilMember,
   ProviderResponse,
   ProviderHealth,
   CouncilConfig,
@@ -25,7 +24,6 @@ import {
   DeliberationThread,
   SynthesisStrategy,
   ConsensusDecision,
-  RetryPolicy,
   UserRequest
 } from '../../types/core';
 
@@ -318,7 +316,7 @@ describe('Property Test: Global Timeout Preserves Member IDs', () => {
           // Execute request - should hit global timeout
           try {
             await engine.processRequest(request);
-          } catch (error) {
+          } catch (_error) {
             // May throw if no responses collected
             return;
           }

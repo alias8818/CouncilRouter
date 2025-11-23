@@ -73,7 +73,7 @@ export class UserInterface {
         forcedTransparency: transparencyConfig.forcedTransparency,
         apiBaseUrl: this.apiBaseUrl
       });
-    } catch (error) {
+    } catch (_error) {
       res.status(500).json({ error: 'Failed to load configuration' });
     }
   }
