@@ -419,6 +419,77 @@ Configure deliberation visibility and transparency features.
 
 ---
 
+## Devil's Advocate Configuration
+
+Configure the Devil's Advocate module for critique-based synthesis improvement. The Devil's Advocate acts as a critical reviewer that analyzes the consensus output and suggests improvements.
+
+**Configuration:**
+
+```json
+{
+  "enabled": true,
+  "applyToCodeRequests": true,
+  "applyToTextRequests": false,
+  "intensityLevel": "moderate",
+  "provider": "anthropic",
+  "model": "claude-3-opus-20240229"
+}
+```
+
+**Options:**
+
+| Option | Type | Description | Default |
+|--------|------|-------------|---------|
+| enabled | boolean | Enable Devil's Advocate | false |
+| applyToCodeRequests | boolean | Apply to code generation requests | true |
+| applyToTextRequests | boolean | Apply to text-only requests | false |
+| intensityLevel | string | Critique intensity: `"light"`, `"moderate"`, `"thorough"` | `"moderate"` |
+| provider | string | LLM provider for critique (must be available in council) | - |
+| model | string | Specific model to use for critique | - |
+
+**Intensity Levels:**
+
+- **`light`**: Quick review focusing on obvious issues
+- **`moderate`**: Balanced critique identifying weaknesses and improvements
+- **`thorough`**: Deep analysis with comprehensive edge case coverage
+
+**How It Works:**
+
+1. After synthesis completes, if Devil's Advocate is enabled and matches the request type (code vs text), the configured model is used as the Devil's Advocate
+2. The Devil's Advocate analyzes the consensus output and generates a critique identifying weaknesses, edge cases, and potential improvements
+3. Based on the critique severity, the Devil's Advocate may rewrite the synthesis with improvements
+4. The improved content replaces the original synthesis if it differs significantly
+
+**Use Cases:**
+
+- **Code Generation**: Enable `applyToCodeRequests` to catch bugs, edge cases, and security issues
+- **Critical Decisions**: Enable for both code and text to ensure robust reasoning
+- **Quality Assurance**: Use a strong model (e.g., Claude Opus) for highest-quality critique
+
+**Performance Impact:**
+
+- Adds 1-2 additional API calls per request (critique + optional rewrite)
+- Increases latency by ~2-5 seconds
+- Increases cost by ~$0.01-0.03 per request (depending on model)
+
+**Example:**
+
+```typescript
+// Enable Devil's Advocate for code requests only
+await configManager.updateDevilsAdvocateConfig({
+  enabled: true,
+  applyToCodeRequests: true,
+  applyToTextRequests: false,
+  intensityLevel: 'moderate',
+  provider: 'anthropic',
+  model: 'claude-3-opus-20240229'
+});
+```
+
+**Note:** The provider and model must be available in your council configuration. The Devil's Advocate selection strategy (designated, strongest, random, rotate) is configured at the module level when instantiating `DevilsAdvocateModule`.
+
+---
+
 ## Red Team Testing Configuration
 
 Configure security testing and prompt injection detection.
