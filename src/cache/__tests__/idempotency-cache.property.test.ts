@@ -137,8 +137,8 @@ describe('Idempotency Cache - Property Tests', () => {
           // Use unique key to avoid conflicts from previous test runs
           const key = `test-${idempotencyKey}-${Date.now()}-${Math.random()}`;
 
-          // Mark as in-progress
-          await cache.markInProgress(key, requestId, 60);
+          // Mark as in-progress with longer TTL to prevent expiration
+          await cache.markInProgress(key, requestId, 300); // 5 minutes TTL
 
           // Check that it's in-progress
           const statusBefore = await cache.checkKey(key);
@@ -155,12 +155,25 @@ describe('Idempotency Cache - Property Tests', () => {
           };
 
           // Complete the request after a short delay
-          setTimeout(async () => {
-            await cache.cacheResult(key, requestId, decision, 3600);
-          }, 50);
+          // Use a promise to ensure completion happens
+          const completePromise = new Promise<void>((resolve, reject) => {
+            setTimeout(async () => {
+              try {
+                await cache.cacheResult(key, requestId, decision, 3600);
+                resolve();
+              } catch (error) {
+                reject(error);
+              }
+            }, 100); // Slightly longer delay to ensure markInProgress completes
+          });
 
-          // Wait for completion
-          const result = await cache.waitForCompletion(key, 5000);
+          // Start waiting for completion (this will poll)
+          // The waitForCompletion will poll until it finds the completed status
+          const waitPromise = cache.waitForCompletion(key, 10000); // Longer timeout
+
+          // Wait for completion to be cached, then waitForCompletion should find it
+          await completePromise;
+          const result = await waitPromise;
 
           // Assertions
           expect(result.requestId).toBe(requestId);

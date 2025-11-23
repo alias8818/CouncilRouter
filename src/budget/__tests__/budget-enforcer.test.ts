@@ -341,13 +341,17 @@ describe('BudgetEnforcer', () => {
       const weekStart = new Date(now);
       weekStart.setDate(weekStart.getDate() - weekStart.getDay());
       weekStart.setHours(0, 0, 0, 0);
+      
+      const weekEnd = new Date(weekStart);
+      weekEnd.setDate(weekEnd.getDate() + 6);
+      weekEnd.setHours(23, 59, 59, 999);
 
       mockPool.addBudgetSpending({
         provider_id: 'openai',
         model_id: 'gpt-4',
         period_type: 'weekly',
         period_start: weekStart,
-        period_end: new Date(weekStart.getTime() + 6 * 24 * 60 * 60 * 1000),
+        period_end: weekEnd,
         current_spending: 45.0,
         disabled: false
       });

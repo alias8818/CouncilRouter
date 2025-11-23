@@ -66,7 +66,13 @@ jobs:
 
       - name: Install dependencies
         shell: pwsh
-        run: npm ci
+        run: |
+          if (Test-Path "package-lock.json") {
+            npm ci
+          } else {
+            Write-Host "package-lock.json not found, generating it with npm install"
+            npm install
+          }
 
       - name: Type check
         shell: pwsh
@@ -223,7 +229,13 @@ jobs:
 
       - name: Install dependencies
         shell: pwsh
-        run: npm ci
+        run: |
+          if (Test-Path "package-lock.json") {
+            npm ci
+          } else {
+            Write-Host "package-lock.json not found, generating it with npm install"
+            npm install
+          }
 
       - name: Build project
         shell: pwsh

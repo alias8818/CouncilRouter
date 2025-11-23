@@ -441,11 +441,8 @@ describe('DevilsAdvocateModule', () => {
                 content: 'Short answer.',
                 referencesTo: [],
                 tokenUsage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 }
-                timestamp: new Date()
               }
-            ],
-            consensusReached: true,
-            timestamp: new Date()
+            ]
           }
         ],
         finalDecision: null
