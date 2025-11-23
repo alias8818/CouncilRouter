@@ -143,7 +143,7 @@ console.log(decision.content);
 ```typescript
 // Use coding-council preset for code tasks
 await configManager.applyPreset('coding-council');
-// → Claude Sonnet 4.5, GPT-5.1, DeepSeek-v3
+// → Claude 3.5 Sonnet, GPT-4o, Gemini 1.5 Pro
 // → 3 deliberation rounds
 // → Code-aware synthesis enabled
 
@@ -195,7 +195,7 @@ await configManager.applyPreset('research-council');
 |--------|--------|--------|----------|---------|------|
 | **fast-council** | GPT-3.5, Claude Instant | 0 | Quick queries | ~2s | $ |
 | **balanced-council** | GPT-4, Claude Opus, Gemini | 1 | General use | ~5s | $$ |
-| **coding-council** | Claude Sonnet 4.5, GPT-5.1, DeepSeek-v3 | 3 | Code generation | ~8s | $$$ |
+| **coding-council** | Claude 3.5 Sonnet, GPT-4o, Gemini 1.5 Pro | 3 | Code generation | ~8s | $$$ |
 | **research-council** | GPT-4, Claude Opus, Gemini | 4 | Deep analysis | ~15s | $$$$ |
 
 ---

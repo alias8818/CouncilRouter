@@ -896,7 +896,7 @@ export class ConfigurationManager implements IConfigurationManager {
               {
                 id: 'claude-sonnet-coding',
                 provider: 'anthropic',
-                model: 'claude-sonnet-4.5',
+                model: 'claude-3-5-sonnet-20241022',
                 timeout: 120,
                 retryPolicy: {
                   maxAttempts: 3,
@@ -909,7 +909,7 @@ export class ConfigurationManager implements IConfigurationManager {
               {
                 id: 'gpt-coding',
                 provider: 'openai',
-                model: 'gpt-5.1',
+                model: 'gpt-4o',
                 timeout: 120,
                 retryPolicy: {
                   maxAttempts: 3,
@@ -920,9 +920,9 @@ export class ConfigurationManager implements IConfigurationManager {
                 }
               },
               {
-                id: 'deepseek-coding',
-                provider: 'openai', // Assuming DeepSeek uses OpenAI-compatible API
-                model: 'deepseek-v3',
+                id: 'gemini-coding',
+                provider: 'google',
+                model: 'gemini-1.5-pro',
                 timeout: 120,
                 retryPolicy: {
                   maxAttempts: 3,
@@ -946,7 +946,7 @@ export class ConfigurationManager implements IConfigurationManager {
               weights: new Map([
                 ['claude-sonnet-coding', 1.0],
                 ['gpt-coding', 1.0],
-                ['deepseek-coding', 1.0]
+                ['gemini-coding', 1.0]
               ])
             }
           },
@@ -1145,6 +1145,7 @@ export class ConfigurationManager implements IConfigurationManager {
       'claude-3-sonnet': 86,
       'claude-3-opus': 93,
       'claude-3.5-sonnet': 96,
+      'claude-3-5-sonnet-20241022': 96, // Full versioned identifier for exact matching
       'gemini-1.5-pro': 92,
       'gemini-1.5-flash': 80,
       'grok-1': 70,
