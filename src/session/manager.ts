@@ -317,52 +317,70 @@ export class SessionManager implements ISessionManager {
     };
   }
 
-  /**
-   * Cache session in Redis
-   * Uses incremental updates: stores history entries separately to avoid O(N^2) behavior
-   * Fixed: Race condition eliminated by moving all operations into transaction
-   */
-  private async cacheSession(session: Session): Promise<void> {
-    const key = `session:${session.id}`;
-    const historyKey = `session:${session.id}:history`;
+    /**
+     * Cache session in Redis
+     * Uses incremental updates: stores history entries separately to avoid O(N^2) behavior
+     * WATCH/EXEC ensures existing length is read atomically with writes
+     */
+    private async cacheSession(session: Session): Promise<void> {
+      const key = `session:${session.id}`;
+      const historyKey = `session:${session.id}:history`;
+      const MAX_ATTEMPTS = 5;
 
-    // Get existing length first to determine strategy
-    const existingLength = await this.redis.lLen(historyKey).catch(() => 0);
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        try {
+          await this.redis.watch(historyKey);
 
-    // Start transaction
-    const pipeline = this.redis.multi();
+          // Get existing length within the watch to make the comparison atomic
+          const existingLength = await this.redis.lLen(historyKey).catch(() => 0);
 
-    // Update session metadata (small, changes frequently)
-    pipeline.hSet(key, {
-      userId: session.userId,
-      createdAt: session.createdAt.toISOString(),
-      lastActivityAt: session.lastActivityAt.toISOString(),
-      contextWindowUsed: session.contextWindowUsed.toString(),
-      historyLength: session.history.length.toString()
-    });
+          // Start transaction
+          const pipeline = this.redis.multi();
 
-    // Handle history updates based on length comparison
-    if (session.history.length > existingLength) {
-      // Append only new entries (incremental update)
-      const newEntries = session.history.slice(existingLength);
-      if (newEntries.length > 0) {
-        pipeline.rPush(historyKey, newEntries.map(e => JSON.stringify(e)));
+          // Update session metadata (small, changes frequently)
+          pipeline.hSet(key, {
+            userId: session.userId,
+            createdAt: session.createdAt.toISOString(),
+            lastActivityAt: session.lastActivityAt.toISOString(),
+            contextWindowUsed: session.contextWindowUsed.toString(),
+            historyLength: session.history.length.toString()
+          });
+
+          // Handle history updates based on length comparison
+          if (session.history.length > existingLength) {
+            // Append only new entries (incremental update)
+            const newEntries = session.history.slice(existingLength);
+            if (newEntries.length > 0) {
+              pipeline.rPush(historyKey, newEntries.map(e => JSON.stringify(e)));
+            }
+          } else if (session.history.length < existingLength) {
+            // History was truncated (e.g., after summarization) - rebuild atomically
+            pipeline.del(historyKey);
+            if (session.history.length > 0) {
+              pipeline.rPush(historyKey, session.history.map(e => JSON.stringify(e)));
+            }
+          }
+          // If lengths match, no need to update history
+
+          // Set TTL on both keys
+          pipeline.expire(key, this.SESSION_TTL);
+          pipeline.expire(historyKey, this.SESSION_TTL);
+
+          const result = await pipeline.exec();
+          if (result !== null) {
+            return;
+          }
+        } catch (error) {
+          await this.redis.unwatch().catch(() => undefined);
+          throw error;
+        }
+
+        // Retry if transaction was aborted
+        await this.redis.unwatch().catch(() => undefined);
       }
-    } else if (session.history.length < existingLength) {
-      // History was truncated (e.g., after summarization) - rebuild atomically
-      pipeline.del(historyKey);
-      if (session.history.length > 0) {
-        pipeline.rPush(historyKey, session.history.map(e => JSON.stringify(e)));
-      }
+
+      throw new Error('Failed to cache session after multiple attempts due to concurrent updates.');
     }
-    // If lengths match, no need to update history
-
-    // Set TTL on both keys
-    pipeline.expire(key, this.SESSION_TTL);
-    pipeline.expire(historyKey, this.SESSION_TTL);
-
-    await pipeline.exec();
-  }
 
   /**
    * Estimate token count for a message
