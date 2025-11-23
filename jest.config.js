@@ -22,14 +22,7 @@ module.exports = {
   ],
   moduleFileExtensions: ['ts', 'js', 'json'],
   transform: {
-    '^.+\\.ts$': [
-      'ts-jest',
-      {
-        // Enable isolated modules for faster compilation (skips type checking in tests)
-        // Type checking happens in the build step, so we can skip it here for speed
-        isolatedModules: true
-      }
-    ]
+    '^.+\\.ts$': 'ts-jest'
   },
   reporters: [
     'default',
