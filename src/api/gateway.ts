@@ -591,6 +591,7 @@ export class APIGateway implements IAPIGateway {
 
     // Clean up connections
     this.streamingConnections.delete(requestId);
+    this.connectionTimestamps.delete(requestId);
   }
 
   /**
@@ -607,6 +608,7 @@ export class APIGateway implements IAPIGateway {
 
     // Clean up connections
     this.streamingConnections.delete(requestId);
+    this.connectionTimestamps.delete(requestId);
   }
 
   /**
