@@ -80,11 +80,11 @@ class MockPool {
     if (text.includes('INSERT INTO budget_spending')) {
       const newSpending = {
         id: 'generated-uuid',
-        provider_id: params?.[0] || params?.[1],
-        model_id: params?.[1] || params?.[2] || null,
-        period_type: params?.[2] || params?.[3],
-        period_start: params?.[3] || params?.[4],
-        period_end: params?.[4] || params?.[5],
+        provider_id: params?.[0] ?? params?.[1],
+        model_id: params?.[1] ?? params?.[2] ?? null,
+        period_type: params?.[2] ?? params?.[3],
+        period_start: params?.[3] ?? params?.[4],
+        period_end: params?.[4] ?? params?.[5],
         current_spending: params?.[5] !== undefined ? params?.[5] : 0,
         disabled: false,
         updated_at: new Date()
