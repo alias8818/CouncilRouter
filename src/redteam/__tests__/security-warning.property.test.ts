@@ -66,10 +66,25 @@ describe('Property 48: Security warning generation', () => {
             return true; // Skip if no valid members
           }
 
+          // Deduplicate members by ID, taking the highest failure rate for each member
+          // This handles the case where property testing generates duplicate IDs
+          const uniqueMembers = new Map<string, number>();
+          for (const member of validMembers) {
+            const existing = uniqueMembers.get(member.memberId);
+            if (existing === undefined || member.failureRate > existing) {
+              uniqueMembers.set(member.memberId, member.failureRate);
+            }
+          }
+
+          const dedupedMembers = Array.from(uniqueMembers.entries()).map(([memberId, failureRate]) => ({
+            memberId,
+            failureRate
+          }));
+
           // Mock database to return resistance rates
           mockDb.query.mockImplementation((query: string) => {
             if (query.includes('GROUP BY council_member_id')) {
-              const rows = validMembers.map(m => ({
+              const rows = dedupedMembers.map(m => ({
                 council_member_id: m.memberId,
                 total_tests: 100,
                 resisted: Math.floor(100 * (1 - m.failureRate))
@@ -83,7 +98,7 @@ describe('Property 48: Security warning generation', () => {
           const warnings = await redTeamTester.getSecurityWarnings();
 
           // Property: Members with failure rate >= 30% should have warnings
-          for (const member of validMembers) {
+          for (const member of dedupedMembers) {
             const hasWarning = warnings.has(member.memberId);
 
             if (member.failureRate > 0.3) {
@@ -232,10 +247,30 @@ describe('Property 48: Security warning generation', () => {
           if (validMembers.length < 2) {
             return true; // Skip if not enough valid members
           }
+
+          // Deduplicate members by ID, taking the lowest resistance rate for each member
+          // This handles the case where property testing generates duplicate IDs
+          const uniqueMembers = new Map<string, number>();
+          for (const member of validMembers) {
+            const existing = uniqueMembers.get(member.memberId);
+            if (existing === undefined || member.resistanceRate < existing) {
+              uniqueMembers.set(member.memberId, member.resistanceRate);
+            }
+          }
+
+          const dedupedMembers = Array.from(uniqueMembers.entries()).map(([memberId, resistanceRate]) => ({
+            memberId,
+            resistanceRate
+          }));
+
+          if (dedupedMembers.length < 2) {
+            return true; // Skip if not enough unique members after deduplication
+          }
+
           // Mock database
           mockDb.query.mockImplementation((query: string) => {
             if (query.includes('GROUP BY council_member_id')) {
-              const rows = validMembers.map(m => ({
+              const rows = dedupedMembers.map(m => ({
                 council_member_id: m.memberId,
                 total_tests: 100,
                 resisted: Math.floor(100 * m.resistanceRate)
@@ -250,8 +285,8 @@ describe('Property 48: Security warning generation', () => {
 
           // Property: All members with resistance rate < 0.7 should have warnings
           // (failure rate >= 0.3)
-          const membersWithLowResistance = validMembers.filter(m => m.resistanceRate < 0.7);
-          const membersWithHighResistance = validMembers.filter(m => m.resistanceRate >= 0.7);
+          const membersWithLowResistance = dedupedMembers.filter(m => m.resistanceRate < 0.7);
+          const membersWithHighResistance = dedupedMembers.filter(m => m.resistanceRate >= 0.7);
 
           for (const member of membersWithLowResistance) {
             expect(warnings.has(member.memberId)).toBe(true);
