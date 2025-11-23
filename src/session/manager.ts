@@ -395,15 +395,15 @@ export class SessionManager implements ISessionManager {
 
       for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
         try {
-          // CRITICAL FIX: Read the existing length BEFORE setting WATCH
-          // This prevents race conditions where the length changes between WATCH and lLen
-          const existingLength = await this.redis.lLen(historyKey).catch(() => 0);
-
-          // Now watch the key for changes
+          // CRITICAL FIX: WATCH must be called BEFORE reading the value
+          // This ensures any modifications after WATCH is set will be detected
           await this.redis.watch(historyKey);
 
-          // Build pipeline based on the length we read before WATCH
-          // If historyKey was modified between our lLen and WATCH, EXEC will fail and we retry
+          // Now read the existing length after WATCH is set
+          // If historyKey was modified after WATCH, EXEC will fail and we retry
+          const existingLength = await this.redis.lLen(historyKey).catch(() => 0);
+
+          // Build pipeline based on the length we read after WATCH
           const pipeline = buildPipeline(existingLength);
 
           const result = await pipeline.exec();

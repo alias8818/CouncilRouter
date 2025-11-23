@@ -347,7 +347,11 @@ export class CostCalculator {
 
       // Validate date-like formats with reasonable ranges
       // Pattern: YYYY or YYYY-MM or YYYY-MM-DD or YYYY-WXX or YYYYMMDD
-      if (!/^\d{4}([-_]\d+)*$/.test(prefix) && !/^\d+$/.test(prefix)) {
+      // Allow week format (W followed by digits) in addition to numeric patterns
+      const isNumericPattern = /^\d{4}([-_]\d+)*$/.test(prefix) || /^\d+$/.test(prefix);
+      const isWeekPattern = /^\d{4}[-_]W\d+/.test(prefix);
+      
+      if (!isNumericPattern && !isWeekPattern) {
         return false;
       }
 
