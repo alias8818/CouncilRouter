@@ -39,16 +39,30 @@ Initial setup phase. Core interfaces and data models defined. Component implemen
 - ✅ Synthesis Engine with multiple strategies
 - ✅ Orchestration Engine with timeout handling
 - ✅ Base Provider Adapter with retry logic
+- ✅ REST API Gateway with authentication and streaming
+- ✅ Event Logger with cost tracking
+- ✅ Analytics Engine with performance metrics
+- ✅ Admin Dashboard with real-time monitoring
+- ✅ Budget Enforcer with spending caps
+- ✅ Tool Execution Engine for external tool use
+- ✅ Idempotency Cache for duplicate request handling
+- ✅ Red Team Testing System for security validation
 
 ### Testing Coverage
 
-- Unit tests for provider adapters (retry, timeout, error handling)
+- Unit tests for all core components
 - Property-based tests for:
   - Configuration persistence round-trip
   - Retry attempt count validation
-  - Timeout enforcement
+  - Timeout enforcement and conversion
   - Per-provider configuration
-- Integration tests for provider pool health tracking
+  - Member ID attribution
+  - Session atomicity
+  - Rotation concurrency
+  - Disagreement calculation
+  - Cost tracking accuracy
+- Integration tests for end-to-end request flow
+- 100+ iterations per property test
 
 ### Key Design Decisions
 
@@ -57,3 +71,7 @@ Initial setup phase. Core interfaces and data models defined. Component implemen
 - **Exponential Backoff**: Configurable retry policy per provider
 - **Context Window Management**: Automatic summarization when limits exceeded
 - **Synthesis Strategies**: Consensus extraction, weighted fusion, meta-synthesis
+- **Idempotency**: Request deduplication using idempotency keys
+- **Budget Enforcement**: Per-provider/model spending caps with automatic disabling
+- **Tool Use**: Council members can execute external tools during deliberation
+- **Shared Health Tracking**: Single source of truth for provider health across components

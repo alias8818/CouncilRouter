@@ -70,13 +70,19 @@ All provider adapters extend `BaseProviderAdapter`:
 ### PostgreSQL Tables
 - `requests`, `council_responses`, `deliberation_exchanges`
 - `sessions`, `session_history`
-- `configurations`, `provider_health`, `cost_records`, `red_team_tests`
+- `configurations`, `provider_health`, `cost_records`
+- `red_team_prompts`, `red_team_tests`
+- `tool_usage` (Council Enhancements)
+- `budget_caps`, `budget_spending` (Council Enhancements)
+- `api_keys` (for API key authentication)
 
 ### Redis Keys
 - `session:{sessionId}` (TTL: 30 days)
 - `config:*` (no expiry)
 - `provider:health:{providerId}` (TTL: 5 minutes)
 - `request:status:{requestId}` (TTL: 1 hour)
+- `request:{requestId}` (stored request data, TTL: 24 hours)
+- `idempotency:{userId}:{key}` (idempotency cache, TTL: 24 hours)
 
 ## Naming Conventions
 
@@ -126,6 +132,7 @@ constructor(
 - Status: `healthy`, `degraded`, `disabled`
 - Consecutive failure threshold: 5 failures → automatic disable
 - Success rate and latency tracking (last 100 requests)
+- Shared health tracker across Provider Pool and Orchestration Engine
 
 ### Configuration Management
 
@@ -133,3 +140,21 @@ constructor(
 - Active/inactive flag for configuration history
 - Presets: `fast-council`, `balanced-council`, `research-council`
 - Validation before persistence
+- Redis caching with automatic invalidation
+
+### API Gateway Features
+
+- JWT and API key authentication
+- Rate limiting (100 requests per 15 minutes per IP)
+- Request idempotency using `Idempotency-Key` header
+- Server-Sent Events (SSE) for streaming responses
+- Input sanitization to prevent injection attacks
+- Automatic connection cleanup for stale streams
+
+### Budget Management
+
+- Per-provider and per-model spending caps
+- Daily, weekly, and monthly budget periods
+- Automatic member disabling when budget exceeded
+- Budget warnings at 75% and 90% thresholds
+- Automatic re-enabling on period reset

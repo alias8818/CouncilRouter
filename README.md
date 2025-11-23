@@ -44,6 +44,10 @@ cd ai-council-proxy
 cp .env.example .env
 
 # Add your API keys to .env
+# Required: OPENAI_API_KEY, ANTHROPIC_API_KEY, GOOGLE_API_KEY
+# Required: JWT_SECRET (for API authentication)
+# Optional: Database and Redis connection strings
+
 # Then start all services
 docker-compose up -d
 
@@ -98,13 +102,16 @@ The system follows a layered architecture:
 
 ## Key Components
 
-- **Orchestration Engine**: Coordinates the entire request lifecycle
-- **Provider Pool**: Manages connections to AI provider APIs
-- **Synthesis Engine**: Combines council member responses into consensus
-- **Session Manager**: Manages conversation sessions and context
-- **Configuration Manager**: Manages system configuration
-- **Event Logger**: Logs all system events for monitoring
-- **Dashboard**: Provides monitoring and analytics interface
+- **Orchestration Engine**: Coordinates the entire request lifecycle with timeout handling and graceful degradation
+- **Provider Pool**: Manages connections to AI provider APIs with health tracking and automatic disabling
+- **Synthesis Engine**: Combines council member responses into consensus using multiple strategies
+- **Session Manager**: Manages conversation sessions and context with automatic summarization
+- **Configuration Manager**: Manages system configuration with validation and presets
+- **Event Logger**: Logs all system events for monitoring and analytics
+- **Dashboard**: Provides monitoring and analytics interface with real-time metrics
+- **API Gateway**: REST API with authentication, rate limiting, streaming, and idempotency support
+- **Budget Enforcer**: Tracks spending and enforces budget caps per provider/model
+- **Tool Execution Engine**: Enables council members to use external tools during deliberation
 
 ## Documentation
 
@@ -125,6 +132,8 @@ Comprehensive documentation is available in the `docs/` directory:
 - **[Documentation Index](docs/INDEX.md)** - Complete documentation index organized by topic and role
 - **[Project Structure](docs/PROJECT_STRUCTURE.md)** - Code organization and architecture
 - **[Provider Implementation](docs/PROVIDER_IMPLEMENTATION.md)** - Provider adapter details and usage
+- **[API Gateway](docs/API_GATEWAY.md)** - REST API endpoints, authentication, and streaming
+- **[Bug Fixes](docs/BUG_FIXES.md)** - Critical bug fixes and validation
 
 ## Quick Links
 
@@ -146,8 +155,11 @@ The AI Council Proxy is feature-complete with all core components implemented:
 ✅ Event logging and cost tracking  
 ✅ Analytics engine  
 ✅ Admin dashboard  
+✅ REST API Gateway with idempotency support  
+✅ Budget enforcement and tool execution (Council Enhancements)  
 ✅ Comprehensive test coverage (unit + property-based)  
-✅ Complete documentation
+✅ Complete documentation  
+✅ Critical bug fixes applied (timeout units, member attribution, race conditions)
 
 Ready for deployment and production use.
 

@@ -12,20 +12,23 @@ Abstract base class that provides common functionality for all provider adapters
 
 **Key Features:**
 - Retry logic with exponential backoff
-- Timeout handling per provider
+- Timeout handling per provider (converts seconds to milliseconds)
 - Error code detection and classification
 - Request execution with automatic retry on retryable errors
+- Proper timeout cleanup to prevent memory leaks
 
 **Retry Policy Support:**
-- Configurable max attempts
+- Configurable max attempts (must be positive)
 - Exponential backoff with configurable multiplier
 - Maximum delay cap
 - Retryable error codes: `RATE_LIMIT`, `TIMEOUT`, `SERVICE_UNAVAILABLE`
 
 **Timeout Handling:**
-- Per-provider timeout configuration
+- Per-provider timeout configuration in seconds
+- Automatic conversion to milliseconds for setTimeout
 - Automatic request cancellation on timeout
 - Timeout errors are retryable
+- Proper cleanup of timeout handlers in all code paths
 
 ### 2. OpenAI Provider Adapter (`src/providers/adapters/openai.ts`)
 
@@ -79,23 +82,26 @@ Manages all provider adapters and tracks their health:
 
 **Key Features:**
 - Automatic adapter initialization from environment variables
-- Health tracking per provider
+- Health tracking per provider using shared health tracker
 - Automatic provider disabling after consecutive failures
 - Success rate and latency tracking
 - Manual provider enable/disable
+- Integration with shared ProviderHealthTracker
 
 **Health Tracking:**
 - Status: `healthy`, `degraded`, `disabled`
-- Success rate calculation
+- Success rate calculation (rolling window)
 - Average latency tracking (last 100 requests)
 - Consecutive failure counting
 - Automatic disabling after 5 consecutive failures
+- Shared health state across Provider Pool and Orchestration Engine
 
 **Provider Management:**
 - Initializes adapters for OpenAI, Anthropic, and Google
 - Reads API keys from environment variables
 - Prevents requests to disabled providers
 - Supports manual provider recovery
+- Returns all provider health statuses via `getAllProviderHealth()`
 
 ## Configuration
 
@@ -203,8 +209,12 @@ This implementation satisfies the following requirements from the specification:
 
 - **Requirement 1.2**: Distribution of requests to all configured council members
 - **Requirement 9.1**: Logging of provider failures
-- **Requirement 10.2**: Timeout handling per provider
+- **Requirement 10.2**: Timeout handling per provider (with proper unit conversion)
 - **Requirement 10.3**: Retry logic with exponential backoff
+- **Bug Fix**: Timeout values correctly converted from seconds to milliseconds
+- **Bug Fix**: Timeout error messages display values in seconds
+- **Bug Fix**: Proper timeout cleanup prevents memory leaks
+- **Bug Fix**: Shared health tracker ensures consistency across components
 
 ## Next Steps
 

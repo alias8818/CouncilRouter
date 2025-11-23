@@ -13,9 +13,14 @@
 
 - `pg`: PostgreSQL client for database operations
 - `redis`: Redis client (v4.6.0+) for caching
+- `express`: Web framework for REST API
+- `cors`: CORS middleware for API
+- `express-rate-limit`: Rate limiting middleware
+- `jsonwebtoken`: JWT authentication
+- `@dqbd/tiktoken`: Token counting for context management
 - `ts-node`: Development execution
 - `fast-check`: Property-based testing (minimum 100 iterations per property)
-- `@types/pg`, `@types/redis`, `@types/node`: TypeScript type definitions
+- `@types/pg`, `@types/redis`, `@types/node`, `@types/express`, `@types/jsonwebtoken`: TypeScript type definitions
 
 ## Environment Variables
 
@@ -24,6 +29,14 @@ Required API keys for provider adapters:
 OPENAI_API_KEY=your-openai-key
 ANTHROPIC_API_KEY=your-anthropic-key
 GOOGLE_API_KEY=your-google-key
+JWT_SECRET=your-jwt-secret-key
+```
+
+Optional configuration:
+```bash
+NODE_ENV=production|development|test
+DATABASE_URL=postgresql://user:pass@host:5432/dbname
+REDIS_URL=redis://host:6379
 ```
 
 ## TypeScript Configuration
