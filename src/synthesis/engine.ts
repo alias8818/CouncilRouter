@@ -69,6 +69,7 @@ const MODEL_RANKINGS: Record<string, number> = {
 
 export class SynthesisEngine implements ISynthesisEngine {
   private rotationIndex: number = 0;
+  private rotationLock: Promise<void> = Promise.resolve();
   private providerPool: IProviderPool;
   private configManager: IConfigurationManager;
 
@@ -505,11 +506,9 @@ export class SynthesisEngine implements ISynthesisEngine {
         return permanentMember;
 
       case 'rotate':
-        // Rotate through members
-        // Fixed: Use post-increment in single expression to ensure atomicity
-        // Even though JS is single-threaded, async operations can interleave between statements
-        const index = this.rotationIndex++;
-        return members[index % members.length];
+        // Use a promise-based lock to ensure atomic rotation across concurrent async calls
+        // This guarantees each call gets a unique sequential index
+        return await this.getNextRotationMember(members);
 
       case 'strongest':
         // Select based on model rankings
@@ -518,6 +517,28 @@ export class SynthesisEngine implements ISynthesisEngine {
       default:
         return members[0];
     }
+  }
+
+  /**
+   * Get next member in rotation with proper locking to prevent race conditions
+   * Uses a promise chain to serialize rotation index access across concurrent calls
+   */
+  private async getNextRotationMember(members: CouncilMember[]): Promise<CouncilMember> {
+    // Chain this operation after the previous rotation operation completes
+    const previousLock = this.rotationLock;
+    let index: number = 0;
+
+    // Create a new promise that will complete after we get our index
+    this.rotationLock = previousLock.then(() => {
+      // Atomically get and increment the rotation index
+      index = this.rotationIndex++;
+    });
+
+    // Wait for our turn to get the index
+    await this.rotationLock;
+
+    // Return the member at this index
+    return members[index % members.length];
   }
 
   /**

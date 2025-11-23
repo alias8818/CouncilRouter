@@ -247,23 +247,10 @@ export class Dashboard implements IDashboard {
    * Returns array of provider health information including warnings for disabled members
    */
   async getProviderHealthStatus(): Promise<ProviderHealth[]> {
-    // Get all unique provider IDs from council responses
-    const query = `
-      SELECT DISTINCT council_member_id
-      FROM council_responses
-    `;
-
-    const result = await this.db.query(query);
-    const providerIds = result.rows.map(row => row.council_member_id);
-
-    // Get health status for each provider
-    const healthStatuses: ProviderHealth[] = [];
-    for (const providerId of providerIds) {
-      const health = this.providerPool.getProviderHealth(providerId);
-      healthStatuses.push(health);
-    }
-
-    return healthStatuses;
+    // Get all provider health from the provider pool directly
+    // This returns health for actual providers (openai, anthropic, google)
+    // rather than council member IDs (gpt-4-default, claude-3-balanced, etc.)
+    return this.providerPool.getAllProviderHealth();
   }
 
   /**

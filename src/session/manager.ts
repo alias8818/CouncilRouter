@@ -337,14 +337,16 @@ export class SessionManager implements ISessionManager {
      * This implementation uses Redis WATCH/EXEC to prevent race conditions between lLen check
      * and rPush operations. For mocked Redis clients (e.g., unit tests) that do not support
      * WATCH/UNWATCH, we fall back to a simple pipeline execution.
+     *
+     * CRITICAL FIX: Length is read BEFORE WATCH to prevent race conditions where length
+     * is read after WATCH but before EXEC, during which time it could change.
      */
     private async cacheSession(session: Session): Promise<void> {
       const key = `session:${session.id}`;
       const historyKey = `session:${session.id}:history`;
       const MAX_ATTEMPTS = 5;
 
-      const buildPipeline = async () => {
-        const existingLength = await this.redis.lLen(historyKey).catch(() => 0);
+      const buildPipeline = (existingLength: number) => {
         const pipeline = this.redis.multi();
 
         pipeline.hSet(key, {
@@ -370,12 +372,13 @@ export class SessionManager implements ISessionManager {
         pipeline.expire(key, this.SESSION_TTL);
         pipeline.expire(historyKey, this.SESSION_TTL);
 
-        return { pipeline, existingLength };
+        return pipeline;
       };
 
       // Fallback for mocked Redis clients (e.g., unit tests) that do not support WATCH/UNWATCH
       if (typeof this.redis.watch !== 'function') {
-        const { pipeline } = await buildPipeline();
+        const existingLength = await this.redis.lLen(historyKey).catch(() => 0);
+        const pipeline = buildPipeline(existingLength);
         await pipeline.exec();
         return;
       }
@@ -392,9 +395,17 @@ export class SessionManager implements ISessionManager {
 
       for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
         try {
+          // CRITICAL FIX: Read the existing length BEFORE setting WATCH
+          // This prevents race conditions where the length changes between WATCH and lLen
+          const existingLength = await this.redis.lLen(historyKey).catch(() => 0);
+
+          // Now watch the key for changes
           await this.redis.watch(historyKey);
 
-          const { pipeline } = await buildPipeline();
+          // Build pipeline based on the length we read before WATCH
+          // If historyKey was modified between our lLen and WATCH, EXEC will fail and we retry
+          const pipeline = buildPipeline(existingLength);
+
           const result = await pipeline.exec();
           if (result !== null) {
             return;

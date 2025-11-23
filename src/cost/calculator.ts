@@ -326,7 +326,8 @@ export class CostCalculator {
    * (e.g., "2024-01-daily" matches "daily", but "pre-daily" does not match "daily")
    *
    * The period must be at the end of the periodKey, preceded by a separator.
-   * Fixed: More strict validation to only accept date-like prefixes (YYYY-MM, YYYY-WW, etc.)
+   * CRITICAL FIX: Validates that date components are in reasonable ranges
+   * to prevent false matches on invalid dates like "2024-99-99"
    */
   private matchesPeriod(periodKey: string, alertPeriod: string): boolean {
     // Exact match for period comparison
@@ -344,12 +345,53 @@ export class CostCalculator {
         return false; // "-daily" without prefix should not match
       }
 
-      // Only accept date-like formats: must start with 4 digits (year) or be purely numeric
-      // Accepts: "2024-01", "2024", "2024_01", "2024-W05", "20240115"
-      // Rejects: "pre2024", "2x24", "test-123"
-      if (/^\d{4}([-_]\d+)*$/.test(prefix) || /^\d+$/.test(prefix)) {
-        return true;
+      // Validate date-like formats with reasonable ranges
+      // Pattern: YYYY or YYYY-MM or YYYY-MM-DD or YYYY-WXX or YYYYMMDD
+      if (!/^\d{4}([-_]\d+)*$/.test(prefix) && !/^\d+$/.test(prefix)) {
+        return false;
       }
+
+      // Additional validation for date components
+      const parts = prefix.split(/[-_]/);
+
+      // First part should be a year (1900-2100 is reasonable)
+      const year = parseInt(parts[0], 10);
+      if (year < 1900 || year > 2100) {
+        return false;
+      }
+
+      // If there's a second part, it should be a valid month (01-12) or week (W01-W53) or day (001-366)
+      if (parts.length > 1) {
+        const second = parts[1];
+
+        // Week format: W01-W53
+        if (second.startsWith('W')) {
+          const week = parseInt(second.substring(1), 10);
+          if (week < 1 || week > 53) {
+            return false;
+          }
+        } else {
+          const monthOrDay = parseInt(second, 10);
+          // Could be month (1-12) or day of year (1-366)
+          if (monthOrDay < 1 || monthOrDay > 366) {
+            return false;
+          }
+          // If it's likely a month (01-12), be more strict
+          if (second.length === 2 && (monthOrDay < 1 || monthOrDay > 12)) {
+            return false;
+          }
+        }
+      }
+
+      // If there's a third part, it should be a valid day (01-31)
+      if (parts.length > 2) {
+        const day = parseInt(parts[2], 10);
+        if (day < 1 || day > 31) {
+          return false;
+        }
+      }
+
+      return true;
     }
 
     return false;

@@ -72,10 +72,8 @@ class MockProviderPool implements IProviderPool {
   }
 
   getProviderHealth(providerId: string): ProviderHealth {
-    const health = this.healthStatuses.get(providerId);
-    if (health) return health;
-
-    // Check tracker if available
+    // CRITICAL FIX: Check tracker first for most up-to-date health status
+    // This ensures consistency between recorded successes/failures and reported health
     if (this.healthTracker) {
       const isDisabled = this.healthTracker.isDisabled(providerId);
       if (isDisabled) {
@@ -86,7 +84,19 @@ class MockProviderPool implements IProviderPool {
           avgLatency: 100
         };
       }
+
+      // Return tracker-based health even if not disabled
+      return {
+        providerId,
+        status: 'healthy',
+        successRate: this.healthTracker.getSuccessRate(providerId),
+        avgLatency: 100
+      };
     }
+
+    // Fall back to manual health statuses if no tracker
+    const health = this.healthStatuses.get(providerId);
+    if (health) return health;
 
     return {
       providerId,
