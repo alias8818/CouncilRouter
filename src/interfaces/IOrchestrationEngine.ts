@@ -39,6 +39,7 @@ export interface IOrchestrationEngine {
    * with member IDs for proper attribution
    */
   handleTimeout(
+    request: UserRequest,
     partialResponses: ProviderResponse[] | any[]
   ): Promise<ConsensusDecision>;
 }
