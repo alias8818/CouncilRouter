@@ -1,0 +1,250 @@
+name: Test
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main, develop ]
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: self-hosted
+
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/test
+      REDIS_URL: redis://localhost:6379
+      PROPERTY_TEST_RUNS: 100
+      # Test environment variables (API keys not needed for most tests)
+      JWT_SECRET: test-secret-key-for-ci
+      API_KEY_SALT: test-salt-for-ci
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Check and Install Node.js
+        shell: pwsh
+        run: |
+          $nodeVersion = "20"
+          $nodeInstalled = $false
+          
+          # Check if Node.js is installed
+          try {
+            $nodeVersionInstalled = node --version 2>$null
+            if ($nodeVersionInstalled) {
+              Write-Host "Node.js is already installed: $nodeVersionInstalled"
+              $nodeInstalled = $true
+            }
+          } catch {
+            Write-Host "Node.js not found, will install..."
+          }
+          
+          if (-not $nodeInstalled) {
+            Write-Host "Installing Node.js $nodeVersion..."
+            
+            # Try using winget first (Windows 10/11)
+            try {
+              winget install OpenJS.NodeJS.LTS --silent --accept-package-agreements --accept-source-agreements
+              Write-Host "Node.js installed via winget"
+            } catch {
+              Write-Host "winget not available, trying Chocolatey..."
+              try {
+                choco install nodejs-lts -y
+                Write-Host "Node.js installed via Chocolatey"
+              } catch {
+                Write-Host "Chocolatey not available, downloading directly..."
+                # Download and install Node.js directly
+                $nodeUrl = "https://nodejs.org/dist/v${nodeVersion}.0/node-v${nodeVersion}.0-x64.msi"
+                $installerPath = "$env:TEMP\nodejs-installer.msi"
+                Invoke-WebRequest -Uri $nodeUrl -OutFile $installerPath
+                Start-Process msiexec.exe -Wait -ArgumentList "/i $installerPath /quiet /norestart"
+                Remove-Item $installerPath
+                Write-Host "Node.js installed via direct download"
+              }
+            }
+            
+            # Refresh PATH
+            $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
+          }
+          
+          # Verify installation
+          node --version
+          npm --version
+
+      - name: Check and Setup PostgreSQL
+        shell: pwsh
+        run: |
+          # Check if Docker is available (preferred method)
+          $dockerAvailable = $false
+          try {
+            docker --version 2>$null | Out-Null
+            $dockerAvailable = $true
+            Write-Host "Docker is available"
+          } catch {
+            Write-Host "Docker not available, checking for PostgreSQL service..."
+          }
+          
+          if ($dockerAvailable) {
+            # Use Docker for PostgreSQL
+            Write-Host "Starting PostgreSQL container..."
+            $containerExists = docker ps -a --filter "name=test-postgres" --format "{{.Names}}"
+            if ($containerExists -eq "test-postgres") {
+              Write-Host "PostgreSQL container exists, starting it..."
+              docker start test-postgres
+            } else {
+              Write-Host "Creating PostgreSQL container..."
+              docker run -d `
+                --name test-postgres `
+                -e POSTGRES_DB=test `
+                -e POSTGRES_USER=postgres `
+                -e POSTGRES_PASSWORD=postgres `
+                -p 5432:5432 `
+                postgres:14-alpine
+            }
+            
+            # Wait for PostgreSQL to be ready
+            $maxAttempts = 30
+            $attempt = 0
+            do {
+              Start-Sleep -Seconds 2
+              $attempt++
+              try {
+                $result = docker exec test-postgres pg_isready -U postgres 2>$null
+                if ($LASTEXITCODE -eq 0) {
+                  Write-Host "PostgreSQL is ready!"
+                  break
+                }
+              } catch {
+                # Continue waiting
+              }
+            } while ($attempt -lt $maxAttempts)
+          } else {
+            # Check if PostgreSQL service is running
+            $pgService = Get-Service -Name "postgresql*" -ErrorAction SilentlyContinue
+            if ($pgService) {
+              Write-Host "PostgreSQL service found: $($pgService.Name)"
+              if ($pgService.Status -ne "Running") {
+                Write-Host "Starting PostgreSQL service..."
+                Start-Service $pgService.Name
+              }
+            } else {
+              Write-Host "PostgreSQL not found. Please install PostgreSQL 14+ or Docker Desktop."
+              Write-Host "You can install PostgreSQL from: https://www.postgresql.org/download/windows/"
+              exit 1
+            }
+          }
+
+      - name: Check and Setup Redis
+        shell: pwsh
+        run: |
+          # Check if Docker is available (preferred method)
+          $dockerAvailable = $false
+          try {
+            docker --version 2>$null | Out-Null
+            $dockerAvailable = $true
+            Write-Host "Docker is available"
+          } catch {
+            Write-Host "Docker not available, checking for Redis service..."
+          }
+          
+          if ($dockerAvailable) {
+            # Use Docker for Redis
+            Write-Host "Starting Redis container..."
+            $containerExists = docker ps -a --filter "name=test-redis" --format "{{.Names}}"
+            if ($containerExists -eq "test-redis") {
+              Write-Host "Redis container exists, starting it..."
+              docker start test-redis
+            } else {
+              Write-Host "Creating Redis container..."
+              docker run -d `
+                --name test-redis `
+                -p 6379:6379 `
+                redis:7-alpine
+            }
+            
+            # Wait for Redis to be ready
+            $maxAttempts = 30
+            $attempt = 0
+            do {
+              Start-Sleep -Seconds 2
+              $attempt++
+              try {
+                $result = docker exec test-redis redis-cli ping 2>$null
+                if ($result -eq "PONG") {
+                  Write-Host "Redis is ready!"
+                  break
+                }
+              } catch {
+                # Continue waiting
+              }
+            } while ($attempt -lt $maxAttempts)
+          } else {
+            # Check if Redis service is running
+            $redisService = Get-Service -Name "Redis*" -ErrorAction SilentlyContinue
+            if ($redisService) {
+              Write-Host "Redis service found: $($redisService.Name)"
+              if ($redisService.Status -ne "Running") {
+                Write-Host "Starting Redis service..."
+                Start-Service $redisService.Name
+              }
+            } else {
+              Write-Host "Redis not found. Please install Redis or Docker Desktop."
+              Write-Host "You can install Redis from: https://github.com/microsoftarchive/redis/releases"
+              Write-Host "Or install Docker Desktop: https://www.docker.com/products/docker-desktop"
+              exit 1
+            }
+          }
+
+      - name: Install dependencies
+        shell: pwsh
+        run: npm ci
+
+      - name: Build project
+        shell: pwsh
+        run: npm run build
+
+      - name: Run tests
+        shell: pwsh
+        run: npm run test:ci
+        continue-on-error: false
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: |
+            junit.xml
+            coverage/
+          retention-days: 30
+
+      - name: Comment PR with test results
+        if: github.event_name == 'pull_request' && always()
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+            if (fs.existsSync('junit.xml')) {
+              const results = fs.readFileSync('junit.xml', 'utf8');
+              // Parse and summarize test results
+              const testCount = (results.match(/testsuite/g) || []).length;
+              const failureCount = (results.match(/failure/g) || []).length;
+              
+              const comment = `## Test Results
+              
+              - **Tests Run**: ${testCount}
+              - **Failures**: ${failureCount}
+              - **Status**: ${failureCount === 0 ? '✅ All tests passed' : '❌ Some tests failed'}
+              
+              See workflow logs for detailed results.`;
+              
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+            }
+

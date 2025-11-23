@@ -8,6 +8,7 @@
 import * as fc from 'fast-check';
 import { SynthesisEngine } from '../engine';
 import { CouncilMember, ModeratorStrategy } from '../../types/core';
+import { getPropertyTestRuns } from '../../__tests__/test-helpers';
 
 describe('SynthesisEngine - Rotation Concurrency Property Test', () => {
   /**
@@ -141,7 +142,7 @@ describe('SynthesisEngine - Rotation Concurrency Property Test', () => {
           expect(totalSelections).toBe(numRequests);
         }
       ),
-      { numRuns: 100 }
+      { numRuns: getPropertyTestRuns() }
     );
   }, 120000);
 });

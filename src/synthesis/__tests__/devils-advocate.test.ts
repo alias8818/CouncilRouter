@@ -178,35 +178,26 @@ describe('DevilsAdvocateModule', () => {
   describe('generateCritiquePrompt', () => {
     it('should generate critique prompt with deliberation exchanges', () => {
       const deliberationThread: DeliberationThread = {
-        requestId: 'req-1',
         rounds: [
           {
             roundNumber: 1,
             exchanges: [
               {
-                id: 'ex-1',
-                requestId: 'req-1',
-                roundNumber: 1,
                 councilMemberId: 'member-1',
                 content: 'I think the answer is X because of reason A.',
-                timestamp: new Date(),
-                targetMemberId: 'member-2'
+                referencesTo: ['member-2'],
+                tokenUsage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 }
               },
               {
-                id: 'ex-2',
-                requestId: 'req-1',
-                roundNumber: 1,
                 councilMemberId: 'member-2',
                 content: 'I agree with X, and would add reason B.',
-                timestamp: new Date(),
-                targetMemberId: 'member-1'
+                referencesTo: ['member-1'],
+                tokenUsage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 }
               }
-            ],
-            consensusReached: false,
-            timestamp: new Date()
+            ]
           }
         ],
-        finalDecision: null
+        totalDuration: 1000
       };
 
       const prompt = module.generateCritiquePrompt(deliberationThread);
@@ -223,25 +214,20 @@ describe('DevilsAdvocateModule', () => {
 
     it('should format exchanges with round numbers', () => {
       const deliberationThread: DeliberationThread = {
-        requestId: 'req-1',
         rounds: [
           {
             roundNumber: 2,
             exchanges: [
               {
-                id: 'ex-1',
-                requestId: 'req-1',
-                roundNumber: 2,
                 councilMemberId: 'member-1',
                 content: 'Critical analysis content',
-                timestamp: new Date()
+                referencesTo: [],
+                tokenUsage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 }
               }
-            ],
-            consensusReached: true,
-            timestamp: new Date()
+            ]
           }
         ],
-        finalDecision: null
+        totalDuration: 1000
       };
 
       const prompt = module.generateCritiquePrompt(deliberationThread);
@@ -253,16 +239,13 @@ describe('DevilsAdvocateModule', () => {
 
     it('should handle empty exchanges', () => {
       const deliberationThread: DeliberationThread = {
-        requestId: 'req-1',
         rounds: [
           {
             roundNumber: 1,
-            exchanges: [],
-            consensusReached: false,
-            timestamp: new Date()
+            exchanges: []
           }
         ],
-        finalDecision: null
+        totalDuration: 1000
       };
 
       const prompt = module.generateCritiquePrompt(deliberationThread);
@@ -273,40 +256,31 @@ describe('DevilsAdvocateModule', () => {
 
     it('should use last round for critique', () => {
       const deliberationThread: DeliberationThread = {
-        requestId: 'req-1',
         rounds: [
           {
             roundNumber: 1,
             exchanges: [
               {
-                id: 'ex-old',
-                requestId: 'req-1',
-                roundNumber: 1,
                 councilMemberId: 'member-1',
                 content: 'Old content',
-                timestamp: new Date()
+                referencesTo: [],
+                tokenUsage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 }
               }
-            ],
-            consensusReached: false,
-            timestamp: new Date()
+            ]
           },
           {
             roundNumber: 2,
             exchanges: [
               {
-                id: 'ex-new',
-                requestId: 'req-1',
-                roundNumber: 2,
                 councilMemberId: 'member-2',
                 content: 'New content',
-                timestamp: new Date()
+                referencesTo: [],
+                tokenUsage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 }
               }
-            ],
-            consensusReached: true,
-            timestamp: new Date()
+            ]
           }
         ],
-        finalDecision: null
+        totalDuration: 2000
       };
 
       const prompt = module.generateCritiquePrompt(deliberationThread);
@@ -319,9 +293,8 @@ describe('DevilsAdvocateModule', () => {
   describe('synthesizeWithCritique', () => {
     it('should synthesize decision incorporating critique', async () => {
       const thread: DeliberationThread = {
-        requestId: 'req-1',
         rounds: [],
-        finalDecision: null
+        totalDuration: 0
       };
 
       const critique = 'The consensus overlooks potential edge case X.';
@@ -338,9 +311,8 @@ describe('DevilsAdvocateModule', () => {
 
     it('should include synthesizer in contributing members', async () => {
       const thread: DeliberationThread = {
-        requestId: 'req-1',
         rounds: [],
-        finalDecision: null
+        totalDuration: 0
       };
 
       const synthesizer = testMembers[1];
@@ -355,9 +327,8 @@ describe('DevilsAdvocateModule', () => {
 
     it('should set timestamp', async () => {
       const thread: DeliberationThread = {
-        requestId: 'req-1',
         rounds: [],
-        finalDecision: null
+        totalDuration: 0
       };
 
       const before = new Date();
@@ -466,11 +437,10 @@ describe('DevilsAdvocateModule', () => {
             roundNumber: 1,
             exchanges: [
               {
-                id: 'ex-1',
-                requestId: 'req-1',
-                roundNumber: 1,
                 councilMemberId: 'member-1',
                 content: 'Short answer.',
+                referencesTo: [],
+                tokenUsage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 }
                 timestamp: new Date()
               }
             ],
@@ -489,36 +459,27 @@ describe('DevilsAdvocateModule', () => {
 
     it('should handle complex deliberation with multiple rounds', () => {
       const complexThread: DeliberationThread = {
-        requestId: 'req-1',
         rounds: [
           {
             roundNumber: 1,
             exchanges: Array.from({ length: 5 }, (_, i) => ({
-              id: `ex-${i}`,
-              requestId: 'req-1',
-              roundNumber: 1,
               councilMemberId: `member-${(i % 3) + 1}`,
               content: `Exchange ${i} content`,
-              timestamp: new Date()
-            })),
-            consensusReached: false,
-            timestamp: new Date()
+              referencesTo: [],
+              tokenUsage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 }
+            }))
           },
           {
             roundNumber: 2,
             exchanges: Array.from({ length: 3 }, (_, i) => ({
-              id: `ex-r2-${i}`,
-              requestId: 'req-1',
-              roundNumber: 2,
               councilMemberId: `member-${(i % 3) + 1}`,
               content: `Round 2 exchange ${i}`,
-              timestamp: new Date()
-            })),
-            consensusReached: true,
-            timestamp: new Date()
+              referencesTo: [],
+              tokenUsage: { promptTokens: 10, completionTokens: 20, totalTokens: 30 }
+            }))
           }
         ],
-        finalDecision: null
+        totalDuration: 2000
       };
 
       const prompt = module.generateCritiquePrompt(complexThread);

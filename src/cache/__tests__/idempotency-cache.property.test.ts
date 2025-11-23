@@ -134,7 +134,8 @@ describe('Idempotency Cache - Property Tests', () => {
         fc.uuid(),
         fc.string({ minLength: 1, maxLength: 100 }),
         async (requestId, idempotencyKey, content) => {
-          const key = `test-${idempotencyKey}`;
+          // Use unique key to avoid conflicts from previous test runs
+          const key = `test-${idempotencyKey}-${Date.now()}-${Math.random()}`;
 
           // Mark as in-progress
           await cache.markInProgress(key, requestId, 60);

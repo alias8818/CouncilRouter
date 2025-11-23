@@ -16,7 +16,7 @@ describe('Tool Execution Engine - Property Tests', () => {
 
   beforeAll(() => {
     dbPool = new Pool({
-      connectionString: process.env.DATABASE_URL || 'postgresql://localhost:5432/test'
+      connectionString: process.env.DATABASE_URL || 'postgresql://postgres:postgres@localhost:5432/test'
     });
   });
 

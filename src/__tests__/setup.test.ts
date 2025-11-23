@@ -3,6 +3,7 @@
  */
 
 import * as fc from 'fast-check';
+import { getPropertyTestRuns } from './test-helpers';
 
 describe('Project Setup', () => {
   test('Jest is configured correctly', () => {
@@ -23,7 +24,7 @@ describe('Project Setup', () => {
       fc.property(fc.integer(), (n) => {
         return n + 0 === n;
       }),
-      { numRuns: 100 }
+      { numRuns: getPropertyTestRuns() }
     );
   });
 });

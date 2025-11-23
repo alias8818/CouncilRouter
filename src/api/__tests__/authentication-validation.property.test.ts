@@ -222,6 +222,11 @@ describe('Property 19: Authentication validation', () => {
         fc.string({ minLength: 1, maxLength: 100 }).filter(s => !s.startsWith('Bearer ') && !s.startsWith('ApiKey ')),
 
         async (query, malformedAuth) => {
+          // Skip if auth header is empty or just whitespace (that's AUTHENTICATION_REQUIRED, not INVALID_AUTH_FORMAT)
+          if (!malformedAuth || malformedAuth.trim().length === 0) {
+            return;
+          }
+
           // Make request with malformed Authorization header
           const response = await fetch(`http://localhost:${port}/api/v1/requests`, {
             method: 'POST',
@@ -237,7 +242,11 @@ describe('Property 19: Authentication validation', () => {
 
           const data = await response.json() as any;
           expect(data).toHaveProperty('error');
-          expect(data.error.code).toBe('INVALID_AUTH_FORMAT');
+          // Malformed auth (not starting with Bearer/ApiKey and not empty) should be INVALID_AUTH_FORMAT
+          // Empty/whitespace-only auth is AUTHENTICATION_REQUIRED
+          if (malformedAuth.trim().length > 0 && !malformedAuth.startsWith('Bearer ') && !malformedAuth.startsWith('ApiKey ')) {
+            expect(data.error.code).toBe('INVALID_AUTH_FORMAT');
+          }
           expect(data.error.retryable).toBe(false);
         }
       ),

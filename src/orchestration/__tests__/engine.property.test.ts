@@ -9,6 +9,7 @@ import { IProviderPool } from '../../interfaces/IProviderPool';
 import { IConfigurationManager } from '../../interfaces/IConfigurationManager';
 import { ISynthesisEngine } from '../../interfaces/ISynthesisEngine';
 import { ProviderHealthTracker, getSharedHealthTracker } from '../../providers/health-tracker';
+import { getPropertyTestRuns } from '../../__tests__/test-helpers';
 import {
   UserRequest,
   CouncilMember,
@@ -354,7 +355,7 @@ describe('Property Test: Request Distribution Completeness', () => {
           expect(responses.length).toBeLessThanOrEqual(councilConfig.members.length);
         }
       ),
-      { numRuns: 100 }
+      { numRuns: getPropertyTestRuns() }
     );
   }, 120000);
 });
@@ -425,7 +426,7 @@ describe('Property Test: Active Configuration Enforcement', () => {
           }
         }
       ),
-      { numRuns: 100 }
+      { numRuns: getPropertyTestRuns() }
     );
   }, 120000);
 });
@@ -508,7 +509,7 @@ describe('Property Test: Automatic Member Disabling', () => {
           }
         }
       ),
-      { numRuns: 100 }
+      { numRuns: getPropertyTestRuns() }
     );
   }, 120000);
   
@@ -559,7 +560,7 @@ describe('Property Test: Automatic Member Disabling', () => {
           expect(requestedMemberIds).not.toContain(disabledMember.id);
         }
       ),
-      { numRuns: 100 }
+      { numRuns: getPropertyTestRuns() }
     );
   }, 120000);
 });
@@ -648,7 +649,7 @@ describe('Property Test: Deliberation Round Count Enforcement', () => {
           expect(deliberationThread.totalDuration).toBeGreaterThanOrEqual(0);
         }
       ),
-      { numRuns: 100 }
+      { numRuns: getPropertyTestRuns() }
     );
   }, 120000);
   
@@ -707,7 +708,7 @@ describe('Property Test: Deliberation Round Count Enforcement', () => {
           }
         }
       ),
-      { numRuns: 100 }
+      { numRuns: getPropertyTestRuns() }
     );
   }, 120000);
 });
@@ -828,7 +829,7 @@ describe('Property Test: Peer Response Sharing Completeness', () => {
           }
         }
       ),
-      { numRuns: 100 }
+      { numRuns: getPropertyTestRuns() }
     );
   }, 120000);
 });
@@ -912,7 +913,7 @@ describe('Property Test: Global Timeout Synthesis Trigger', () => {
           }
         }
       ),
-      { numRuns: 50 } // Fewer runs due to timeout delays
+      { numRuns: getPropertyTestRuns(50) } // Fewer runs due to timeout delays
     );
   }, 180000); // Longer test timeout
 });
@@ -1036,7 +1037,7 @@ describe('Property Test: Context Inclusion in Distribution', () => {
           }
         }
       ),
-      { numRuns: 100 }
+      { numRuns: getPropertyTestRuns() }
     );
   }, 120000);
   
@@ -1098,7 +1099,7 @@ describe('Property Test: Context Inclusion in Distribution', () => {
           }
         }
       ),
-      { numRuns: 100 }
+      { numRuns: getPropertyTestRuns() }
     );
   }, 120000);
 });

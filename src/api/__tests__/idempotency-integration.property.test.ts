@@ -7,12 +7,14 @@ import * as fc from 'fast-check';
 import { createClient, RedisClientType } from 'redis';
 import { Pool } from 'pg';
 import request from 'supertest';
+import jwt from 'jsonwebtoken';
 import { APIGateway } from '../gateway';
 import { IdempotencyCache } from '../../cache/idempotency-cache';
 import { IOrchestrationEngine } from '../../interfaces/IOrchestrationEngine';
 import { ISessionManager } from '../../interfaces/ISessionManager';
 import { IEventLogger } from '../../interfaces/IEventLogger';
 import { ConsensusDecision, UserRequest } from '../../types/core';
+import { getPropertyTestRuns } from '../../__tests__/test-helpers';
 
 describe('API Gateway Idempotency Integration - Property Tests', () => {
   let redis: RedisClientType;
@@ -42,6 +44,9 @@ describe('API Gateway Idempotency Integration - Property Tests', () => {
   });
 
   beforeEach(async () => {
+    // Ensure test environment for API key validation
+    process.env.NODE_ENV = 'test';
+    
     // Clean up test keys
     const keys = await redis.keys('idempotency:test-*');
     if (keys.length > 0) {
@@ -106,10 +111,13 @@ describe('API Gateway Idempotency Integration - Property Tests', () => {
 
           mockOrchestration.processRequest.mockResolvedValue(decision);
 
+          // Generate a valid JWT token for authentication
+          const token = jwt.sign({ userId: 'test-user' }, 'test-secret');
+
           // Make request without idempotency key
           const response = await request(gateway['app'])
             .post('/api/v1/requests')
-            .set('Authorization', 'Bearer test-token')
+            .set('Authorization', `Bearer ${token}`)
             .send({ query });
 
           // Should process normally without caching
@@ -124,7 +132,7 @@ describe('API Gateway Idempotency Integration - Property Tests', () => {
           expect(mockOrchestration.processRequest).toHaveBeenCalled();
         }
       ),
-      { numRuns: 50 }
+      { numRuns: getPropertyTestRuns(50) }
     );
   });
 });
