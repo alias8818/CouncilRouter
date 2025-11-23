@@ -24,7 +24,8 @@ import {
   ConversationContext,
   DeliberationThread,
   SynthesisStrategy,
-  ConsensusDecision
+  ConsensusDecision,
+  RetryPolicy
 } from '../../types/core';
 
 // ============================================================================

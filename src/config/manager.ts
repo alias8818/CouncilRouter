@@ -12,9 +12,7 @@ import {
   SynthesisConfig,
   PerformanceConfig,
   TransparencyConfig,
-  ConfigPreset,
-  CouncilMember,
-  RetryPolicy
+  ConfigPreset
 } from '../types/core';
 
 /**

@@ -3,7 +3,7 @@
  * Abstract base class for all provider adapters
  */
 
-import { CouncilMember, ProviderResponse, ConversationContext, TokenUsage, RetryPolicy } from '../../types/core';
+import { CouncilMember, ProviderResponse, ConversationContext, TokenUsage } from '../../types/core';
 
 export abstract class BaseProviderAdapter {
   protected apiKey: string;

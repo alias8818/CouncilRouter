@@ -15,6 +15,7 @@ import { IConfigurationManager } from '../../interfaces/IConfigurationManager';
 import { ISynthesisEngine } from '../../interfaces/ISynthesisEngine';
 import {
   UserRequest,
+  CouncilMember,
   ProviderResponse,
   ProviderHealth,
   CouncilConfig,
@@ -88,7 +89,7 @@ class MockProviderPool implements IProviderPool {
     return Array.from(providers).map(providerId => this.getProviderHealth(providerId));
   }
   
-  markProviderDisabled(providerId: string, reason: string): void {
+  markProviderDisabled(providerId: string, _reason: string): void {
     this.disabledProviders.add(providerId);
   }
 

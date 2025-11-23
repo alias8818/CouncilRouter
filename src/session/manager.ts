@@ -11,7 +11,7 @@ import {
   Duration
 } from '../types/core';
 import { Pool } from 'pg';
-import { createClient, RedisClientType } from 'redis';
+import { RedisClientType } from 'redis';
 import { randomUUID } from 'crypto';
 import { encoding_for_model, Tiktoken } from '@dqbd/tiktoken';
 
@@ -477,7 +477,7 @@ export class SessionManager implements ISessionManager {
       const encoder = this.getEncoder(model);
       const tokens = encoder.encode(content);
       return tokens.length;
-    } catch (error) {
+    } catch (_error) {
       // Absolute fallback for unknown models or encoding errors
       // Use a more conservative estimate that works better for diverse content
       return Math.ceil(content.length / 3.5);

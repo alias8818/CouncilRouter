@@ -114,14 +114,64 @@ describe('Code-Aware Synthesis - Property-Based Tests', () => {
    * Validates: Requirements 7.7
    */
   test('Property 14: Balanced brackets should return true', () => {
+    // Generate balanced code patterns
+    // Use characters that don't include brackets to avoid interference
+    const nonBracketCharArb = fc.char().filter(c => !['(', ')', '{', '}', '[', ']'].includes(c));
+    const nonBracketStringArb = fc.stringOf(nonBracketCharArb, { minLength: 0, maxLength: 30 });
+    
+    const balancedCodeArb = fc.record({
+      prefix: fc.stringOf(nonBracketCharArb, { minLength: 0, maxLength: 20 }),
+      parenPairs: fc.nat({ max: 3 }), // 0-3 pairs of parentheses
+      bracePairs: fc.nat({ max: 3 }), // 0-3 pairs of braces
+      bracketPairs: fc.nat({ max: 3 }), // 0-3 pairs of brackets
+      middle: nonBracketStringArb,
+      suffix: fc.stringOf(nonBracketCharArb, { minLength: 0, maxLength: 20 })
+    }).map(({ prefix, parenPairs, bracePairs, bracketPairs, middle, suffix }) => {
+      // Build balanced code by adding matching pairs
+      let code = prefix;
+      
+      // Add balanced parentheses
+      for (let i = 0; i < parenPairs; i++) {
+        code += '(';
+      }
+      
+      // Add balanced braces
+      for (let i = 0; i < bracePairs; i++) {
+        code += '{';
+      }
+      
+      // Add balanced brackets
+      for (let i = 0; i < bracketPairs; i++) {
+        code += '[';
+      }
+      
+      code += middle;
+      
+      // Close brackets in reverse order
+      for (let i = 0; i < bracketPairs; i++) {
+        code += ']';
+      }
+      
+      // Close braces in reverse order
+      for (let i = 0; i < bracePairs; i++) {
+        code += '}';
+      }
+      
+      // Close parentheses in reverse order
+      for (let i = 0; i < parenPairs; i++) {
+        code += ')';
+      }
+      
+      code += suffix;
+      return code;
+    });
+
     fc.assert(
       fc.property(
-        fc.string({ minLength: 1, maxLength: 100 }),
+        balancedCodeArb,
         (code) => {
-          // Use a simple known-balanced code pattern (ignore random code input)
-          const balancedCode = `function test() { return [1, 2]; }`;
-          const result = codeValidator.hasBalancedBrackets(balancedCode);
-          // This code is known to be balanced
+          const result = codeValidator.hasBalancedBrackets(code);
+          // All generated code should have balanced brackets
           expect(result).toBe(true);
         }
       ),

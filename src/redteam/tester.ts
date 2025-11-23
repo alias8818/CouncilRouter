@@ -8,7 +8,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { IRedTeamTester } from '../interfaces/IRedTeamTester';
 import { IProviderPool } from '../interfaces/IProviderPool';
 import { IConfigurationManager } from '../interfaces/IConfigurationManager';
-import { RedTeamPrompt, RedTeamTestResult, RedTeamAnalytics, CouncilMember } from '../types/core';
+import { RedTeamPrompt, RedTeamTestResult, RedTeamAnalytics } from '../types/core';
 
 export class RedTeamTester implements IRedTeamTester {
   private readonly FAILURE_THRESHOLD = 0.3; // 30% failure rate triggers warning

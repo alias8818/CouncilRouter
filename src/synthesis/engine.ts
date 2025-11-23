@@ -687,6 +687,7 @@ export class SynthesisEngine implements ISynthesisEngine {
       case 'rotate':
         // Use a promise-based lock to ensure atomic rotation across concurrent async calls
         // This guarantees each call gets a unique sequential index
+        // eslint-disable-next-line @typescript-eslint/return-await
         return await this.getNextRotationMember(members);
 
       case 'strongest':
