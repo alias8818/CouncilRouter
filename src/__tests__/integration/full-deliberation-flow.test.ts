@@ -21,7 +21,8 @@ import {
   PerformanceConfig,
   SynthesisConfig,
   ProviderHealth,
-  ConversationContext
+  ConversationContext,
+  ProviderError
 } from '../../types/core';
 
 // Mock Provider Adapter for testing
@@ -41,7 +42,8 @@ class MockProviderAdapter extends BaseProviderAdapter {
         success: false,
         content: '',
         tokenUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
-        error: { code: 'TEST_ERROR', message: 'Simulated provider failure', retryable: false }
+        latency: 0,
+        error: new ProviderError('TEST_ERROR', 'Simulated provider failure', false)
       };
     }
 
@@ -105,7 +107,8 @@ class MockProviderPool implements IProviderPool {
         success: false,
         content: '',
         tokenUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
-        error: { code: 'ADAPTER_NOT_FOUND', message: `Adapter for ${member.id} not found`, retryable: false }
+        latency: 0,
+        error: new ProviderError('ADAPTER_NOT_FOUND', `Adapter for ${member.id} not found`, false)
       };
       this.healthTracker.recordFailure(member.provider);
       return error;
@@ -116,7 +119,8 @@ class MockProviderPool implements IProviderPool {
         success: false,
         content: '',
         tokenUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
-        error: { code: 'PROVIDER_DISABLED', message: `Provider ${member.provider} is disabled`, retryable: false }
+        latency: 0,
+        error: new ProviderError('PROVIDER_DISABLED', `Provider ${member.provider} is disabled`, false)
       };
       return error;
     }
@@ -137,7 +141,8 @@ class MockProviderPool implements IProviderPool {
         success: false,
         content: '',
         tokenUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
-        error: { code: 'EXECUTION_ERROR', message: error.message || 'Unknown error', retryable: true }
+        latency: 0,
+        error: new ProviderError('EXECUTION_ERROR', error.message || 'Unknown error', true)
       };
     }
   }
@@ -295,19 +300,22 @@ describe('Integration Tests - Full Deliberation Flow', () => {
     ]);
     providerPool = new MockProviderPool(members, adapters, healthTracker);
 
-    // Create synthesis engine
-    synthesisEngine = new SynthesisEngine();
-
     // Create configuration manager
     configManager = new MockConfigurationManager(members);
 
-    // Create session manager (mock Redis)
+    // Create synthesis engine
+    synthesisEngine = new SynthesisEngine(providerPool, configManager);
+
+    // Create session manager (mock database and Redis)
+    const mockDb: any = {
+      query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 })
+    };
     const mockRedis: any = {
       get: jest.fn().mockResolvedValue(null),
       set: jest.fn().mockResolvedValue('OK'),
       del: jest.fn().mockResolvedValue(1)
     };
-    sessionManager = new SessionManager(mockRedis);
+    sessionManager = new SessionManager(mockDb, mockRedis);
 
     // Create orchestration engine
     orchestrationEngine = new OrchestrationEngine(
@@ -447,7 +455,8 @@ describe('Integration Tests - Full Deliberation Flow', () => {
 
       const pool = new MockProviderPool(members, adapters, healthTracker);
       const testConfigManager = new MockConfigurationManager(members);
-      const engine = new OrchestrationEngine(pool, testConfigManager, synthesisEngine);
+      const testSynthesisEngine = new SynthesisEngine(pool, testConfigManager);
+      const engine = new OrchestrationEngine(pool, testConfigManager, testSynthesisEngine);
 
       const request: UserRequest = {
         id: 'req-5',
@@ -480,7 +489,8 @@ describe('Integration Tests - Full Deliberation Flow', () => {
 
       const pool = new MockProviderPool(members, adapters, healthTracker);
       const testConfigManager = new MockConfigurationManager(members);
-      const engine = new OrchestrationEngine(pool, testConfigManager, synthesisEngine);
+      const testSynthesisEngine = new SynthesisEngine(pool, testConfigManager);
+      const engine = new OrchestrationEngine(pool, testConfigManager, testSynthesisEngine);
 
       const request: UserRequest = {
         id: 'req-6',
@@ -513,7 +523,8 @@ describe('Integration Tests - Full Deliberation Flow', () => {
 
       const pool = new MockProviderPool(members, failingAdapters, healthTracker);
       const testConfigManager = new MockConfigurationManager(members);
-      const engine = new OrchestrationEngine(pool, testConfigManager, synthesisEngine);
+      const testSynthesisEngine = new SynthesisEngine(pool, testConfigManager);
+      const engine = new OrchestrationEngine(pool, testConfigManager, testSynthesisEngine);
 
       const request: UserRequest = {
         id: 'req-7',
@@ -557,7 +568,8 @@ describe('Integration Tests - Full Deliberation Flow', () => {
 
       const pool = new MockProviderPool(members, adapters, healthTracker);
       const testConfigManager = new MockConfigurationManager(members);
-      const engine = new OrchestrationEngine(pool, testConfigManager, synthesisEngine);
+      const testSynthesisEngine = new SynthesisEngine(pool, testConfigManager);
+      const engine = new OrchestrationEngine(pool, testConfigManager, testSynthesisEngine);
 
       const request: UserRequest = {
         id: 'req-9',
@@ -587,7 +599,8 @@ describe('Integration Tests - Full Deliberation Flow', () => {
 
       const pool = new MockProviderPool(members, adapters, healthTracker);
       const testConfigManager = new MockConfigurationManager(members);
-      const engine = new OrchestrationEngine(pool, testConfigManager, synthesisEngine);
+      const testSynthesisEngine = new SynthesisEngine(pool, testConfigManager);
+      const engine = new OrchestrationEngine(pool, testConfigManager, testSynthesisEngine);
 
       const request: UserRequest = {
         id: 'req-10',

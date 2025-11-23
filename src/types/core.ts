@@ -83,7 +83,7 @@ export interface ProviderResponse {
   tokenUsage: TokenUsage;
   latency: number;
   success: boolean;
-  error?: Error;
+  error?: Error | ProviderError;
 }
 
 export interface ProviderHealth {
@@ -240,6 +240,24 @@ export interface InfluenceScores {
 // ============================================================================
 // Error Models
 // ============================================================================
+
+export class ProviderError extends Error {
+  code: string;
+  retryable: boolean;
+  details?: any;
+
+  constructor(code: string, message: string, retryable: boolean = false, details?: any) {
+    super(message);
+    this.name = 'ProviderError';
+    this.code = code;
+    this.retryable = retryable;
+    this.details = details;
+    // Maintains proper stack trace for where our error was thrown (only available on V8)
+    if (Error.captureStackTrace) {
+      Error.captureStackTrace(this, ProviderError);
+    }
+  }
+}
 
 export interface ErrorResponse {
   error: {
