@@ -260,6 +260,7 @@ export interface APIRequestBody {
   query: string;
   sessionId?: string;
   streaming?: boolean;
+  transparency?: boolean; // Per-request transparency override
 }
 
 export interface APIResponse {
@@ -366,4 +367,36 @@ export interface ToolUsage {
   parameters: Record<string, any>;
   result: ToolResult;
   roundNumber: number;
+}
+
+// ============================================================================
+// Budget Management Models
+// ============================================================================
+
+export interface BudgetCap {
+  providerId: string;
+  modelId?: string;
+  dailyLimit?: number;
+  weeklyLimit?: number;
+  monthlyLimit?: number;
+  currency: string;
+}
+
+export interface BudgetStatus {
+  providerId: string;
+  modelId?: string;
+  period: 'daily' | 'weekly' | 'monthly';
+  currentSpending: number;
+  budgetCap: number;
+  percentUsed: number;
+  disabled: boolean;
+  resetAt: Date;
+}
+
+export interface BudgetCheckResult {
+  allowed: boolean;
+  reason?: string;
+  currentSpending: number;
+  budgetCap: number;
+  percentUsed: number;
 }

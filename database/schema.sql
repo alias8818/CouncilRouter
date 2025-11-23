@@ -174,3 +174,39 @@ CREATE TABLE tool_usage (
 
 CREATE INDEX idx_tool_usage_request_id ON tool_usage(request_id);
 CREATE INDEX idx_tool_usage_council_member ON tool_usage(council_member_id);
+
+-- ============================================================================
+-- Budget caps table (Council Enhancements)
+-- ============================================================================
+CREATE TABLE budget_caps (
+  id UUID PRIMARY KEY,
+  provider_id VARCHAR(255) NOT NULL,
+  model_id VARCHAR(255),
+  daily_limit DECIMAL(10,2),
+  weekly_limit DECIMAL(10,2),
+  monthly_limit DECIMAL(10,2),
+  currency VARCHAR(10) NOT NULL DEFAULT 'USD',
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(provider_id, model_id)
+);
+
+-- ============================================================================
+-- Budget spending table (Council Enhancements)
+-- ============================================================================
+CREATE TABLE budget_spending (
+  id UUID PRIMARY KEY,
+  provider_id VARCHAR(255) NOT NULL,
+  model_id VARCHAR(255),
+  period_type VARCHAR(20) NOT NULL, -- 'daily', 'weekly', 'monthly'
+  period_start TIMESTAMP NOT NULL,
+  period_end TIMESTAMP NOT NULL,
+  current_spending DECIMAL(10,2) NOT NULL DEFAULT 0,
+  disabled BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  UNIQUE(provider_id, model_id, period_type, period_start)
+);
+
+CREATE INDEX idx_budget_spending_provider ON budget_spending(provider_id, model_id, period_type);
+CREATE INDEX idx_budget_spending_period ON budget_spending(period_start, period_end);
