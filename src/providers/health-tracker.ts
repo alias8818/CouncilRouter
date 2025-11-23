@@ -68,22 +68,18 @@ export class ProviderHealthTracker {
    */
   private cleanupOldRecords(state: ProviderHealthState): void {
     const cutoffTime = new Date(Date.now() - this.rollingWindowMs);
-    const initialLength = state.requestHistory.length;
     
     // Remove records older than the rolling window
     state.requestHistory = state.requestHistory.filter(record => record.timestamp >= cutoffTime);
     
-    // Recalculate counts based on remaining records
-    const remainingRecords = state.requestHistory.length;
-    if (remainingRecords < initialLength) {
-      // Recalculate success count from remaining records
-      state.successCount = state.requestHistory.filter(r => r.success).length;
-      state.totalRequests = remainingRecords;
-    }
+    // Recalculate counts based on remaining records (always, so new entries are counted immediately)
+    state.totalRequests = state.requestHistory.length;
+    state.successCount = state.requestHistory.filter(r => r.success).length;
   }
 
   /**
    * Record a successful request for a provider
+   * Fixed: Add new record before cleanup to ensure counts are accurate
    */
   recordSuccess(providerId: string): void {
     const state = this.healthState.get(providerId);
@@ -96,13 +92,12 @@ export class ProviderHealthTracker {
       return;
     }
 
-    // Clean up old records first
+    // Add new success record first
+    state.requestHistory.push({ timestamp: new Date(), success: true });
+
+    // Then clean up old records (this will recalculate counts including the new record)
     this.cleanupOldRecords(state);
 
-    // Add new success record
-    state.requestHistory.push({ timestamp: new Date(), success: true });
-    state.totalRequests = state.requestHistory.length;
-    state.successCount = state.requestHistory.filter(r => r.success).length;
     state.consecutiveFailures = 0; // Reset consecutive failure count
 
     // Update status based on current state
@@ -118,6 +113,7 @@ export class ProviderHealthTracker {
   /**
    * Record a failed request for a provider
    * Returns true if provider should be disabled after this failure
+   * Fixed: Add new record before cleanup to ensure counts are accurate
    */
   recordFailure(providerId: string): boolean {
     const failureTime = new Date();
@@ -134,13 +130,12 @@ export class ProviderHealthTracker {
       return newState.consecutiveFailures >= this.failureThreshold;
     }
 
-    // Clean up old records first
+    // Add new failure record first
+    state.requestHistory.push({ timestamp: failureTime, success: false });
+
+    // Then clean up old records (this will recalculate counts including the new record)
     this.cleanupOldRecords(state);
 
-    // Add new failure record
-    state.requestHistory.push({ timestamp: failureTime, success: false });
-    state.totalRequests = state.requestHistory.length;
-    state.successCount = state.requestHistory.filter(r => r.success).length;
     state.consecutiveFailures++;
     state.lastFailure = failureTime; // Track actual failure time
 

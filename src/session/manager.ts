@@ -196,11 +196,23 @@ export class SessionManager implements ISessionManager {
         totalTokens += entryTokens;
       } else {
         // Summarize remaining older messages
-        const olderMessages = session.history.slice(0, i + 1);
-        const summary = this.summarizeMessages(olderMessages);
-        const summaryContent = `[Summary of earlier conversation: ${summary}]`;
+          const olderMessages = session.history.slice(0, i + 1);
+          const summary = this.summarizeMessages(olderMessages, {
+            maxTokens,
+            remainingBudget: Math.max(0, maxTokens - totalTokens)
+          });
+          const summaryContent = `[Summary of earlier conversation: ${summary}]`;
         const summaryTokens = this.estimateTokens(summaryContent);
         
+          // If summary would overflow the budget, drop oldest retained messages first
+          while (messages.length > 0 && totalTokens + summaryTokens > maxTokens) {
+            const removed = messages.shift();
+            if (!removed) {
+              break;
+            }
+            totalTokens -= this.estimateTokens(removed.content);
+          }
+
         messages.unshift({
           role: 'assistant',
           content: summaryContent,
@@ -317,60 +329,83 @@ export class SessionManager implements ISessionManager {
     };
   }
 
-  /**
-   * Cache session in Redis
-   * Uses incremental updates: stores history entries separately to avoid O(N^2) behavior
-   *
-   * NOTE: There is a theoretical race condition between lLen check and rPush operations.
-   * In practice, this is acceptable because:
-   * 1. Session updates are typically sequential (same user in a session)
-   * 2. The window is very small (microseconds)
-   * 3. Impact is minimal (worst case: duplicate entry that gets overwritten)
-   *
-   * For production use with high concurrency, consider implementing distributed locking
-   * (e.g., Redlock) or using Redis Lua scripts for atomic check-and-append.
-   */
-  private async cacheSession(session: Session): Promise<void> {
-    const key = `session:${session.id}`;
-    const historyKey = `session:${session.id}:history`;
+    /**
+     * Cache session in Redis
+     * Uses incremental updates: stores history entries separately to avoid O(N^2) behavior
+     * WATCH/EXEC ensures existing length is read atomically with writes
+     */
+    private async cacheSession(session: Session): Promise<void> {
+      const key = `session:${session.id}`;
+      const historyKey = `session:${session.id}:history`;
+      const MAX_ATTEMPTS = 5;
 
-    // Use pipeline for atomic operations
-    const pipeline = this.redis.multi();
+      const buildPipeline = async () => {
+        const existingLength = await this.redis.lLen(historyKey).catch(() => 0);
+        const pipeline = this.redis.multi();
 
-    // Update session metadata (small, changes frequently)
-    pipeline.hSet(key, {
-      userId: session.userId,
-      createdAt: session.createdAt.toISOString(),
-      lastActivityAt: session.lastActivityAt.toISOString(),
-      contextWindowUsed: session.contextWindowUsed.toString(),
-      historyLength: session.history.length.toString()
-    });
+        pipeline.hSet(key, {
+          userId: session.userId,
+          createdAt: session.createdAt.toISOString(),
+          lastActivityAt: session.lastActivityAt.toISOString(),
+          contextWindowUsed: session.contextWindowUsed.toString(),
+          historyLength: session.history.length.toString()
+        });
 
-    // Store history entries incrementally in a list
-    // Check current length to determine if we need to append
-    const existingLength = await this.redis.lLen(historyKey).catch(() => 0);
+        if (session.history.length > existingLength) {
+          const newEntries = session.history.slice(existingLength);
+          if (newEntries.length > 0) {
+            pipeline.rPush(historyKey, newEntries.map(e => JSON.stringify(e)));
+          }
+        } else if (session.history.length < existingLength) {
+          pipeline.del(historyKey);
+          if (session.history.length > 0) {
+            pipeline.rPush(historyKey, session.history.map(e => JSON.stringify(e)));
+          }
+        }
 
-    if (session.history.length > existingLength) {
-      // Append only new entries (incremental update)
-      const newEntries = session.history.slice(existingLength);
-      for (const entry of newEntries) {
-        pipeline.rPush(historyKey, JSON.stringify(entry));
+        pipeline.expire(key, this.SESSION_TTL);
+        pipeline.expire(historyKey, this.SESSION_TTL);
+
+        return { pipeline, existingLength };
+      };
+
+      // Fallback for mocked Redis clients (e.g., unit tests) that do not support WATCH/UNWATCH
+      if (typeof this.redis.watch !== 'function') {
+        const { pipeline } = await buildPipeline();
+        await pipeline.exec();
+        return;
       }
-    } else if (session.history.length < existingLength) {
-      // History was truncated (e.g., after summarization) - rebuild
-      await this.redis.del(historyKey);
-      for (const entry of session.history) {
-        pipeline.rPush(historyKey, JSON.stringify(entry));
+
+      const safeUnwatch = async () => {
+        if (typeof this.redis.unwatch === 'function') {
+          try {
+            await this.redis.unwatch();
+          } catch {
+            // Ignore unwatch errors to avoid masking original issue
+          }
+        }
+      };
+
+      for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
+        try {
+          await this.redis.watch(historyKey);
+
+          const { pipeline } = await buildPipeline();
+          const result = await pipeline.exec();
+          if (result !== null) {
+            return;
+          }
+        } catch (error) {
+          await safeUnwatch();
+          throw error;
+        }
+
+        // Retry if transaction was aborted
+        await safeUnwatch();
       }
+
+      throw new Error('Failed to cache session after multiple attempts due to concurrent updates.');
     }
-    // If lengths match, no need to update history
-
-    // Set TTL on both keys
-    pipeline.expire(key, this.SESSION_TTL);
-    pipeline.expire(historyKey, this.SESSION_TTL);
-
-    await pipeline.exec();
-  }
 
   /**
    * Estimate token count for a message
@@ -388,7 +423,10 @@ export class SessionManager implements ISessionManager {
    * Extracts key information from conversation history to preserve context
    * Creates a concise summary appropriate for the available token budget
    */
-  private summarizeMessages(messages: HistoryEntry[]): string {
+  private summarizeMessages(
+    messages: HistoryEntry[],
+    options?: { maxTokens?: number; remainingBudget?: number }
+  ): string {
     if (messages.length === 0) {
       return 'No previous conversation.';
     }
@@ -396,19 +434,60 @@ export class SessionManager implements ISessionManager {
     const totalMessages = messages.length;
     const userCount = messages.filter(m => m.role === 'user').length;
     const assistantCount = messages.filter(m => m.role === 'assistant').length;
-    
-    // For very short summaries, just provide counts
-    if (totalMessages <= 3) {
-      return `${totalMessages} earlier messages`;
-    }
-    
-    // Extract first user query to identify initial topic
+
     const firstUserQuery = messages.find(m => m.role === 'user')?.content || '';
-    const topicHint = firstUserQuery.length > 50 
-      ? firstUserQuery.substring(0, 50).trim() + '...'
-      : firstUserQuery.trim();
-    
-    // Build concise summary
-    return `${totalMessages} earlier messages (${userCount} user, ${assistantCount} assistant). Topic: ${topicHint}`;
+    const normalizedTopic = firstUserQuery.trim();
+
+    if (!options) {
+      // Backwards-compatible verbose summary when no token budget is provided
+      const topicHint = normalizedTopic.length > 50
+        ? normalizedTopic.substring(0, 50).trimEnd() + '...'
+        : normalizedTopic;
+      return `${totalMessages} earlier messages (${userCount} user, ${assistantCount} assistant). Topic: ${topicHint}`;
+    }
+
+    const MIN_SUMMARY_TOKENS = 4;
+    let budgetTokens = MIN_SUMMARY_TOKENS;
+
+    if (typeof options.maxTokens === 'number' && options.maxTokens > 0) {
+      budgetTokens = Math.max(budgetTokens, Math.ceil(options.maxTokens * 0.3));
+    }
+
+    if (typeof options.remainingBudget === 'number') {
+      const safeBudget = Math.max(MIN_SUMMARY_TOKENS, Math.ceil(options.remainingBudget));
+      budgetTokens = Math.min(budgetTokens, safeBudget);
+    }
+
+    const maxChars = Math.max(MIN_SUMMARY_TOKENS * 4, budgetTokens * 4);
+
+    const minimalSummary = `${totalMessages} msgs`;
+    if (minimalSummary.length >= maxChars) {
+      return minimalSummary.slice(0, Math.max(3, maxChars - 1)).trimEnd() + '...';
+    }
+
+    const prefix = `${totalMessages} msgs, ${userCount}u/${assistantCount}a`;
+    const availableTopicChars = Math.max(0, maxChars - (prefix.length + 2)); // account for comma and space
+    let topicHint = normalizedTopic;
+
+    if (topicHint.length > availableTopicChars && availableTopicChars > 0) {
+      const sliceLength = Math.max(1, availableTopicChars - 3);
+      topicHint = topicHint.substring(0, sliceLength).trimEnd();
+      if (topicHint.length < normalizedTopic.length) {
+        topicHint = `${topicHint}...`;
+      }
+    } else if (availableTopicChars === 0) {
+      topicHint = '';
+    }
+
+    let summary = prefix;
+    if (topicHint) {
+      summary += `, topic:${topicHint}`;
+    }
+
+    if (summary.length <= maxChars) {
+      return summary;
+    }
+
+    return minimalSummary;
   }
 }

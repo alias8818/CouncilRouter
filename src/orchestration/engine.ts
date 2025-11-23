@@ -365,16 +365,25 @@ export class OrchestrationEngine implements IOrchestrationEngine {
     // This ensures we use the complete set of responses that were successfully collected
     // before the timeout, rather than relying on this.partialResponses which may be incomplete
     // if the timeout occurred before all callbacks executed
-    
-    // getPartialResults now returns TrackedResponse[], so we can safely cast
-    // The interface allows ProviderResponse[] for backward compatibility, but internally
-    // we always pass TrackedResponse[] from getPartialResults
+
+    // Fixed: Validate that partial responses are TrackedResponse[] with runtime check
+    const isTrackedResponse = (obj: any): obj is TrackedResponse => {
+      return obj && typeof obj === 'object' &&
+             'memberId' in obj &&
+             'response' in obj &&
+             'initialResponse' in obj;
+    };
+
+    if (!Array.isArray(partialResponses) || !partialResponses.every(isTrackedResponse)) {
+      throw new Error('Invalid partial responses: expected TrackedResponse[]');
+    }
+
     const trackedResponses = partialResponses as TrackedResponse[];
-    
+
     if (trackedResponses.length === 0) {
       throw new Error('Global timeout reached with no successful responses');
     }
-    
+
     // Convert to deliberation thread with actual member IDs
     const deliberationThread: DeliberationThread = {
       rounds: [{

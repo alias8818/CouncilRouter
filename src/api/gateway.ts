@@ -262,12 +262,12 @@ export class APIGateway implements IAPIGateway {
     }
 
     // Sanitize query input
-    // Remove null bytes and control characters that could be used in injection attacks
+    // Remove null bytes and dangerous control characters that could be used in injection attacks
     // Note: Preserve printable ASCII characters (0x20-0x7E) including punctuation
-    // Preserve tab (0x09) and newline (0x0A) but remove all other control characters including carriage return (0x0D)
+    // Preserve tab (0x09), newline (0x0A), and carriage return (0x0D) for legitimate multi-line input
     let sanitizedQuery = body.query
       .replace(/\0/g, '') // Remove null bytes
-      .replace(/[\x00-\x08\x0B-\x0D\x0E-\x1F\x7F-\x9F]/g, ''); // Remove control characters but preserve \n (0x0A) and \t (0x09)
+      .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, ''); // Remove control characters but preserve \t (0x09), \n (0x0A), and \r (0x0D)
     sanitizedQuery = sanitizedQuery.trim();
 
     if (sanitizedQuery.length === 0) {

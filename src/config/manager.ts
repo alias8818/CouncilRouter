@@ -320,16 +320,19 @@ export class ConfigurationManager implements IConfigurationManager {
    * Update synthesis configuration
    */
   private async updateSynthesisConfig(config: SynthesisConfig): Promise<void> {
+    // Validate configuration
+    this.validateSynthesisConfig(config);
+
     // Get current version
     const versionResult = await this.db.query(
-      `SELECT COALESCE(MAX(version), 0) as max_version 
+      `SELECT COALESCE(MAX(version), 0) as max_version
        FROM configurations WHERE config_type = 'synthesis'`
     );
     const newVersion = versionResult.rows[0].max_version + 1;
 
     // Deactivate old configurations
     await this.db.query(
-      `UPDATE configurations SET active = false 
+      `UPDATE configurations SET active = false
        WHERE config_type = 'synthesis' AND active = true`
     );
 
@@ -471,6 +474,69 @@ export class ConfigurationManager implements IConfigurationManager {
       throw new ConfigurationValidationError(
         'Global timeout must be positive'
       );
+    }
+  }
+
+  /**
+   * Validate synthesis configuration
+   */
+  private validateSynthesisConfig(config: SynthesisConfig): void {
+    if (!config.strategy) {
+      throw new ConfigurationValidationError(
+        'Synthesis strategy is required'
+      );
+    }
+
+    const validTypes = ['consensus-extraction', 'weighted-fusion', 'meta-synthesis'];
+    if (!validTypes.includes(config.strategy.type)) {
+      throw new ConfigurationValidationError(
+        `Invalid synthesis strategy type: ${config.strategy.type}. Must be one of: ${validTypes.join(', ')}`
+      );
+    }
+
+    // Validate weighted-fusion specific configuration
+    if (config.strategy.type === 'weighted-fusion') {
+      const strategy = config.strategy as any;
+      if (!strategy.weights || !(strategy.weights instanceof Map) || strategy.weights.size === 0) {
+        throw new ConfigurationValidationError(
+          'Weighted fusion strategy requires non-empty weights map'
+        );
+      }
+
+      // Validate all weights are positive numbers
+      for (const [memberId, weight] of strategy.weights.entries()) {
+        if (typeof weight !== 'number' || weight <= 0 || isNaN(weight)) {
+          throw new ConfigurationValidationError(
+            `Invalid weight for member ${memberId}: must be a positive number`
+          );
+        }
+      }
+    }
+
+    // Validate meta-synthesis specific configuration
+    if (config.strategy.type === 'meta-synthesis') {
+      const strategy = config.strategy as any;
+      if (!strategy.moderatorStrategy) {
+        throw new ConfigurationValidationError(
+          'Meta-synthesis strategy requires moderatorStrategy'
+        );
+      }
+
+      const validModeratorTypes = ['permanent', 'rotate', 'strongest'];
+      if (!validModeratorTypes.includes(strategy.moderatorStrategy.type)) {
+        throw new ConfigurationValidationError(
+          `Invalid moderator strategy type: ${strategy.moderatorStrategy.type}. Must be one of: ${validModeratorTypes.join(', ')}`
+        );
+      }
+
+      // Validate permanent moderator has member ID
+      if (strategy.moderatorStrategy.type === 'permanent') {
+        if (!strategy.moderatorStrategy.memberId) {
+          throw new ConfigurationValidationError(
+            'Permanent moderator strategy requires memberId'
+          );
+        }
+      }
     }
   }
 
@@ -761,8 +827,18 @@ export class ConfigurationManager implements IConfigurationManager {
    * Serialize synthesis config (convert Maps to objects for JSON storage)
    */
   private serializeSynthesisConfig(config: SynthesisConfig): any {
+    const serializedStrategy: any = {
+      ...config.strategy
+    };
+
+    if (config.strategy.type === 'weighted-fusion' && (config.strategy as any).weights) {
+      const strategyWeights = (config.strategy as any).weights;
+      serializedStrategy.weights =
+        strategyWeights instanceof Map ? Object.fromEntries(strategyWeights) : strategyWeights;
+    }
+
     const serialized: any = {
-      strategy: config.strategy
+      strategy: serializedStrategy
     };
 
     if (config.moderatorStrategy) {
@@ -780,8 +856,14 @@ export class ConfigurationManager implements IConfigurationManager {
    * Deserialize synthesis config (convert objects to Maps)
    */
   private deserializeSynthesisConfig(data: any): SynthesisConfig {
+    const strategy: any = data.strategy ? { ...data.strategy } : undefined;
+    if (strategy?.type === 'weighted-fusion' && strategy.weights) {
+      strategy.weights =
+        strategy.weights instanceof Map ? strategy.weights : new Map(Object.entries(strategy.weights));
+    }
+
     const config: SynthesisConfig = {
-      strategy: data.strategy
+      strategy
     };
 
     if (data.moderatorStrategy) {

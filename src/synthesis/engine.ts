@@ -90,15 +90,10 @@ export class SynthesisEngine implements ISynthesisEngine {
     // Extract all exchanges from all rounds
     const allExchanges = thread.rounds.flatMap(round => round.exchanges);
 
+    // Fixed: Throw error instead of returning placeholder when no exchanges exist
+    // This allows callers to properly handle the failure case
     if (allExchanges.length === 0) {
-      return {
-        content: 'No responses available',
-        confidence: 'low',
-        agreementLevel: 0,
-        synthesisStrategy: strategy,
-        contributingMembers: [],
-        timestamp: new Date()
-      };
+      throw new Error('Cannot synthesize consensus: no council member responses available');
     }
 
     // Get unique contributing members
@@ -511,11 +506,10 @@ export class SynthesisEngine implements ISynthesisEngine {
 
       case 'rotate':
         // Rotate through members
-        // Note: In Node.js single-threaded event loop, counter increment is atomic
-        // No need for complex locking mechanisms
-        const selectedMember = members[this.rotationIndex % members.length];
-        this.rotationIndex++;
-        return selectedMember;
+        // Fixed: Use post-increment in single expression to ensure atomicity
+        // Even though JS is single-threaded, async operations can interleave between statements
+        const index = this.rotationIndex++;
+        return members[index % members.length];
 
       case 'strongest':
         // Select based on model rankings
