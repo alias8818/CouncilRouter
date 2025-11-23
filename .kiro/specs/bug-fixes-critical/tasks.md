@@ -184,13 +184,22 @@
   - **Property 20: Token estimation handles code content**
   - **Validates: Requirements 12.3**
 
-- [ ] 18. Fix Dashboard getAllProviderHealth compilation error
+- [x] 18. Fix Dashboard getAllProviderHealth compilation error
+
+
+
   - Add getAllProviderHealth method to IProviderPool interface
   - Implement getAllProviderHealth in Provider Pool
   - Return array of all provider health statuses
   - _Requirements: Related to provider health tracking_
 
-- [ ] 19. Fix rotation concurrency property test
+- [x] 19. Fix rotation concurrency property test
+
+
+
+
+
+
   - Investigate why rotation distribution isn't perfect under concurrency
   - Either fix the rotation implementation or adjust test expectations
   - Ensure test accurately reflects the rotation behavior requirements

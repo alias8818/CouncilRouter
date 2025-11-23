@@ -524,18 +524,25 @@ export class SynthesisEngine implements ISynthesisEngine {
    * Uses a promise chain to serialize rotation index access across concurrent calls
    */
   private async getNextRotationMember(members: CouncilMember[]): Promise<CouncilMember> {
-    // Chain this operation after the previous rotation operation completes
-    const previousLock = this.rotationLock;
-    let index: number = 0;
-
-    // Create a new promise that will complete after we get our index
-    this.rotationLock = previousLock.then(() => {
-      // Atomically get and increment the rotation index
-      index = this.rotationIndex++;
+    // Create a promise that will resolve with our index
+    let resolveIndex: (index: number) => void;
+    const indexPromise = new Promise<number>(resolve => {
+      resolveIndex = resolve;
     });
 
-    // Wait for our turn to get the index
-    await this.rotationLock;
+    // Chain this operation after the previous rotation operation completes
+    const previousLock = this.rotationLock;
+    
+    // Update the lock to wait for this operation to complete
+    this.rotationLock = previousLock.then(async () => {
+      // Atomically get and increment the rotation index
+      const myIndex = this.rotationIndex++;
+      // Resolve the index for this specific call
+      resolveIndex(myIndex);
+    });
+
+    // Wait for our turn and get our index
+    const index = await indexPromise;
 
     // Return the member at this index
     return members[index % members.length];
