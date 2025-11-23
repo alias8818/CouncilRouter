@@ -58,6 +58,10 @@ export abstract class BaseProviderAdapter {
 
       try {
         // Create timeout promise with cleanup mechanism
+        // Validate timeout value to prevent NaN
+        if (typeof member.timeout !== 'number' || isNaN(member.timeout) || member.timeout <= 0) {
+          throw new Error(`Invalid timeout value for member ${member.id}: ${member.timeout}`);
+        }
         const timeoutMs = member.timeout * 1000; // Convert seconds to milliseconds
         const timeoutPromise = new Promise<never>((_, reject) => {
           timeoutId = setTimeout(() => {

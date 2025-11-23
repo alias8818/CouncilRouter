@@ -87,6 +87,12 @@ export class OrchestrationEngine implements IOrchestrationEngine {
     }
     
     // Set up global timeout
+    // Validate globalTimeout value to prevent NaN
+    if (typeof performanceConfig.globalTimeout !== 'number' || 
+        isNaN(performanceConfig.globalTimeout) || 
+        performanceConfig.globalTimeout <= 0) {
+      throw new Error(`Invalid globalTimeout value: ${performanceConfig.globalTimeout}`);
+    }
     const globalTimeoutMs = performanceConfig.globalTimeout * 1000;
     const globalTimeoutPromise = this.createGlobalTimeout(globalTimeoutMs);
     
@@ -425,6 +431,10 @@ export class OrchestrationEngine implements IOrchestrationEngine {
     const startTime = Date.now();
 
     // Create timeout promise for this specific member with cleanup
+    // Validate timeout value to prevent NaN
+    if (typeof member.timeout !== 'number' || isNaN(member.timeout) || member.timeout <= 0) {
+      throw new Error(`Invalid timeout value for member ${member.id}: ${member.timeout}`);
+    }
     const timeoutMs = member.timeout * 1000;
     let timeoutId: NodeJS.Timeout | null = null;
 
@@ -516,6 +526,10 @@ export class OrchestrationEngine implements IOrchestrationEngine {
    * Create a global timeout promise
    */
   private createGlobalTimeout(timeoutMs: number): Promise<'GLOBAL_TIMEOUT'> {
+    // Validate timeout value to prevent NaN
+    if (typeof timeoutMs !== 'number' || isNaN(timeoutMs) || timeoutMs <= 0) {
+      throw new Error(`Invalid timeout value for global timeout: ${timeoutMs}`);
+    }
     return new Promise((resolve) => {
       setTimeout(() => {
         resolve('GLOBAL_TIMEOUT');
