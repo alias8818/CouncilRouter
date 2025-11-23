@@ -54,45 +54,56 @@ export abstract class BaseProviderAdapter {
     let lastError: Error | undefined;
     
     for (let attempt = 0; attempt < retryPolicy.maxAttempts; attempt++) {
+      let timeoutId: NodeJS.Timeout | null = null;
+
       try {
-        // Create timeout promise
+        // Create timeout promise with cleanup mechanism
         const timeoutMs = member.timeout * 1000; // Convert seconds to milliseconds
-        let timeoutId: NodeJS.Timeout | null = null;
         const timeoutPromise = new Promise<never>((_, reject) => {
           timeoutId = setTimeout(() => {
             reject(new Error(`Request timeout after ${member.timeout}s`));
           }, timeoutMs);
         });
-        
-        // Race between request and timeout, ensuring timeout is cleared
-        const response = await Promise.race([
-          requestFn(),
-          timeoutPromise
-        ]).finally(() => {
+
+        // Race between request and timeout
+        // Use try-finally to ensure timeout is always cleared
+        try {
+          const response = await Promise.race([
+            requestFn(),
+            timeoutPromise
+          ]);
+
+          const { content, tokenUsage } = this.parseResponse(response);
+          const latency = Date.now() - startTime;
+
+          return {
+            content,
+            tokenUsage,
+            latency,
+            success: true
+          };
+        } finally {
+          // Always clear timeout, whether request succeeded or failed
           if (timeoutId !== null) {
             clearTimeout(timeoutId);
             timeoutId = null;
           }
-        });
-        
-        const { content, tokenUsage } = this.parseResponse(response);
-        const latency = Date.now() - startTime;
-        
-        return {
-          content,
-          tokenUsage,
-          latency,
-          success: true
-        };
+        }
       } catch (error) {
+        // Ensure timeout is cleared even if error occurred before finally block
+        if (timeoutId !== null) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+
         lastError = error as Error;
         const errorCode = this.getErrorCode(error);
-        
+
         // Check if error is retryable
         if (!retryPolicy.retryableErrors.includes(errorCode)) {
           break;
         }
-        
+
         // Don't retry on last attempt
         if (attempt < retryPolicy.maxAttempts - 1) {
           const delay = this.calculateBackoffDelay(
