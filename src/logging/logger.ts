@@ -237,8 +237,16 @@ export class EventLogger implements IEventLogger {
 
   /**
    * Generate a UUID for database records
+   * CRITICAL FIX: Use crypto.randomUUID() instead of Math.random() for cryptographic security
    */
   private generateUUID(): string {
+    // Use Node.js built-in crypto.randomUUID() for proper UUID v4 generation
+    // Falls back to custom implementation for older Node.js versions
+    if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+      return crypto.randomUUID();
+    }
+
+    // Fallback for older environments (though this should not be needed in modern Node.js)
     return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
       const r = Math.random() * 16 | 0;
       const v = c === 'x' ? r : (r & 0x3 | 0x8);

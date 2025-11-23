@@ -91,13 +91,13 @@ export class AnalyticsEngine implements IAnalyticsEngine {
     // Group by council size
     const byCouncilSize = new Map<number, LatencyStats>();
     const councilSizeGroups = new Map<number, number[]>();
-    
+
     for (const row of result.rows) {
-      // Skip rows with missing data
-      if (!row || row.total_latency_ms == null) {
+      // Skip rows with missing data - CRITICAL FIX: check members before accessing
+      if (!row || row.total_latency_ms == null || !row.members) {
         continue;
       }
-      
+
       const councilSize = Array.isArray(row.members) ? row.members.length : 0;
       if (!councilSizeGroups.has(councilSize)) {
         councilSizeGroups.set(councilSize, []);
@@ -118,13 +118,13 @@ export class AnalyticsEngine implements IAnalyticsEngine {
     // Group by deliberation rounds
     const byDeliberationRounds = new Map<number, LatencyStats>();
     const roundGroups = new Map<number, number[]>();
-    
+
     for (const row of result.rows) {
-      // Skip rows with missing data
-      if (!row || row.total_latency_ms == null) {
+      // Skip rows with missing data - CRITICAL FIX: check deliberation_rounds field
+      if (!row || row.total_latency_ms == null || row.deliberation_rounds == null) {
         continue;
       }
-      
+
       const rounds = row.deliberation_rounds || 0;
       if (!roundGroups.has(rounds)) {
         roundGroups.set(rounds, []);

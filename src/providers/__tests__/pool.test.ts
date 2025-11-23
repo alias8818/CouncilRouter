@@ -108,10 +108,15 @@ describe('ProviderPool', () => {
     test('should return all provider health statuses', () => {
       const allHealth = pool.getAllProviderHealth();
       expect(Array.isArray(allHealth)).toBe(true);
-      
-      // Should have entries for each configured provider
+
+      // CRITICAL FIX: Actually verify expected providers exist (not just >= 0 which is always true)
       const providerIds = allHealth.map(h => h.providerId);
-      expect(providerIds.length).toBeGreaterThanOrEqual(0);
+      expect(providerIds.length).toBeGreaterThan(0);
+
+      // Verify expected providers are included
+      expect(providerIds).toContain('openai');
+      expect(providerIds).toContain('anthropic');
+      expect(providerIds).toContain('google');
     });
   });
 });

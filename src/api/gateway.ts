@@ -632,6 +632,7 @@ export class APIGateway implements IAPIGateway {
         res.end();
         // Clean up this connection since it completed immediately
         this.removeStreamingConnection(requestId, res);
+        // CRITICAL FIX: Return early to avoid registering close handler
         return;
       }
 
@@ -640,6 +641,7 @@ export class APIGateway implements IAPIGateway {
         res.end();
         // Clean up this connection since it failed immediately
         this.removeStreamingConnection(requestId, res);
+        // CRITICAL FIX: Return early to avoid registering close handler
         return;
       }
 
@@ -647,6 +649,7 @@ export class APIGateway implements IAPIGateway {
       this.sendSSE(res, 'status', 'processing');
 
       // Clean up on client disconnect
+      // Only register this handler if request is still processing
       req.on('close', () => {
         this.removeStreamingConnection(requestId, res);
       });
