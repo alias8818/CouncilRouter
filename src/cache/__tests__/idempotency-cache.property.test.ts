@@ -25,8 +25,8 @@ describe('Idempotency Cache - Property Tests', () => {
 
   beforeEach(async () => {
     cache = new IdempotencyCache(redis);
-      // Clean up test keys
-      const keys = await redis.keys('idempotency:*');
+    // Clean up test keys
+    const keys = await redis.keys('idempotency:test-*');
     if (keys.length > 0) {
       await redis.del(keys);
     }

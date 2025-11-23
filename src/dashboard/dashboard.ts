@@ -263,20 +263,51 @@ export class Dashboard implements IDashboard {
       );
     }
 
-    // Final fallback: query database for council member IDs when config manager is unavailable.
-    // Use council_responses, which actually stores council_member_id values.
+    // Final fallback: query database to map council member IDs to provider IDs
+    // Join council_responses with requests to access config_snapshot which contains
+    // the mapping between council_member_id and provider
     const result = await this.db.query(`
-      SELECT DISTINCT council_member_id
-      FROM council_responses
-      WHERE council_member_id IS NOT NULL
+      SELECT DISTINCT
+        cr.council_member_id,
+        r.config_snapshot->'members' AS members
+      FROM council_responses cr
+      INNER JOIN requests r ON cr.request_id = r.id
+      WHERE cr.council_member_id IS NOT NULL
+        AND r.config_snapshot->'members' IS NOT NULL
+      LIMIT 100
     `);
 
     if (result.rows.length === 0) {
       return [];
     }
 
-    return result.rows.map(row =>
-      this.providerPool.getProviderHealth(row.council_member_id)
+    // Build a mapping from council_member_id to provider
+    const memberToProvider = new Map<string, string>();
+    const uniqueProviders = new Set<string>();
+
+    for (const row of result.rows) {
+      const councilMemberId = row.council_member_id;
+      
+      // If we already have this mapping, skip
+      if (memberToProvider.has(councilMemberId)) {
+        continue;
+      }
+
+      // Extract provider from config_snapshot members array
+      if (row.members && Array.isArray(row.members)) {
+        for (const member of row.members) {
+          if (member.id === councilMemberId && member.provider) {
+            memberToProvider.set(councilMemberId, member.provider);
+            uniqueProviders.add(member.provider);
+            break;
+          }
+        }
+      }
+    }
+
+    // Return health status for unique providers (not council member IDs)
+    return Array.from(uniqueProviders).map(providerId =>
+      this.providerPool.getProviderHealth(providerId)
     );
   }
 

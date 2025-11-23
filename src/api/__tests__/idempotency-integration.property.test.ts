@@ -43,7 +43,7 @@ describe('API Gateway Idempotency Integration - Property Tests', () => {
 
   beforeEach(async () => {
     // Clean up test keys
-      const keys = await redis.keys('idempotency:*');
+    const keys = await redis.keys('idempotency:test-*');
     if (keys.length > 0) {
       await redis.del(keys);
     }
