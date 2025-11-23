@@ -236,11 +236,30 @@ export class ToolExecutionEngine implements IToolExecutionEngine {
     promise: Promise<T>,
     timeoutMs: number
   ): Promise<T> {
+    let timeoutId: NodeJS.Timeout | null = null;
     const timeout = new Promise<T>((_, reject) => {
-      setTimeout(() => reject(new Error('Tool execution timeout')), timeoutMs);
+      timeoutId = setTimeout(() => {
+        timeoutId = null; // Mark as cleared
+        reject(new Error('Tool execution timeout'));
+      }, timeoutMs);
     });
 
-    return Promise.race([promise, timeout]);
+    try {
+      const result = await Promise.race([promise, timeout]);
+      // Clear timeout if promise resolved first (timeout didn't fire)
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+      return result;
+    } catch (error) {
+      // Clear timeout on error as well (in case promise rejected before timeout)
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+      throw error;
+    }
   }
 
   /**

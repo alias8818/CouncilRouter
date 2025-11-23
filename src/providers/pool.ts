@@ -38,25 +38,37 @@ export class ProviderPool implements IProviderPool {
     const anthropicKey = process.env.ANTHROPIC_API_KEY;
     const googleKey = process.env.GOOGLE_API_KEY;
 
+    const missingKeys: string[] = [];
+
     if (openaiKey) {
       this.adapters.set('openai', new OpenAIAdapter(openaiKey));
       this.initializeHealthTracking('openai');
     } else {
-      console.warn('WARNING: OPENAI_API_KEY not found. OpenAI provider will not be available.');
+      missingKeys.push('OPENAI_API_KEY');
     }
 
     if (anthropicKey) {
       this.adapters.set('anthropic', new AnthropicAdapter(anthropicKey));
       this.initializeHealthTracking('anthropic');
     } else {
-      console.warn('WARNING: ANTHROPIC_API_KEY not found. Anthropic provider will not be available.');
+      missingKeys.push('ANTHROPIC_API_KEY');
     }
 
     if (googleKey) {
       this.adapters.set('google', new GoogleAdapter(googleKey));
       this.initializeHealthTracking('google');
     } else {
-      console.warn('WARNING: GOOGLE_API_KEY not found. Google provider will not be available.');
+      missingKeys.push('GOOGLE_API_KEY');
+    }
+
+    // Log warnings for all missing API keys
+    if (missingKeys.length > 0) {
+      const providers = missingKeys.map(key => key.replace('_API_KEY', '').toLowerCase()).join(', ');
+      console.warn(
+        `WARNING: Missing API keys detected: ${missingKeys.join(', ')}. ` +
+        `The following providers will not be available: ${providers}. ` +
+        `Please set the required environment variables to enable these providers.`
+      );
     }
   }
 

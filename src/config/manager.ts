@@ -1025,8 +1025,15 @@ export class ConfigurationManager implements IConfigurationManager {
   private deserializeSynthesisConfig(data: any): SynthesisConfig {
     const strategy: any = data.strategy ? { ...data.strategy } : undefined;
     if (strategy?.type === 'weighted-fusion' && strategy.weights) {
-      strategy.weights =
+      const weightsMap =
         strategy.weights instanceof Map ? strategy.weights : new Map(Object.entries(strategy.weights));
+      // Validate that weights map is not empty
+      if (weightsMap.size === 0) {
+        throw new ConfigurationValidationError(
+          'Weighted fusion strategy requires non-empty weights map'
+        );
+      }
+      strategy.weights = weightsMap;
     }
 
     const config: SynthesisConfig = {
@@ -1124,10 +1131,12 @@ export class ConfigurationManager implements IConfigurationManager {
 
   /**
    * Initialize default model rankings
+   * These are fallback values used when no rankings exist in the database.
+   * Rankings should be updated via updateModelRankings() based on actual model performance.
    */
   private async initializeDefaultModelRankings(): Promise<void> {
     const defaultRankings: ModelRankings = {
-      // === Legacy / 2023–mid-2024 models (significantly surpassed in 2025) ===
+      // === Legacy models ===
       'gpt-3.5-turbo': 65,
       'gpt-4': 85,
       'gpt-4-turbo': 90,
@@ -1141,7 +1150,7 @@ export class ConfigurationManager implements IConfigurationManager {
       'grok-1': 70,
       'grok-2': 88,
 
-      // === Current 2025 frontier closed models ===
+      // === Current frontier closed models ===
       'gemini-2.5-pro': 114,
       'gemini-3-pro': 113,
       'claude-sonnet-4.5': 112,
@@ -1153,7 +1162,7 @@ export class ConfigurationManager implements IConfigurationManager {
       'o3': 107,
       'o4-mini': 96,
 
-      // === Strong 2025 open-weight models ===
+      // === Strong open-weight models ===
       'deepseek-v3': 109,
       'deepseek-r1': 108,
       'qwen3-235b': 107,
