@@ -9,80 +9,34 @@ on:
 jobs:
   lint-and-build:
     name: Lint and Build
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Check and Install Node.js
-        shell: pwsh
-        run: |
-          $nodeVersion = "20"
-          $nodeInstalled = $false
-          
-          # Check if Node.js is installed
-          try {
-            $nodeVersionInstalled = node --version 2>$null
-            if ($nodeVersionInstalled) {
-              Write-Host "Node.js is already installed: $nodeVersionInstalled"
-              $nodeInstalled = $true
-            }
-          } catch {
-            Write-Host "Node.js not found, will install..."
-          }
-          
-          if (-not $nodeInstalled) {
-            Write-Host "Installing Node.js $nodeVersion..."
-            
-            # Try using winget first (Windows 10/11)
-            try {
-              winget install OpenJS.NodeJS.LTS --silent --accept-package-agreements --accept-source-agreements
-              Write-Host "Node.js installed via winget"
-            } catch {
-              Write-Host "winget not available, trying Chocolatey..."
-              try {
-                choco install nodejs-lts -y
-                Write-Host "Node.js installed via Chocolatey"
-              } catch {
-                Write-Host "Chocolatey not available, downloading directly..."
-                # Download and install Node.js directly
-                $nodeUrl = "https://nodejs.org/dist/v${nodeVersion}.0/node-v${nodeVersion}.0-x64.msi"
-                $installerPath = "$env:TEMP\nodejs-installer.msi"
-                Invoke-WebRequest -Uri $nodeUrl -OutFile $installerPath
-                Start-Process msiexec.exe -Wait -ArgumentList "/i $installerPath /quiet /norestart"
-                Remove-Item $installerPath
-                Write-Host "Node.js installed via direct download"
-              }
-            }
-            
-            # Refresh PATH
-            $env:Path = [System.Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [System.Environment]::GetEnvironmentVariable("Path","User")
-          }
-          
-          # Verify installation
-          node --version
-          npm --version
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
 
       - name: Install dependencies
-        shell: pwsh
         run: |
           # Note: Deprecation warnings for inflight@1.0.6 and glob@7.2.3 are expected
           # These come from Jest's transitive dependencies and are harmless.
           # They will be resolved when Jest updates its dependencies.
-          if (Test-Path "package-lock.json") {
+          if [ -f "package-lock.json" ]; then
             npm ci
-          } else {
-            Write-Host "package-lock.json not found, generating it with npm install"
+          else
+            echo "package-lock.json not found, generating it with npm install"
             npm install
-          }
+          fi
 
       - name: Type check
-        shell: pwsh
         run: npm run build
 
       - name: Check for linting errors
-        shell: pwsh
         run: |
           # Run build to catch TypeScript errors
           npm run build
@@ -91,8 +45,12 @@ jobs:
 
   test:
     name: Run Tests
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     needs: lint-and-build
+
+    permissions:
+      contents: read
+      checks: write
 
     env:
       NODE_ENV: test
@@ -106,142 +64,58 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Check and Setup PostgreSQL
-        shell: pwsh
+      - name: Setup PostgreSQL
         run: |
-          # Check if Docker is available (preferred method)
-          $dockerAvailable = $false
-          try {
-            docker --version 2>$null | Out-Null
-            $dockerAvailable = $true
-            Write-Host "Docker is available"
-          } catch {
-            Write-Host "Docker not available, checking for PostgreSQL service..."
-          }
+          docker run -d \
+            --name test-postgres \
+            -e POSTGRES_DB=test \
+            -e POSTGRES_USER=postgres \
+            -e POSTGRES_PASSWORD=postgres \
+            -p 5432:5432 \
+            postgres:14-alpine
           
-          if ($dockerAvailable) {
-            # Use Docker for PostgreSQL
-            Write-Host "Starting PostgreSQL container..."
-            $containerExists = docker ps -a --filter "name=test-postgres" --format "{{.Names}}"
-            if ($containerExists -eq "test-postgres") {
-              Write-Host "PostgreSQL container exists, starting it..."
-              docker start test-postgres
-            } else {
-              Write-Host "Creating PostgreSQL container..."
-              docker run -d `
-                --name test-postgres `
-                -e POSTGRES_DB=test `
-                -e POSTGRES_USER=postgres `
-                -e POSTGRES_PASSWORD=postgres `
-                -p 5432:5432 `
-                postgres:14-alpine
-            }
-            
-            # Wait for PostgreSQL to be ready
-            $maxAttempts = 30
-            $attempt = 0
-            do {
-              Start-Sleep -Seconds 2
-              $attempt++
-              try {
-                $result = docker exec test-postgres pg_isready -U postgres 2>$null
-                if ($LASTEXITCODE -eq 0) {
-                  Write-Host "PostgreSQL is ready!"
-                  break
-                }
-              } catch {
-                # Continue waiting
-              }
-            } while ($attempt -lt $maxAttempts)
-          } else {
-            # Check if PostgreSQL service is running
-            $pgService = Get-Service -Name "postgresql*" -ErrorAction SilentlyContinue
-            if ($pgService) {
-              Write-Host "PostgreSQL service found: $($pgService.Name)"
-              if ($pgService.Status -ne "Running") {
-                Write-Host "Starting PostgreSQL service..."
-                Start-Service $pgService.Name
-              }
-            } else {
-              Write-Host "PostgreSQL not found. Please install PostgreSQL 14+ or Docker Desktop."
-              Write-Host "You can install PostgreSQL from: https://www.postgresql.org/download/windows/"
-              exit 1
-            }
-          }
+          # Wait for PostgreSQL to be ready
+          for i in {1..30}; do
+            if docker exec test-postgres pg_isready -U postgres > /dev/null 2>&1; then
+              echo "PostgreSQL is ready!"
+              break
+            fi
+            sleep 2
+          done
 
-      - name: Check and Setup Redis
-        shell: pwsh
+      - name: Setup Redis
         run: |
-          # Check if Docker is available (preferred method)
-          $dockerAvailable = $false
-          try {
-            docker --version 2>$null | Out-Null
-            $dockerAvailable = $true
-            Write-Host "Docker is available"
-          } catch {
-            Write-Host "Docker not available, checking for Redis service..."
-          }
+          docker run -d \
+            --name test-redis \
+            -p 6379:6379 \
+            redis:7-alpine
           
-          if ($dockerAvailable) {
-            # Use Docker for Redis
-            Write-Host "Starting Redis container..."
-            $containerExists = docker ps -a --filter "name=test-redis" --format "{{.Names}}"
-            if ($containerExists -eq "test-redis") {
-              Write-Host "Redis container exists, starting it..."
-              docker start test-redis
-            } else {
-              Write-Host "Creating Redis container..."
-              docker run -d `
-                --name test-redis `
-                -p 6379:6379 `
-                redis:7-alpine
-            }
-            
-            # Wait for Redis to be ready
-            $maxAttempts = 30
-            $attempt = 0
-            do {
-              Start-Sleep -Seconds 2
-              $attempt++
-              try {
-                $result = docker exec test-redis redis-cli ping 2>$null
-                if ($result -eq "PONG") {
-                  Write-Host "Redis is ready!"
-                  break
-                }
-              } catch {
-                # Continue waiting
-              }
-            } while ($attempt -lt $maxAttempts)
-          } else {
-            # Check if Redis service is running
-            $redisService = Get-Service -Name "Redis*" -ErrorAction SilentlyContinue
-            if ($redisService) {
-              Write-Host "Redis service found: $($redisService.Name)"
-              if ($redisService.Status -ne "Running") {
-                Write-Host "Starting Redis service..."
-                Start-Service $redisService.Name
-              }
-            } else {
-              Write-Host "Redis not found. Please install Redis or Docker Desktop."
-              Write-Host "You can install Redis from: https://github.com/microsoftarchive/redis/releases"
-              Write-Host "Or install Docker Desktop: https://www.docker.com/products/docker-desktop"
-              exit 1
-            }
-          }
+          # Wait for Redis to be ready
+          for i in {1..30}; do
+            if docker exec test-redis redis-cli ping | grep -q PONG; then
+              echo "Redis is ready!"
+              break
+            fi
+            sleep 2
+          done
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
 
       - name: Install dependencies
-        shell: pwsh
         run: |
           # Note: Deprecation warnings for inflight@1.0.6 and glob@7.2.3 are expected
           # These come from Jest's transitive dependencies and are harmless.
           # They will be resolved when Jest updates its dependencies.
-          if (Test-Path "package-lock.json") {
+          if [ -f "package-lock.json" ]; then
             npm ci
-          } else {
-            Write-Host "package-lock.json not found, generating it with npm install"
+          else
+            echo "package-lock.json not found, generating it with npm install"
             npm install
-          }
+          fi
 
       - name: Cache Jest cache
         uses: actions/cache@v4
@@ -252,11 +126,9 @@ jobs:
             jest-cache-${{ runner.os }}-
 
       - name: Build project
-        shell: pwsh
         run: npm run build
 
       - name: Run tests
-        shell: pwsh
         run: |
           # Run tests with optimized settings for CI
           # --maxWorkers=100% uses all available CPU cores
@@ -275,14 +147,8 @@ jobs:
 
       - name: Publish test results
         if: always()
-        shell: pwsh
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          GITHUB_SHA: ${{ github.sha }}
-          GITHUB_REF: ${{ github.ref }}
-        run: |
-          # Use PowerShell script for Windows compatibility
-          # The container action doesn't work on Windows runners
-          .\.github\scripts\publish-test-results.ps1 -JUnitXmlPath "junit.xml" -CheckName "Test Results"
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: junit.xml
+          check_name: Test Results
 
