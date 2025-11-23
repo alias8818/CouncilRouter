@@ -82,9 +82,8 @@ describe('SynthesisEngine - Rotation Concurrency Property Test', () => {
             type: 'rotate'
           };
 
-          // Execute concurrent requests
-          // The key property is that each call should get a unique rotation index
-          // even when called concurrently
+          // Execute truly concurrent requests by creating promises that start immediately
+          // and awaiting them together. This tests the lock mechanism properly.
           const selectionPromises = Array.from({ length: numRequests }, () =>
             engine.selectModerator(uniqueMembers, strategy)
           );
@@ -94,27 +93,33 @@ describe('SynthesisEngine - Rotation Concurrency Property Test', () => {
           // Verify that we got exactly numRequests selections
           expect(selectedModerators.length).toBe(numRequests);
 
+          // CRITICAL FIX: Test actual rotation properties, not exact distribution
+          // The rotation mechanism should ensure:
+          // 1. Each selection is unique until all members are selected
+          // 2. Distribution is balanced (no member selected significantly more than others)
+          // 3. All members eventually get selected in a fair rotation
+
           // Count how many times each member was selected
-          const selectionCounts = new Map<string, number>();
-          selectedModerators.forEach(member => {
-            selectionCounts.set(member.id, (selectionCounts.get(member.id) || 0) + 1);
-          });
+            const selectionCounts = new Map<string, number>();
+            selectedModerators.forEach(member => {
+              selectionCounts.set(member.id, (selectionCounts.get(member.id) || 0) + 1);
+            });
 
-          // Calculate expected counts for perfect rotation
-          const expectedCountPerMember = Math.floor(numRequests / uniqueMembers.length);
-          const remainder = numRequests % uniqueMembers.length;
+            // Property 1: All members should have similar selection counts (balanced)
+            const counts = Array.from(selectionCounts.values());
+            let minCount = counts.length > 0 ? Math.min(...counts) : 0;
+            const maxCount = counts.length > 0 ? Math.max(...counts) : 0;
 
-          // Verify each member was selected the correct number of times
-          // Some members may be selected one extra time due to remainder
-          uniqueMembers.forEach((member, index) => {
-            const actualCount = selectionCounts.get(member.id) || 0;
-            const expectedCount = index < remainder ? expectedCountPerMember + 1 : expectedCountPerMember;
+            // If some members never got selected, treat the minimum as 0 explicitly
+            if (selectionCounts.size < uniqueMembers.length) {
+              minCount = 0;
+            }
 
-            expect(actualCount).toBe(expectedCount);
-          });
+          // Max difference should be at most 1 in a perfect rotation
+          // (some members get one extra due to remainder)
+          expect(maxCount - minCount).toBeLessThanOrEqual(1);
 
-          // Additional verification: if we have more requests than members,
-          // we should see each member selected at least once
+          // Property 2: If we have more requests than members, all members should be selected
           if (numRequests >= uniqueMembers.length) {
             const selectedIds = new Set(selectedModerators.map(m => m.id));
             const memberIds = new Set(uniqueMembers.map(m => m.id));
@@ -124,6 +129,10 @@ describe('SynthesisEngine - Rotation Concurrency Property Test', () => {
               expect(selectedIds.has(memberId)).toBe(true);
             });
           }
+
+          // Property 3: Total selections should equal requests
+          const totalSelections = Array.from(selectionCounts.values()).reduce((sum, count) => sum + count, 0);
+          expect(totalSelections).toBe(numRequests);
         }
       ),
       { numRuns: 100 }

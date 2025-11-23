@@ -69,6 +69,7 @@ const MODEL_RANKINGS: Record<string, number> = {
 
 export class SynthesisEngine implements ISynthesisEngine {
   private rotationIndex: number = 0;
+  private rotationLock: Promise<void> = Promise.resolve();
   private providerPool: IProviderPool;
   private configManager: IConfigurationManager;
 
@@ -505,11 +506,9 @@ export class SynthesisEngine implements ISynthesisEngine {
         return permanentMember;
 
       case 'rotate':
-        // Rotate through members
-        // Fixed: Use post-increment in single expression to ensure atomicity
-        // Even though JS is single-threaded, async operations can interleave between statements
-        const index = this.rotationIndex++;
-        return members[index % members.length];
+        // Use a promise-based lock to ensure atomic rotation across concurrent async calls
+        // This guarantees each call gets a unique sequential index
+        return await this.getNextRotationMember(members);
 
       case 'strongest':
         // Select based on model rankings
@@ -517,6 +516,44 @@ export class SynthesisEngine implements ISynthesisEngine {
 
       default:
         return members[0];
+    }
+  }
+
+  /**
+   * Get next member in rotation with proper locking to prevent race conditions
+   * Uses a promise chain to serialize rotation index access across concurrent calls
+   */
+  private async getNextRotationMember(members: CouncilMember[]): Promise<CouncilMember> {
+    if (members.length === 0) {
+      throw new Error('No council members available for rotation');
+    }
+
+    // Create a new lock promise and capture the resolver so we can release it
+    let releaseLock: (() => void) | undefined;
+    const nextLock = new Promise<void>((resolve) => {
+      releaseLock = resolve;
+    });
+
+    const previousLock = this.rotationLock;
+    // Chain the current lock to run after the previous one completes
+    this.rotationLock = previousLock.then(() => nextLock);
+
+    // Wait until all prior rotations have completed
+    await previousLock;
+
+    // Safeguard resolver initialization (should never happen)
+    if (!releaseLock) {
+      throw new Error('Rotation lock initialization failed');
+    }
+
+    try {
+      // Atomically compute the next index and wrap to avoid overflow
+      const index = this.rotationIndex % members.length;
+      this.rotationIndex = (this.rotationIndex + 1) % Number.MAX_SAFE_INTEGER;
+      return members[index];
+    } finally {
+      // Always release the lock so subsequent callers can proceed
+      releaseLock();
     }
   }
 

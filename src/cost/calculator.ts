@@ -326,32 +326,102 @@ export class CostCalculator {
    * (e.g., "2024-01-daily" matches "daily", but "pre-daily" does not match "daily")
    *
    * The period must be at the end of the periodKey, preceded by a separator.
-   * Fixed: More strict validation to only accept date-like prefixes (YYYY-MM, YYYY-WW, etc.)
+   * CRITICAL FIX: Validates that date components are in reasonable ranges
+   * to prevent false matches on invalid dates like "2024-99-99"
    */
   private matchesPeriod(periodKey: string, alertPeriod: string): boolean {
-    // Exact match for period comparison
+    if (!periodKey || !alertPeriod) {
+      return false;
+    }
+
+    // Exact match for simple periods (e.g., "daily")
     if (periodKey === alertPeriod) {
       return true;
     }
 
-    // Check if periodKey ends with the alertPeriod after a separator
-    // This handles cases where periodKey is formatted like "2024-01-daily", "2024-01-hourly", etc.
-    if (periodKey.endsWith(`-${alertPeriod}`) || periodKey.endsWith(`_${alertPeriod}`)) {
-      const prefix = periodKey.slice(0, -(alertPeriod.length + 1)); // Everything before "-period"
+    const suffixLength = alertPeriod.length + 1; // include separator
+    const hasSuffix =
+      periodKey.endsWith(`-${alertPeriod}`) || periodKey.endsWith(`_${alertPeriod}`);
 
-      // Allow empty prefix (exact period match was already checked above)
-      if (prefix.length === 0) {
-        return false; // "-daily" without prefix should not match
+    if (!hasSuffix || periodKey.length <= suffixLength) {
+      return false;
+    }
+
+    const prefix = periodKey.slice(0, -suffixLength);
+    if (prefix.length === 0) {
+      return false;
+    }
+
+    // Allow purely numeric prefixes (e.g., "20240115-daily" or "123456-weekly")
+    if (/^\d+$/.test(prefix)) {
+      return true;
+    }
+
+    // Normalize separators for validation
+    const normalized = prefix.replace(/_/g, '-');
+
+    // Reject any prefixes that contain non-numeric characters (letters, symbols)
+    if (/[^0-9-]/.test(normalized)) {
+      return false;
+    }
+
+    const parts = normalized.split('-');
+
+    // Reject consecutive separators (would produce empty strings)
+    if (parts.some(part => part.length === 0)) {
+      return false;
+    }
+
+    // Validate year range
+    const year = parseInt(parts[0], 10);
+    if (Number.isNaN(year) || year < 1900 || year > 2100) {
+      return false;
+    }
+
+    if (parts.length > 1) {
+      const monthSegment = parts[1];
+      const month = parseInt(monthSegment, 10);
+
+      if (Number.isNaN(month)) {
+        return false;
       }
 
-      // Only accept date-like formats: must start with 4 digits (year) or be purely numeric
-      // Accepts: "2024-01", "2024", "2024_01", "2024-W05", "20240115"
-      // Rejects: "pre2024", "2x24", "test-123"
-      if (/^\d{4}([-_]\d+)*$/.test(prefix) || /^\d+$/.test(prefix)) {
-        return true;
+      if (monthSegment.length === 2) {
+        // Treat 2-digit values as months (01-12)
+        if (month < 1 || month > 12) {
+          return false;
+        }
+      } else {
+        // Otherwise treat as ordinal within year (1-366)
+        if (month < 1 || month > 366) {
+          return false;
+        }
       }
     }
 
-    return false;
+    if (parts.length > 2) {
+      const day = parseInt(parts[2], 10);
+      if (Number.isNaN(day) || day < 1 || day > 31) {
+        return false;
+      }
+    }
+
+    if (parts.length > 3) {
+      const hour = parseInt(parts[3], 10);
+      if (Number.isNaN(hour) || hour < 0 || hour > 23) {
+        return false;
+      }
+    }
+
+    if (parts.length > 4) {
+      for (let i = 4; i < parts.length; i++) {
+        const value = parseInt(parts[i], 10);
+        if (Number.isNaN(value)) {
+          return false;
+        }
+      }
+    }
+
+    return true;
   }
 }

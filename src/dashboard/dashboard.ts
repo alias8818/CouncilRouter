@@ -247,23 +247,37 @@ export class Dashboard implements IDashboard {
    * Returns array of provider health information including warnings for disabled members
    */
   async getProviderHealthStatus(): Promise<ProviderHealth[]> {
-    // Get all unique provider IDs from council responses
-    const query = `
-      SELECT DISTINCT council_member_id
-      FROM council_responses
-    `;
+    const getAllHealth = (this.providerPool as any)?.getAllProviderHealth;
 
-    const result = await this.db.query(query);
-    const providerIds = result.rows.map(row => row.council_member_id);
-
-    // Get health status for each provider
-    const healthStatuses: ProviderHealth[] = [];
-    for (const providerId of providerIds) {
-      const health = this.providerPool.getProviderHealth(providerId);
-      healthStatuses.push(health);
+    if (typeof getAllHealth === 'function') {
+      return getAllHealth.call(this.providerPool);
     }
 
-    return healthStatuses;
+    if (this.configManager) {
+      // Preferred fallback: derive unique providers from council configuration
+      const councilConfig = await this.configManager.getCouncilConfig();
+      const uniqueProviders = Array.from(new Set(councilConfig.members.map(member => member.provider)));
+
+      return uniqueProviders.map(providerId =>
+        this.providerPool.getProviderHealth(providerId)
+      );
+    }
+
+    // Final fallback: query database for council member IDs when config manager is unavailable.
+    // Use council_responses, which actually stores council_member_id values.
+    const result = await this.db.query(`
+      SELECT DISTINCT council_member_id
+      FROM council_responses
+      WHERE council_member_id IS NOT NULL
+    `);
+
+    if (result.rows.length === 0) {
+      return [];
+    }
+
+    return result.rows.map(row =>
+      this.providerPool.getProviderHealth(row.council_member_id)
+    );
   }
 
   /**

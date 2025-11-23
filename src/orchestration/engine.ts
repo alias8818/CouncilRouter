@@ -416,17 +416,21 @@ export class OrchestrationEngine implements IOrchestrationEngine {
   
   /**
    * Send request to a single council member with timeout handling
+   * CRITICAL FIX: Properly clears timeout to prevent resource leaks
    */
   private async sendRequestToMember(
     request: UserRequest,
     member: CouncilMember
   ): Promise<{ response: ProviderResponse; initialResponse: InitialResponse; memberId: string }> {
     const startTime = Date.now();
-    
-    // Create timeout promise for this specific member
+
+    // Create timeout promise for this specific member with cleanup
     const timeoutMs = member.timeout * 1000;
+    let timeoutId: NodeJS.Timeout | null = null;
+
     const timeoutPromise = new Promise<ProviderResponse>((resolve) => {
-      setTimeout(() => {
+      timeoutId = setTimeout(() => {
+        timeoutId = null; // Mark as fired
         resolve({
           content: '',
           tokenUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
@@ -436,16 +440,22 @@ export class OrchestrationEngine implements IOrchestrationEngine {
         });
       }, timeoutMs);
     });
-    
+
     // Race between actual request and timeout
     const response = await Promise.race([
       this.providerPool.sendRequest(member, request.query, request.context),
       timeoutPromise
     ]);
-    
+
+    // CRITICAL FIX: Clear timeout if request completed first to prevent resource leak
+    if (timeoutId !== null) {
+      clearTimeout(timeoutId);
+      timeoutId = null;
+    }
+
     const endTime = Date.now();
     const latency = endTime - startTime;
-    
+
     // Convert to InitialResponse format
     const initialResponse: InitialResponse = {
       councilMemberId: member.id,
@@ -454,7 +464,7 @@ export class OrchestrationEngine implements IOrchestrationEngine {
       latency,
       timestamp: new Date()
     };
-    
+
     return { response, initialResponse, memberId: member.id };
   }
   
