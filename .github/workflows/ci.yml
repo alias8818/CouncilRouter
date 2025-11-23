@@ -275,10 +275,14 @@ jobs:
 
       - name: Publish test results
         if: always()
-        uses: EnricoMi/publish-unit-test-result-action@v2
-        with:
-          files: junit.xml
-          check_name: Test Results
-          comment_mode: create new
-          report_individual_runs: false
+        shell: pwsh
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REF: ${{ github.ref }}
+        run: |
+          # Use PowerShell script for Windows compatibility
+          # The container action doesn't work on Windows runners
+          .\.github\scripts\publish-test-results.ps1 -JUnitXmlPath "junit.xml" -CheckName "Test Results"
 
