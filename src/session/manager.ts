@@ -13,12 +13,16 @@ import {
 import { Pool } from 'pg';
 import { createClient, RedisClientType } from 'redis';
 import { randomUUID } from 'crypto';
+import { encoding_for_model, Tiktoken } from '@dqbd/tiktoken';
 
 export class SessionManager implements ISessionManager {
   private db: Pool;
   private redis: RedisClientType;
   private readonly SESSION_TTL = 2592000; // 30 days in seconds
   private readonly TOKENS_PER_MESSAGE_ESTIMATE = 100; // Rough estimate for token counting
+
+  // Cache encoders per model to avoid repeated initialization
+  private encoders: Map<string, Tiktoken> = new Map();
 
   constructor(db: Pool, redis: RedisClientType) {
     this.db = db;
@@ -412,14 +416,42 @@ export class SessionManager implements ISessionManager {
     }
 
   /**
-   * Estimate token count for a message
-   * Simple heuristic: ~4 characters per token
+   * Get or create a tiktoken encoder for a specific model
+   * Caches encoders to avoid repeated initialization overhead
    */
-  private estimateTokens(content: string): number {
-    // Rough estimate: ~4 characters per token for English text
-    // Less accurate for code, non-English text, or heavy punctuation
-    // TODO: Integrate precise tokenizer like tiktoken for production accuracy
-    return Math.ceil(content.length / 4);
+  private getEncoder(model: string = 'gpt-4o'): Tiktoken {
+    if (!this.encoders.has(model)) {
+      try {
+        // Try to get encoder for the specific model
+        this.encoders.set(model, encoding_for_model(model as any));
+      } catch {
+        // Fallback to gpt-4o encoding for unknown models
+        try {
+          this.encoders.set(model, encoding_for_model('gpt-4o' as any));
+        } catch {
+          // If even the fallback fails, throw error
+          throw new Error(`Failed to initialize tokenizer for model: ${model}`);
+        }
+      }
+    }
+    return this.encoders.get(model)!;
+  }
+
+  /**
+   * Estimate token count for a message
+   * Uses tiktoken for accurate token counting across different content types
+   * Handles non-English text and code content correctly
+   */
+  private estimateTokens(content: string, model: string = 'gpt-4o'): number {
+    try {
+      const encoder = this.getEncoder(model);
+      const tokens = encoder.encode(content);
+      return tokens.length;
+    } catch (error) {
+      // Absolute fallback for unknown models or encoding errors
+      // Use a more conservative estimate that works better for diverse content
+      return Math.ceil(content.length / 3.5);
+    }
   }
 
   /**

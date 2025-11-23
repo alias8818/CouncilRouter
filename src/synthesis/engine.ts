@@ -353,7 +353,7 @@ export class SynthesisEngine implements ISynthesisEngine {
       .toLowerCase()
       .replace(/[^\w\s]/g, ' ')
       .split(/\s+/)
-      .filter(word => word.length > 2); // Filter out words with 2 or fewer characters
+      .filter(word => word.length > 2); // Filter out very short words (1 and 2 chars)
   }
 
   /**
