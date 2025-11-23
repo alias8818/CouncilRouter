@@ -526,16 +526,18 @@ export class SynthesisEngine implements ISynthesisEngine {
   private async getNextRotationMember(members: CouncilMember[]): Promise<CouncilMember> {
     // Chain this operation after the previous rotation operation completes
     const previousLock = this.rotationLock;
-    let index: number = 0;
 
-    // Create a new promise that will complete after we get our index
-    this.rotationLock = previousLock.then(() => {
+    // Create a new promise that returns the rotation index
+    const indexPromise: Promise<number> = previousLock.then(() => {
       // Atomically get and increment the rotation index
-      index = this.rotationIndex++;
+      return this.rotationIndex++;
     });
 
-    // Wait for our turn to get the index
-    await this.rotationLock;
+    // Update the lock to wait for this operation (but don't return the index)
+    this.rotationLock = indexPromise.then(() => {});
+
+    // Wait for our turn and get the index
+    const index = await indexPromise;
 
     // Return the member at this index
     return members[index % members.length];

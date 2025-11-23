@@ -16,8 +16,8 @@ class MockPool {
   async query(text: string, params?: any[]): Promise<any> {
     this.queryLog.push({ query: text, params: params || [] });
 
-    // Handle SELECT from budget_caps
-    if (text.includes('FROM budget_caps')) {
+    // Handle SELECT from budget_caps (not INSERT...SELECT)
+    if (text.includes('FROM budget_caps') && text.includes('SELECT') && !text.includes('INSERT')) {
       const providerId = params?.[0];
       const modelId = params?.[1];
       const caps = this.budgetCaps.filter(cap => {
@@ -34,9 +34,10 @@ class MockPool {
       const modelId = params?.[1];
       const periodType = params?.[2];
 
+      // Match the SQL: WHERE provider_id = $1 AND (model_id = $2 OR model_id IS NULL)
       const spending = this.budgetSpending.find(s =>
         s.provider_id === providerId &&
-        (s.model_id === modelId || (s.model_id === null && modelId === null)) &&
+        (s.model_id === modelId || s.model_id === null) &&
         s.period_type === periodType &&
         new Date(s.period_start) <= new Date() &&
         new Date(s.period_end) >= new Date()
@@ -78,14 +79,58 @@ class MockPool {
 
     // Handle INSERT into budget_spending
     if (text.includes('INSERT INTO budget_spending')) {
+      // Case 1: resetBudgetPeriod - INSERT...SELECT FROM budget_caps
+      // Params: [period, start, end]
+      if (text.includes('FROM budget_caps')) {
+        const periodType = params?.[0];
+        const periodStart = params?.[1];
+        const periodEnd = params?.[2];
+
+        // This inserts one record per budget_cap, so we need to iterate
+        this.budgetCaps.forEach(cap => {
+          const newSpending = {
+            id: 'generated-uuid',
+            provider_id: cap.provider_id,
+            model_id: cap.model_id,
+            period_type: periodType,
+            period_start: periodStart,
+            period_end: periodEnd,
+            current_spending: 0,
+            disabled: false,
+            updated_at: new Date()
+          };
+
+          // Check for existing record (ON CONFLICT simulation)
+          const existing = this.budgetSpending.findIndex(s =>
+            s.provider_id === newSpending.provider_id &&
+            s.model_id === newSpending.model_id &&
+            s.period_type === newSpending.period_type &&
+            s.period_start.getTime() === newSpending.period_start.getTime()
+          );
+
+          if (existing === -1) {
+            this.budgetSpending.push(newSpending);
+          } else {
+            // DO UPDATE SET current_spending = 0, disabled = FALSE
+            this.budgetSpending[existing].current_spending = 0;
+            this.budgetSpending[existing].disabled = false;
+            this.budgetSpending[existing].updated_at = new Date();
+          }
+        });
+
+        return { rows: [] };
+      }
+
+      // Case 2: getCurrentSpending - INSERT...VALUES
+      // Params: [providerId, modelId, period, start, end]
       const newSpending = {
         id: 'generated-uuid',
-        provider_id: params?.[0] ?? params?.[1],
-        model_id: params?.[1] ?? params?.[2] ?? null,
-        period_type: params?.[2] ?? params?.[3],
-        period_start: params?.[3] ?? params?.[4],
-        period_end: params?.[4] ?? params?.[5],
-        current_spending: params?.[5] !== undefined ? params?.[5] : 0,
+        provider_id: params?.[0],
+        model_id: params?.[1] ?? null,
+        period_type: params?.[2],
+        period_start: params?.[3],
+        period_end: params?.[4],
+        current_spending: 0,
         disabled: false,
         updated_at: new Date()
       };
@@ -101,6 +146,7 @@ class MockPool {
       if (existing === -1) {
         this.budgetSpending.push(newSpending);
       }
+      // DO NOTHING on conflict for getCurrentSpending
 
       return { rows: [] };
     }
@@ -271,7 +317,7 @@ describe('BudgetEnforcer', () => {
       mockPool.addBudgetCap({
         provider_id: 'openai',
         model_id: 'gpt-4',
-        daily_limit: 10.0,
+        daily_limit: 100.0,  // High enough to not trigger
         weekly_limit: 50.0,
         monthly_limit: 200.0
       });
@@ -306,7 +352,7 @@ describe('BudgetEnforcer', () => {
         disabled: false
       });
 
-      // Request that would exceed weekly limit (45 + 10 > 50)
+      // Request that would exceed weekly limit (45 + 10 > 50) but not daily (8 + 10 < 100)
       const result = await enforcer.checkBudget(testMember, 10.0);
 
       expect(result.allowed).toBe(false);
@@ -323,12 +369,17 @@ describe('BudgetEnforcer', () => {
         monthly_limit: null
       });
 
+      const dailyStart = new Date();
+      dailyStart.setHours(0, 0, 0, 0);
+      const dailyEnd = new Date();
+      dailyEnd.setHours(23, 59, 59, 999);
+
       mockPool.addBudgetSpending({
         provider_id: 'openai',
         model_id: null,
         period_type: 'daily',
-        period_start: new Date(new Date().setHours(0, 0, 0, 0)),
-        period_end: new Date(new Date().setHours(23, 59, 59, 999)),
+        period_start: dailyStart,
+        period_end: dailyEnd,
         current_spending: 48.0,
         disabled: false
       });

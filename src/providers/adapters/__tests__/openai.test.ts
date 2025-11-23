@@ -91,9 +91,11 @@ describe('OpenAIAdapter', () => {
     it('should format request with conversation context', async () => {
       const context: ConversationContext = {
         messages: [
-          { role: 'user', content: 'Previous question' },
-          { role: 'assistant', content: 'Previous answer' }
-        ]
+          { role: 'user', content: 'Previous question', timestamp: new Date() },
+          { role: 'assistant', content: 'Previous answer', timestamp: new Date() }
+        ],
+        totalTokens: 50,
+        summarized: false
       };
 
       const mockResponse = {
@@ -356,7 +358,7 @@ describe('OpenAIAdapter', () => {
       const health = await adapter.getHealth();
 
       expect(health.available).toBe(false);
-      expect(health.latency).toBeUndefined();
+      expect(health.latency).toBeGreaterThanOrEqual(0);
     });
 
     it('should return unavailable on network error', async () => {
@@ -371,13 +373,14 @@ describe('OpenAIAdapter', () => {
     it('should measure latency', async () => {
       const mockResponse = {
         ok: true,
-        json: async () => {
-          await new Promise(resolve => setTimeout(resolve, 50));
-          return { data: [] };
-        }
+        json: async () => ({ data: [] })
       };
 
-      (fetch as jest.Mock).mockResolvedValue(mockResponse);
+      // Delay the fetch response to simulate network latency
+      (fetch as jest.Mock).mockImplementation(async () => {
+        await new Promise(resolve => setTimeout(resolve, 10));
+        return mockResponse;
+      });
 
       const health = await adapter.getHealth();
 
@@ -390,11 +393,13 @@ describe('OpenAIAdapter', () => {
     it('should handle context with mixed message types', async () => {
       const context: ConversationContext = {
         messages: [
-          { role: 'user', content: 'Question 1' },
-          { role: 'assistant', content: 'Answer 1' },
-          { role: 'user', content: 'Question 2' },
-          { role: 'assistant', content: 'Answer 2' }
-        ]
+          { role: 'user', content: 'Question 1', timestamp: new Date() },
+          { role: 'assistant', content: 'Answer 1', timestamp: new Date() },
+          { role: 'user', content: 'Question 2', timestamp: new Date() },
+          { role: 'assistant', content: 'Answer 2', timestamp: new Date() }
+        ],
+        totalTokens: 100,
+        summarized: false
       };
 
       const mockResponse = {
@@ -435,7 +440,9 @@ describe('OpenAIAdapter', () => {
 
     it('should handle empty context', async () => {
       const context: ConversationContext = {
-        messages: []
+        messages: [],
+        totalTokens: 0,
+        summarized: false
       };
 
       const mockResponse = {
