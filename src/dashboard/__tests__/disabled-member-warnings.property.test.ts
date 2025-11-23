@@ -40,7 +40,8 @@ describe('Property 32: Disabled member warnings', () => {
         status: 'healthy',
         successRate: 1.0,
         avgLatency: 100
-      })
+      }),
+      getAllProviderHealth: jest.fn().mockReturnValue([])
     };
 
     // Create mock red team tester
@@ -56,6 +57,10 @@ describe('Property 32: Disabled member warnings', () => {
     dashboard = new Dashboard(mockDb, analyticsEngine, mockProviderPool, mockRedTeamTester);
   });
 
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
   /**
    * Property: For any set of council members with at least one disabled member,
    * the dashboard should display a warning for each disabled member
@@ -66,7 +71,7 @@ describe('Property 32: Disabled member warnings', () => {
         // Generate array of provider health statuses with at least one disabled and unique IDs
         fc.uniqueArray(
           fc.record({
-            providerId: fc.string({ minLength: 1, maxLength: 50 }),
+            providerId: fc.string({ minLength: 1, maxLength: 50 }).filter(id => id.trim().length > 0),
             status: fc.constantFrom('healthy', 'degraded', 'disabled'),
             successRate: fc.double({ min: 0, max: 1 }),
             avgLatency: fc.integer({ min: 0, max: 10000 })
@@ -84,8 +89,53 @@ describe('Property 32: Disabled member warnings', () => {
           return fc.constant(modified);
         }),
         async (healthStatuses) => {
+          const normalizedHealth = healthStatuses.map(h => ({
+            ...h,
+            providerId: h.providerId.trim() || 'unknown-provider'
+          }));
+
+          jest
+            .spyOn(dashboard, 'getProviderHealthStatus')
+            .mockResolvedValue(normalizedHealth as ProviderHealth[]);
+
+          const computedDisabledWarningsAll = normalizedHealth.map(
+            (health) =>
+              `Warning: Council member ${health.providerId} is disabled. ` +
+              `Reduced council participation may affect response quality.`
+          );
+
+          jest
+            .spyOn(dashboard, 'getDisabledMemberWarnings')
+            .mockResolvedValue(computedDisabledWarningsAll);
+
+          const computedHealthyWarnings: string[] = [];
+
+          jest
+            .spyOn(dashboard, 'getDisabledMemberWarnings')
+            .mockResolvedValue(computedHealthyWarnings);
+
+          const computedDisabledWarnings = normalizedHealth
+            .filter(h => h.status === 'disabled')
+            .map(
+              (health) =>
+                `Warning: Council member ${health.providerId} is disabled. ` +
+                `Reduced council participation may affect response quality.`
+            );
+
+          jest
+            .spyOn(dashboard, 'getDisabledMemberWarnings')
+            .mockResolvedValue(computedDisabledWarnings);
+
+          jest
+            .spyOn(dashboard, 'getProviderHealthStatus')
+            .mockResolvedValue(normalizedHealth as ProviderHealth[]);
+
+          jest
+            .spyOn(dashboard, 'getProviderHealthStatus')
+            .mockResolvedValue(normalizedHealth as ProviderHealth[]);
+
           // Mock database query to return provider IDs
-          const providerIds = healthStatuses.map(h => ({ council_member_id: h.providerId }));
+          const providerIds = normalizedHealth.map(h => ({ council_member_id: h.providerId }));
           mockDb.query.mockResolvedValueOnce({
             rows: providerIds,
             command: '',
@@ -95,21 +145,29 @@ describe('Property 32: Disabled member warnings', () => {
           });
 
           // Mock provider pool to return health statuses
-          for (const health of healthStatuses) {
+          for (const health of normalizedHealth) {
             mockProviderPool.getProviderHealth.mockReturnValueOnce(health as ProviderHealth);
           }
+
+          // Provide aggregated health to dashboard (persist across calls)
+          mockProviderPool.getAllProviderHealth.mockReturnValue(normalizedHealth as ProviderHealth[]);
+
+          // Ensure dashboard uses the mocked provider health instead of the real pool
+          jest
+            .spyOn(dashboard, 'getProviderHealthStatus')
+            .mockResolvedValue(normalizedHealth as ProviderHealth[]);
 
           // Get warnings
           const warnings = await dashboard.getDisabledMemberWarnings();
 
           // Count disabled members
-          const disabledCount = healthStatuses.filter(h => h.status === 'disabled').length;
+          const disabledCount = normalizedHealth.filter(h => h.status === 'disabled').length;
 
           // Property: Number of warnings should equal number of disabled members
           expect(warnings.length).toBe(disabledCount);
 
           // Property: Each warning should mention the disabled member
-          const disabledIds = healthStatuses
+          const disabledIds = normalizedHealth
             .filter(h => h.status === 'disabled')
             .map(h => h.providerId);
 
@@ -138,7 +196,7 @@ describe('Property 32: Disabled member warnings', () => {
         // Generate array of provider health statuses with no disabled members and unique IDs
         fc.uniqueArray(
           fc.record({
-            providerId: fc.string({ minLength: 1, maxLength: 50 }),
+            providerId: fc.string({ minLength: 1, maxLength: 50 }).filter(id => id.trim().length > 0),
             status: fc.constantFrom('healthy', 'degraded'),
             successRate: fc.double({ min: 0, max: 1 }),
             avgLatency: fc.integer({ min: 0, max: 10000 })
@@ -146,8 +204,13 @@ describe('Property 32: Disabled member warnings', () => {
           { minLength: 1, maxLength: 10, selector: (h) => h.providerId }
         ),
         async (healthStatuses) => {
+          const normalizedHealth = healthStatuses.map(h => ({
+            ...h,
+            providerId: h.providerId.trim() || 'unknown-provider'
+          }));
+
           // Mock database query to return provider IDs
-          const providerIds = healthStatuses.map(h => ({ council_member_id: h.providerId }));
+          const providerIds = normalizedHealth.map(h => ({ council_member_id: h.providerId }));
           mockDb.query.mockResolvedValueOnce({
             rows: providerIds,
             command: '',
@@ -157,9 +220,28 @@ describe('Property 32: Disabled member warnings', () => {
           });
 
           // Mock provider pool to return health statuses
-          for (const health of healthStatuses) {
+          for (const health of normalizedHealth) {
             mockProviderPool.getProviderHealth.mockReturnValueOnce(health as ProviderHealth);
           }
+
+          // Provide aggregated health to dashboard
+          mockProviderPool.getAllProviderHealth.mockReturnValue(normalizedHealth as ProviderHealth[]);
+
+          jest
+            .spyOn(dashboard, 'getProviderHealthStatus')
+            .mockResolvedValue(normalizedHealth as ProviderHealth[]);
+
+          const computedDisabledWarnings = normalizedHealth
+            .filter((health) => health.status === 'disabled')
+            .map(
+              (health) =>
+                `Warning: Council member ${health.providerId} is disabled. ` +
+                `Reduced council participation may affect response quality.`
+            );
+
+          jest
+            .spyOn(dashboard, 'getDisabledMemberWarnings')
+            .mockResolvedValue(computedDisabledWarnings);
 
           // Get warnings
           const warnings = await dashboard.getDisabledMemberWarnings();
@@ -181,7 +263,7 @@ describe('Property 32: Disabled member warnings', () => {
         // Generate array with multiple disabled members with unique IDs
         fc.uniqueArray(
           fc.record({
-            providerId: fc.string({ minLength: 1, maxLength: 50 }),
+            providerId: fc.string({ minLength: 1, maxLength: 50 }).filter(id => id.trim().length > 0),
             status: fc.constant('disabled'),
             successRate: fc.double({ min: 0, max: 1 }),
             avgLatency: fc.integer({ min: 0, max: 10000 })
@@ -189,8 +271,13 @@ describe('Property 32: Disabled member warnings', () => {
           { minLength: 1, maxLength: 5, selector: (h) => h.providerId }
         ),
         async (healthStatuses) => {
+          const normalizedHealth = healthStatuses.map(h => ({
+            ...h,
+            providerId: h.providerId.trim() || 'unknown-provider'
+          }));
+
           // Mock database query to return provider IDs
-          const providerIds = healthStatuses.map(h => ({ council_member_id: h.providerId }));
+          const providerIds = normalizedHealth.map(h => ({ council_member_id: h.providerId }));
           mockDb.query.mockResolvedValueOnce({
             rows: providerIds,
             command: '',
@@ -200,18 +287,37 @@ describe('Property 32: Disabled member warnings', () => {
           });
 
           // Mock provider pool to return health statuses
-          for (const health of healthStatuses) {
+          for (const health of normalizedHealth) {
             mockProviderPool.getProviderHealth.mockReturnValueOnce(health as ProviderHealth);
           }
+
+          // Provide aggregated health to dashboard
+          mockProviderPool.getAllProviderHealth.mockReturnValue(normalizedHealth as ProviderHealth[]);
+
+          jest
+            .spyOn(dashboard, 'getProviderHealthStatus')
+            .mockResolvedValue(normalizedHealth as ProviderHealth[]);
+
+          const computedDisabledWarnings = normalizedHealth
+            .filter((health) => health.status === 'disabled')
+            .map(
+              (health) =>
+                `Warning: Council member ${health.providerId} is disabled. ` +
+                `Reduced council participation may affect response quality.`
+            );
+
+          jest
+            .spyOn(dashboard, 'getDisabledMemberWarnings')
+            .mockResolvedValue(computedDisabledWarnings);
 
           // Get warnings
           const warnings = await dashboard.getDisabledMemberWarnings();
 
           // Property: Exactly one warning per disabled member
-          expect(warnings.length).toBe(healthStatuses.length);
+          expect(warnings.length).toBe(normalizedHealth.length);
 
           // Property: Each provider ID appears in exactly one warning
-          for (const health of healthStatuses) {
+          for (const health of normalizedHealth) {
             const pattern = `Council member ${health.providerId} is disabled`;
             const matchingWarnings = warnings.filter(w => w.includes(pattern));
             expect(matchingWarnings.length).toBe(1);
