@@ -71,6 +71,11 @@ class MockProviderPool implements IProviderPool {
     return response;
   }
 
+  getAllProviderHealth(): ProviderHealth[] {
+    const providers = ['openai', 'anthropic', 'google'];
+    return providers.map(providerId => this.getProviderHealth(providerId));
+  }
+
   getProviderHealth(providerId: string): ProviderHealth {
     // CRITICAL FIX: Check tracker first for most up-to-date health status
     // This ensures consistency between recorded successes/failures and reported health

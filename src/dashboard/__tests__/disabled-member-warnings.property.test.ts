@@ -40,7 +40,12 @@ describe('Property 32: Disabled member warnings', () => {
         status: 'healthy',
         successRate: 1.0,
         avgLatency: 100
-      })
+      }),
+      getAllProviderHealth: jest.fn().mockReturnValue([
+        { providerId: 'openai', status: 'healthy', successRate: 1.0, avgLatency: 100 },
+        { providerId: 'anthropic', status: 'healthy', successRate: 1.0, avgLatency: 100 },
+        { providerId: 'google', status: 'healthy', successRate: 1.0, avgLatency: 100 }
+      ])
     };
 
     // Create mock red team tester

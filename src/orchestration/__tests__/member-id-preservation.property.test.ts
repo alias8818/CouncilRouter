@@ -67,6 +67,11 @@ class MockProviderPool implements IProviderPool {
     };
   }
   
+  getAllProviderHealth(): ProviderHealth[] {
+    const providers = ['openai', 'anthropic', 'google'];
+    return providers.map(providerId => this.getProviderHealth(providerId));
+  }
+
   getProviderHealth(providerId: string): ProviderHealth {
     const health = this.healthStatuses.get(providerId);
     if (health) return health;

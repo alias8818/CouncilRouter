@@ -346,12 +346,11 @@ export class CostCalculator {
       }
 
       // Validate date-like formats with reasonable ranges
-      // Pattern: YYYY or YYYY-MM or YYYY-MM-DD or YYYY-WXX or YYYYMMDD
-      // Allow week format (W followed by digits) in addition to numeric patterns
+      // Pattern: YYYY or YYYY-MM or YYYY-MM-DD or YYYYMMDD
+      // Only allow purely numeric patterns (no letters like 'W')
       const isNumericPattern = /^\d{4}([-_]\d+)*$/.test(prefix) || /^\d+$/.test(prefix);
-      const isWeekPattern = /^\d{4}[-_]W\d+/.test(prefix);
       
-      if (!isNumericPattern && !isWeekPattern) {
+      if (!isNumericPattern) {
         return false;
       }
 
@@ -364,26 +363,17 @@ export class CostCalculator {
         return false;
       }
 
-      // If there's a second part, it should be a valid month (01-12) or week (W01-W53) or day (001-366)
+      // If there's a second part, it should be a valid month (01-12) or day (001-366)
       if (parts.length > 1) {
         const second = parts[1];
-
-        // Week format: W01-W53
-        if (second.startsWith('W')) {
-          const week = parseInt(second.substring(1), 10);
-          if (week < 1 || week > 53) {
-            return false;
-          }
-        } else {
-          const monthOrDay = parseInt(second, 10);
-          // Could be month (1-12) or day of year (1-366)
-          if (monthOrDay < 1 || monthOrDay > 366) {
-            return false;
-          }
-          // If it's likely a month (01-12), be more strict
-          if (second.length === 2 && (monthOrDay < 1 || monthOrDay > 12)) {
-            return false;
-          }
+        const monthOrDay = parseInt(second, 10);
+        // Could be month (1-12) or day of year (1-366)
+        if (monthOrDay < 1 || monthOrDay > 366) {
+          return false;
+        }
+        // If it's likely a month (01-12), be more strict
+        if (second.length === 2 && (monthOrDay < 1 || monthOrDay > 12)) {
+          return false;
         }
       }
 
