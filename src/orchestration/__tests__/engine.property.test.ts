@@ -86,42 +86,29 @@ class MockProviderPool implements IProviderPool {
     }
     
     return response;
-<<<<<<< HEAD
   }
   
-  getAllProviderHealth(): ProviderHealth[] {
-    const providers = ['openai', 'anthropic', 'google'];
-    return providers.map(providerId => this.getProviderHealth(providerId));
-  }
-
   getProviderHealth(providerId: string): ProviderHealth {
     const health = this.healthStatuses.get(providerId);
     if (health) return health;
-=======
-    }
->>>>>>> claude/review-critical-bugs-019u6KG7dKygBhX3AZ5LWB5z
     
-    getProviderHealth(providerId: string): ProviderHealth {
-      const health = this.healthStatuses.get(providerId);
-      if (health) return health;
-      
-      return {
-        providerId,
-        status: this.disabledProviders.has(providerId) ? 'disabled' : 'healthy',
-        successRate: 1.0,
-        avgLatency: 100
-      };
-    }
+    return {
+      providerId,
+      status: this.disabledProviders.has(providerId) ? 'disabled' : 'healthy',
+      successRate: 1.0,
+      avgLatency: 100
+    };
+  }
 
-    getAllProviderHealth(): ProviderHealth[] {
-      if (this.healthStatuses.size > 0) {
-        return Array.from(this.healthStatuses.values());
-      }
-      return Array.from(this.disabledProviders).map((providerId) =>
-        this.getProviderHealth(providerId)
-      );
+  getAllProviderHealth(): ProviderHealth[] {
+    if (this.healthStatuses.size > 0) {
+      return Array.from(this.healthStatuses.values());
     }
-  
+    return Array.from(this.disabledProviders).map((providerId) =>
+      this.getProviderHealth(providerId)
+    );
+  }
+
   markProviderDisabled(providerId: string, reason: string): void {
     this.disabledProviders.add(providerId);
   }
