@@ -333,6 +333,10 @@ export class SessionManager implements ISessionManager {
      * Cache session in Redis
      * Uses incremental updates: stores history entries separately to avoid O(N^2) behavior
      * WATCH/EXEC ensures existing length is read atomically with writes
+     *
+     * This implementation uses Redis WATCH/EXEC to prevent race conditions between lLen check
+     * and rPush operations. For mocked Redis clients (e.g., unit tests) that do not support
+     * WATCH/UNWATCH, we fall back to a simple pipeline execution.
      */
     private async cacheSession(session: Session): Promise<void> {
       const key = `session:${session.id}`;
