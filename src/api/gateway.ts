@@ -417,17 +417,49 @@ export class APIGateway implements IAPIGateway {
         } catch (error) {
           // Key already exists (race condition) - fetch and return cached result
           const status = await this.idempotencyCache.checkKey(idempotencyKey);
-          if (status.exists && status.result) {
-            const response: APIResponse = {
-              requestId: status.result.requestId,
-              status: status.status === 'completed' ? 'completed' : 'processing',
-              consensusDecision: status.result.consensusDecision?.content,
-              createdAt: status.result.timestamp,
-              completedAt: status.status === 'completed' ? status.result.timestamp : undefined,
-              fromCache: true
-            };
-            res.status(status.status === 'completed' ? 200 : 202).json(response);
-            return;
+          if (status.exists) {
+            // If another request is still processing, wait briefly for completion
+            if (status.status === 'in-progress') {
+              try {
+                const result = await this.idempotencyCache.waitForCompletion(idempotencyKey, 30000);
+
+                if (result.consensusDecision) {
+                  const response: APIResponse = {
+                    requestId: result.requestId,
+                    status: 'completed',
+                    consensusDecision: result.consensusDecision.content,
+                    createdAt: result.timestamp,
+                    completedAt: result.timestamp,
+                    fromCache: true
+                  };
+                  res.status(200).json(response);
+                } else if (result.error) {
+                  res.status(500).json(result.error);
+                }
+                return;
+              } catch (waitError) {
+                const response: APIResponse = {
+                  requestId: status.result?.requestId || 'unknown',
+                  status: 'processing',
+                  createdAt: new Date()
+                };
+                res.status(202).json(response);
+                return;
+              }
+            }
+
+            if (status.result) {
+              const response: APIResponse = {
+                requestId: status.result.requestId,
+                status: status.status === 'completed' ? 'completed' : 'processing',
+                consensusDecision: status.result.consensusDecision?.content,
+                createdAt: status.result.timestamp,
+                completedAt: status.status === 'completed' ? status.result.timestamp : undefined,
+                fromCache: true
+              };
+              res.status(status.status === 'completed' ? 200 : 202).json(response);
+              return;
+            }
           }
         }
       }
@@ -467,6 +499,10 @@ export class APIGateway implements IAPIGateway {
       // Process request asynchronously
       // Don't await - fire and forget, but catch errors to prevent unhandled rejections
       this.processRequestAsync(userRequest, body.streaming || false, idempotencyKey).catch(async (error) => {
+        if ((error as any)?.handledByProcessRequestAsync) {
+          return;
+        }
+
         console.error('Error in async request processing:', error);
         // Update request status to failed in storage
         try {
@@ -671,12 +707,30 @@ export class APIGateway implements IAPIGateway {
         await this.saveRequest(storedRequest);
       }
 
+      // Cache error in idempotency cache so waiters are released
+      if (this.idempotencyCache && idempotencyKey) {
+        const errorResponse: ErrorResponse = {
+          error: {
+            code: 'INTERNAL_ERROR',
+            message: (error as Error).message || 'Internal server error',
+            retryable: false
+          },
+          requestId: userRequest.id,
+          timestamp: new Date()
+        };
+        await this.idempotencyCache.cacheError(idempotencyKey, userRequest.id, errorResponse, 86400);
+      }
+
       // Notify streaming connections of error
       if (streaming) {
         this.notifyStreamingError(userRequest.id, (error as Error).message);
       }
 
       console.error(`Error processing request ${userRequest.id}:`, error);
+
+      // Indicate error was handled to prevent duplicate cache writes upstream
+      (error as any).handledByProcessRequestAsync = true;
+      throw error;
     }
   }
 
