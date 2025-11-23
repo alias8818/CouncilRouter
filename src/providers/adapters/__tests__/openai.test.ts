@@ -81,7 +81,7 @@ describe('OpenAIAdapter', () => {
         })
       );
 
-      expect(result.content).toBe('Hello! How can I help you today!');
+      expect(result.content).toBe('Hello! How can I help you today?');
       expect(result.tokenUsage.promptTokens).toBe(10);
       expect(result.tokenUsage.completionTokens).toBe(20);
       expect(result.tokenUsage.totalTokens).toBe(30);

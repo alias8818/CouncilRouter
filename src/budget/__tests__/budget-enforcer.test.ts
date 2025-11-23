@@ -277,12 +277,17 @@ describe('BudgetEnforcer', () => {
       });
 
       // Add spending for all periods
+      const dailyStart = new Date(now);
+      dailyStart.setHours(0, 0, 0, 0);
+      const dailyEnd = new Date(now);
+      dailyEnd.setHours(23, 59, 59, 999);
+
       mockPool.addBudgetSpending({
         provider_id: 'openai',
         model_id: 'gpt-4',
         period_type: 'daily',
-        period_start: new Date(now.setHours(0, 0, 0, 0)),
-        period_end: new Date(now.setHours(23, 59, 59, 999)),
+        period_start: dailyStart,
+        period_end: dailyEnd,
         current_spending: 8.0,
         disabled: false
       });
@@ -348,12 +353,17 @@ describe('BudgetEnforcer', () => {
       // Initialize spending records
       const now = new Date();
       ['daily', 'weekly', 'monthly'].forEach(period => {
+        const periodStart = new Date(now);
+        periodStart.setHours(0, 0, 0, 0);
+        const periodEnd = new Date(now);
+        periodEnd.setHours(23, 59, 59, 999);
+
         mockPool.addBudgetSpending({
           provider_id: 'openai',
           model_id: 'gpt-4',
           period_type: period,
-          period_start: new Date(now.setHours(0, 0, 0, 0)),
-          period_end: new Date(now.setHours(23, 59, 59, 999)),
+          period_start: periodStart,
+          period_end: periodEnd,
           current_spending: 0,
           disabled: false
         });
