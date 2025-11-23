@@ -31,7 +31,12 @@ try {
     $testSuites = @()
     
     # Parse test suites (handle both testsuites wrapper and single testsuite)
-    if ($xml.testsuites -and $xml.testsuites.testsuite) {
+    # Check root element name to avoid double-counting when testsuites wrapper exists
+    # PowerShell's $xml.testsuite searches entire document, so we need to check root element first
+    $rootElementName = $xml.DocumentElement.Name
+    
+    if ($rootElementName -eq 'testsuites' -and $xml.testsuites.testsuite) {
+        # Process all testsuites within the wrapper
         foreach ($testsuite in $xml.testsuites.testsuite) {
             $suiteTotal = [int]$testsuite.tests
             $suiteFailures = [int]$testsuite.failures
@@ -54,9 +59,8 @@ try {
             }
         }
     }
-    
-    # Also check for single testsuite (without testsuites wrapper)
-    if ($xml.testsuite) {
+    elseif ($rootElementName -eq 'testsuite') {
+        # Process single testsuite at root level (no wrapper)
         $testsuite = $xml.testsuite
         $suiteTotal = [int]$testsuite.tests
         $suiteFailures = [int]$testsuite.failures
@@ -77,6 +81,9 @@ try {
             skipped = $suiteSkipped
             time = [double]$testsuite.time
         }
+    }
+    else {
+        Write-Host "Warning: Unexpected XML structure. Root element is: $rootElementName"
     }
     
     # Determine conclusion
