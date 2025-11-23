@@ -263,8 +263,10 @@ export class Dashboard implements IDashboard {
 
     for (const health of healthStatuses) {
       if (health.status === 'disabled') {
+        const providerId = health.providerId?.trim() || 'unknown-provider';
+
         warnings.push(
-          `Warning: Council member ${health.providerId} is disabled. ` +
+          `Warning: Council member ${providerId} is disabled. ` +
           `Reduced council participation may affect response quality.`
         );
       }
