@@ -129,19 +129,17 @@ describe('SynthesisEngine', () => {
         expect(result.contributingMembers).toHaveLength(3);
       });
 
-      it('should handle empty thread', async () => {
+      it('should throw error for empty thread', async () => {
         const thread: DeliberationThread = {
           rounds: [],
           totalDuration: 0
         };
         const strategy: SynthesisStrategy = { type: 'consensus-extraction' };
 
-        const result = await engine.synthesize(thread, strategy);
-
-        expect(result.content).toBe('No responses available');
-        expect(result.confidence).toBe('low');
-        expect(result.agreementLevel).toBe(0);
-        expect(result.contributingMembers).toHaveLength(0);
+        // Fixed: Now throws error instead of returning placeholder
+        await expect(engine.synthesize(thread, strategy))
+          .rejects
+          .toThrow('Cannot synthesize consensus: no council member responses available');
       });
     });
 

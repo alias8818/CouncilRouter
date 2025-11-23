@@ -324,29 +324,34 @@ export class CostCalculator {
    * Check if a period string matches an alert period
    * Supports both exact matches and period keys that end with the period type
    * (e.g., "2024-01-daily" matches "daily", but "pre-daily" does not match "daily")
-   * 
+   *
    * The period must be at the end of the periodKey, preceded by a separator.
-   * To avoid false positives, we only allow prefixes that look like dates (contain digits)
-   * or are empty. Word prefixes like "pre" are rejected.
+   * Fixed: More strict validation to only accept date-like prefixes (YYYY-MM, YYYY-WW, etc.)
    */
   private matchesPeriod(periodKey: string, alertPeriod: string): boolean {
     // Exact match for period comparison
     if (periodKey === alertPeriod) {
       return true;
     }
-    
+
     // Check if periodKey ends with the alertPeriod after a separator
     // This handles cases where periodKey is formatted like "2024-01-daily", "2024-01-hourly", etc.
     if (periodKey.endsWith(`-${alertPeriod}`) || periodKey.endsWith(`_${alertPeriod}`)) {
       const prefix = periodKey.slice(0, -(alertPeriod.length + 1)); // Everything before "-period"
-      
-      // Allow empty prefix or prefixes that contain digits (date-like formats)
-      // Reject prefixes that are only letters (word prefixes like "pre")
-      if (prefix.length === 0 || /\d/.test(prefix)) {
+
+      // Allow empty prefix (exact period match was already checked above)
+      if (prefix.length === 0) {
+        return false; // "-daily" without prefix should not match
+      }
+
+      // Only accept date-like formats: must start with 4 digits (year) or be purely numeric
+      // Accepts: "2024-01", "2024", "2024_01", "2024-W05", "20240115"
+      // Rejects: "pre2024", "2x24", "test-123"
+      if (/^\d{4}([-_]\d+)*$/.test(prefix) || /^\d+$/.test(prefix)) {
         return true;
       }
     }
-    
+
     return false;
   }
 }

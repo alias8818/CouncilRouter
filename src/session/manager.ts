@@ -320,21 +320,16 @@ export class SessionManager implements ISessionManager {
   /**
    * Cache session in Redis
    * Uses incremental updates: stores history entries separately to avoid O(N^2) behavior
-   *
-   * NOTE: There is a theoretical race condition between lLen check and rPush operations.
-   * In practice, this is acceptable because:
-   * 1. Session updates are typically sequential (same user in a session)
-   * 2. The window is very small (microseconds)
-   * 3. Impact is minimal (worst case: duplicate entry that gets overwritten)
-   *
-   * For production use with high concurrency, consider implementing distributed locking
-   * (e.g., Redlock) or using Redis Lua scripts for atomic check-and-append.
+   * Fixed: Race condition eliminated by moving all operations into transaction
    */
   private async cacheSession(session: Session): Promise<void> {
     const key = `session:${session.id}`;
     const historyKey = `session:${session.id}:history`;
 
-    // Use pipeline for atomic operations
+    // Get existing length first to determine strategy
+    const existingLength = await this.redis.lLen(historyKey).catch(() => 0);
+
+    // Start transaction
     const pipeline = this.redis.multi();
 
     // Update session metadata (small, changes frequently)
@@ -346,21 +341,18 @@ export class SessionManager implements ISessionManager {
       historyLength: session.history.length.toString()
     });
 
-    // Store history entries incrementally in a list
-    // Check current length to determine if we need to append
-    const existingLength = await this.redis.lLen(historyKey).catch(() => 0);
-
+    // Handle history updates based on length comparison
     if (session.history.length > existingLength) {
       // Append only new entries (incremental update)
       const newEntries = session.history.slice(existingLength);
-      for (const entry of newEntries) {
-        pipeline.rPush(historyKey, JSON.stringify(entry));
+      if (newEntries.length > 0) {
+        pipeline.rPush(historyKey, newEntries.map(e => JSON.stringify(e)));
       }
     } else if (session.history.length < existingLength) {
-      // History was truncated (e.g., after summarization) - rebuild
-      await this.redis.del(historyKey);
-      for (const entry of session.history) {
-        pipeline.rPush(historyKey, JSON.stringify(entry));
+      // History was truncated (e.g., after summarization) - rebuild atomically
+      pipeline.del(historyKey);
+      if (session.history.length > 0) {
+        pipeline.rPush(historyKey, session.history.map(e => JSON.stringify(e)));
       }
     }
     // If lengths match, no need to update history

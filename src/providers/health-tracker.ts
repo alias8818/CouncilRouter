@@ -84,6 +84,7 @@ export class ProviderHealthTracker {
 
   /**
    * Record a successful request for a provider
+   * Fixed: Add new record before cleanup to ensure counts are accurate
    */
   recordSuccess(providerId: string): void {
     const state = this.healthState.get(providerId);
@@ -96,13 +97,12 @@ export class ProviderHealthTracker {
       return;
     }
 
-    // Clean up old records first
+    // Add new success record first
+    state.requestHistory.push({ timestamp: new Date(), success: true });
+
+    // Then clean up old records (this will recalculate counts including the new record)
     this.cleanupOldRecords(state);
 
-    // Add new success record
-    state.requestHistory.push({ timestamp: new Date(), success: true });
-    state.totalRequests = state.requestHistory.length;
-    state.successCount = state.requestHistory.filter(r => r.success).length;
     state.consecutiveFailures = 0; // Reset consecutive failure count
 
     // Update status based on current state
@@ -118,6 +118,7 @@ export class ProviderHealthTracker {
   /**
    * Record a failed request for a provider
    * Returns true if provider should be disabled after this failure
+   * Fixed: Add new record before cleanup to ensure counts are accurate
    */
   recordFailure(providerId: string): boolean {
     const failureTime = new Date();
@@ -134,13 +135,12 @@ export class ProviderHealthTracker {
       return newState.consecutiveFailures >= this.failureThreshold;
     }
 
-    // Clean up old records first
+    // Add new failure record first
+    state.requestHistory.push({ timestamp: failureTime, success: false });
+
+    // Then clean up old records (this will recalculate counts including the new record)
     this.cleanupOldRecords(state);
 
-    // Add new failure record
-    state.requestHistory.push({ timestamp: failureTime, success: false });
-    state.totalRequests = state.requestHistory.length;
-    state.successCount = state.requestHistory.filter(r => r.success).length;
     state.consecutiveFailures++;
     state.lastFailure = failureTime; // Track actual failure time
 

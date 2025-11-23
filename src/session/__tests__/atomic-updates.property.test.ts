@@ -409,15 +409,21 @@ describe('SessionManager Atomic Updates Property Test', () => {
           const rPushCalls = (pipeline.rPush as jest.Mock).mock.calls;
           const historyKey = `session:${testData.sessionId}:history`;
           const historyPushCalls = rPushCalls.filter((call: any[]) => call[0] === historyKey);
-          
+
           // History should be updated if it's a new entry (length increased)
           if (testData.initialHistory.length < finalHistory.length) {
             expect(historyPushCalls.length).toBeGreaterThan(0);
             // Verify the new entry was pushed
+            // Note: rPush now accepts array of entries, so we need to handle both formats
             const lastPushCall = historyPushCalls[historyPushCalls.length - 1];
-            const pushedEntry = JSON.parse(lastPushCall[1]);
-            expect(pushedEntry.role).toBe(testData.newEntry.role);
-            expect(pushedEntry.content).toBe(testData.newEntry.content);
+            const pushedData = lastPushCall[1];
+
+            // Handle both array and single string formats
+            const entries = Array.isArray(pushedData) ? pushedData : [pushedData];
+            const lastEntry = JSON.parse(entries[entries.length - 1]);
+
+            expect(lastEntry.role).toBe(testData.newEntry.role);
+            expect(lastEntry.content).toBe(testData.newEntry.content);
           }
         }
       ),
