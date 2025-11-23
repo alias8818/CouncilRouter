@@ -357,9 +357,22 @@ export class CostCalculator {
       // Additional validation for date components
       const parts = prefix.split(/[-_]/);
 
-      // If there's only one part (no separators), it's likely a timestamp or arbitrary ID
-      // Skip detailed validation for pure numeric IDs like "20240115" or "123456"
+      // If there's only one part (no separators), validate it as a timestamp
+      // For formats like YYYYMMDD (20240115), extract and validate the year
       if (parts.length === 1) {
+        // Must be at least 4 digits to contain a valid year
+        if (prefix.length < 4) {
+          return false;
+        }
+
+        // Extract first 4 digits as year
+        const year = parseInt(prefix.substring(0, 4), 10);
+
+        // Validate year is in reasonable range
+        if (year < 1900 || year > 2100) {
+          return false;
+        }
+
         return true;
       }
 

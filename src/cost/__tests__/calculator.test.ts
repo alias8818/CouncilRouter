@@ -37,9 +37,22 @@ describe('CostCalculator', () => {
       expect(matchesPeriod('2024_12_weekly', 'weekly')).toBe(true);
     });
 
-    it('should match numeric-only prefixes', () => {
+    it('should match valid numeric-only prefixes (YYYYMMDD format)', () => {
       expect(matchesPeriod('20240115-daily', 'daily')).toBe(true);
-      expect(matchesPeriod('123456-weekly', 'weekly')).toBe(true);
+      expect(matchesPeriod('20241231-weekly', 'weekly')).toBe(true);
+      expect(matchesPeriod('19991231-monthly', 'monthly')).toBe(true);
+    });
+
+    it('should reject invalid numeric prefixes', () => {
+      // Too short (less than 4 digits)
+      expect(matchesPeriod('123-daily', 'daily')).toBe(false);
+      expect(matchesPeriod('0-weekly', 'weekly')).toBe(false);
+
+      // Invalid year (outside 1900-2100 range)
+      expect(matchesPeriod('1234-daily', 'daily')).toBe(false);
+      expect(matchesPeriod('123456-weekly', 'weekly')).toBe(false);
+      expect(matchesPeriod('18991231-monthly', 'monthly')).toBe(false); // year 1899
+      expect(matchesPeriod('21010101-daily', 'daily')).toBe(false); // year 2101
     });
 
     it('should reject word prefixes', () => {
