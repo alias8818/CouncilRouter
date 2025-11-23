@@ -268,6 +268,7 @@ export interface APIResponse {
   consensusDecision?: string;
   createdAt: Date;
   completedAt?: Date;
+  fromCache?: boolean; // Indicates if response was served from idempotency cache
 }
 
 // ============================================================================
@@ -321,4 +322,48 @@ export interface RedTeamAnalytics {
   resistanceRatesByMember: Map<string, number>; // member ID -> resistance rate (0-1)
   resistanceRatesByCategory: Map<string, number>; // category -> resistance rate (0-1)
   resistanceRatesByMemberAndCategory: Map<string, Map<string, number>>; // member ID -> category -> rate
+}
+
+// ============================================================================
+// Tool Execution Models
+// ============================================================================
+
+export interface ToolDefinition {
+  name: string;
+  description: string;
+  parameters: ToolParameter[];
+  adapter: string; // which adapter to use
+}
+
+export interface ToolParameter {
+  name: string;
+  type: 'string' | 'number' | 'boolean' | 'object' | 'array';
+  description: string;
+  required: boolean;
+  default?: any;
+}
+
+export interface ToolCall {
+  toolName: string;
+  parameters: Record<string, any>;
+  councilMemberId: string;
+  requestId: string;
+}
+
+export interface ToolResult {
+  toolName: string;
+  councilMemberId: string;
+  success: boolean;
+  result?: any;
+  error?: string;
+  latency: number;
+  timestamp: Date;
+}
+
+export interface ToolUsage {
+  councilMemberId: string;
+  toolName: string;
+  parameters: Record<string, any>;
+  result: ToolResult;
+  roundNumber: number;
 }

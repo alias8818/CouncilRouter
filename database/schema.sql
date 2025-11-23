@@ -155,3 +155,22 @@ CREATE TABLE red_team_tests (
 CREATE INDEX idx_red_team_tests_member ON red_team_tests(council_member_id);
 CREATE INDEX idx_red_team_tests_category ON red_team_tests(attack_category);
 CREATE INDEX idx_red_team_tests_created_at ON red_team_tests(created_at);
+
+-- ============================================================================
+-- Tool usage table (Council Enhancements)
+-- ============================================================================
+CREATE TABLE tool_usage (
+  id UUID PRIMARY KEY,
+  request_id UUID REFERENCES requests(id),
+  council_member_id VARCHAR(255) NOT NULL,
+  round_number INTEGER NOT NULL,
+  tool_name VARCHAR(255) NOT NULL,
+  parameters JSONB NOT NULL,
+  result JSONB NOT NULL,
+  success BOOLEAN NOT NULL,
+  latency_ms INTEGER NOT NULL,
+  created_at TIMESTAMP NOT NULL
+);
+
+CREATE INDEX idx_tool_usage_request_id ON tool_usage(request_id);
+CREATE INDEX idx_tool_usage_council_member ON tool_usage(council_member_id);

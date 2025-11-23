@@ -16,6 +16,7 @@ import { IAPIGateway } from '../interfaces/IAPIGateway';
 import { IOrchestrationEngine } from '../interfaces/IOrchestrationEngine';
 import { ISessionManager } from '../interfaces/ISessionManager';
 import { IEventLogger } from '../interfaces/IEventLogger';
+import { IIdempotencyCache } from '../interfaces/IIdempotencyCache';
 import {
   APIRequestBody,
   APIResponse,
@@ -55,6 +56,7 @@ export class APIGateway implements IAPIGateway {
   private jwtSecret: string;
   private redis: RedisClientType;
   private dbPool: Pool;
+  private idempotencyCache?: IIdempotencyCache;
 
   // Streaming connections with TTL tracking
   private streamingConnections: Map<string, Response[]> = new Map();
@@ -68,7 +70,8 @@ export class APIGateway implements IAPIGateway {
     eventLogger: IEventLogger,
     redis: RedisClientType,
     dbPool: Pool,
-    jwtSecret?: string
+    jwtSecret?: string,
+    idempotencyCache?: IIdempotencyCache
   ) {
     this.app = express();
     this.orchestrationEngine = orchestrationEngine;
@@ -76,6 +79,7 @@ export class APIGateway implements IAPIGateway {
     this.eventLogger = eventLogger;
     this.redis = redis;
     this.dbPool = dbPool;
+    this.idempotencyCache = idempotencyCache;
 
     // Require JWT_SECRET environment variable in production
     if (!jwtSecret && !process.env.JWT_SECRET) {
@@ -342,8 +346,91 @@ export class APIGateway implements IAPIGateway {
   ): Promise<void> {
     try {
       const body = req.body as APIRequestBody;
-      const requestId = randomUUID();
       const userId = req.userId!;
+
+      // Check for idempotency key in header
+      const idempotencyKey = req.headers['idempotency-key'] as string | undefined;
+
+      // Handle idempotency if cache is available and key is provided
+      if (this.idempotencyCache && idempotencyKey) {
+        const status = await this.idempotencyCache.checkKey(idempotencyKey);
+
+        // If key exists and is completed, return cached result
+        if (status.exists && status.status === 'completed' && status.result) {
+          const response: APIResponse = {
+            requestId: status.result.requestId,
+            status: 'completed',
+            consensusDecision: status.result.consensusDecision?.content,
+            createdAt: status.result.timestamp,
+            completedAt: status.result.timestamp,
+            fromCache: true
+          };
+          res.status(200).json(response);
+          return;
+        }
+
+        // If key exists and is failed, return cached error
+        if (status.exists && status.status === 'failed' && status.result) {
+          res.status(500).json(status.result.error);
+          return;
+        }
+
+        // If key exists and is in-progress, wait for completion
+        if (status.exists && status.status === 'in-progress') {
+          try {
+            const result = await this.idempotencyCache.waitForCompletion(idempotencyKey, 30000);
+
+            if (result.consensusDecision) {
+              const response: APIResponse = {
+                requestId: result.requestId,
+                status: 'completed',
+                consensusDecision: result.consensusDecision.content,
+                createdAt: result.timestamp,
+                completedAt: result.timestamp,
+                fromCache: true
+              };
+              res.status(200).json(response);
+            } else if (result.error) {
+              res.status(500).json(result.error);
+            }
+            return;
+          } catch (waitError) {
+            // Timeout or error waiting - return 202 and let client poll
+            const response: APIResponse = {
+              requestId: 'unknown',
+              status: 'processing',
+              createdAt: new Date()
+            };
+            res.status(202).json(response);
+            return;
+          }
+        }
+      }
+
+      // Process new request
+      const requestId = randomUUID();
+
+      // Mark as in-progress in idempotency cache
+      if (this.idempotencyCache && idempotencyKey) {
+        try {
+          await this.idempotencyCache.markInProgress(idempotencyKey, requestId, 86400);
+        } catch (error) {
+          // Key already exists (race condition) - fetch and return cached result
+          const status = await this.idempotencyCache.checkKey(idempotencyKey);
+          if (status.exists && status.result) {
+            const response: APIResponse = {
+              requestId: status.result.requestId,
+              status: status.status === 'completed' ? 'completed' : 'processing',
+              consensusDecision: status.result.consensusDecision?.content,
+              createdAt: status.result.timestamp,
+              completedAt: status.status === 'completed' ? status.result.timestamp : undefined,
+              fromCache: true
+            };
+            res.status(status.status === 'completed' ? 200 : 202).json(response);
+            return;
+          }
+        }
+      }
 
       // Get or create session
       let sessionId = body.sessionId;
@@ -379,7 +466,7 @@ export class APIGateway implements IAPIGateway {
 
       // Process request asynchronously
       // Don't await - fire and forget, but catch errors to prevent unhandled rejections
-      this.processRequestAsync(userRequest, body.streaming || false).catch(async (error) => {
+      this.processRequestAsync(userRequest, body.streaming || false, idempotencyKey).catch(async (error) => {
         console.error('Error in async request processing:', error);
         // Update request status to failed in storage
         try {
@@ -389,6 +476,20 @@ export class APIGateway implements IAPIGateway {
             storedRequest.error = error.message || 'Internal server error';
             storedRequest.completedAt = new Date();
             await this.saveRequest(storedRequest);
+          }
+
+          // Cache error in idempotency cache
+          if (this.idempotencyCache && idempotencyKey) {
+            const errorResponse: ErrorResponse = {
+              error: {
+                code: 'INTERNAL_ERROR',
+                message: error.message || 'Internal server error',
+                retryable: false
+              },
+              requestId,
+              timestamp: new Date()
+            };
+            await this.idempotencyCache.cacheError(idempotencyKey, requestId, errorResponse, 86400);
           }
         } catch (saveError) {
           console.error('Failed to save error state:', saveError);
@@ -515,7 +616,8 @@ export class APIGateway implements IAPIGateway {
    */
   private async processRequestAsync(
     userRequest: UserRequest,
-    streaming: boolean
+    streaming: boolean,
+    idempotencyKey?: string
   ): Promise<void> {
     try {
       // Process through orchestration engine
@@ -528,6 +630,11 @@ export class APIGateway implements IAPIGateway {
         storedRequest.consensusDecision = consensusDecision;
         storedRequest.completedAt = new Date();
         await this.saveRequest(storedRequest);
+      }
+
+      // Cache result in idempotency cache
+      if (this.idempotencyCache && idempotencyKey) {
+        await this.idempotencyCache.cacheResult(idempotencyKey, userRequest.id, consensusDecision, 86400);
       }
 
       // Log consensus decision
