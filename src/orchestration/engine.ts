@@ -144,6 +144,9 @@ export class OrchestrationEngine implements IOrchestrationEngine {
         synthesisConfig.strategy
       );
 
+      // Note: deliberationThreadsByRequest entry will be cleaned up by the API gateway
+      // after it stores the thread in Redis (see gateway.ts processRequestAsync)
+
       return consensusDecision;
     } catch (error) {
       // If all members failed, throw error
@@ -625,6 +628,9 @@ export class OrchestrationEngine implements IOrchestrationEngine {
       synthesisConfig.strategy
     );
 
+    // Note: deliberationThreadsByRequest entry will be cleaned up by the API gateway
+    // after it stores the thread in Redis (see gateway.ts processRequestAsync)
+
     // Mark as low confidence due to timeout
     return {
       ...consensusDecision,
@@ -765,6 +771,14 @@ export class OrchestrationEngine implements IOrchestrationEngine {
    */
   getDeliberationThread(requestId: string): DeliberationThread | null {
     return this.deliberationThreadsByRequest.get(requestId) || null;
+  }
+
+  /**
+   * Clean up deliberation thread from memory after it's been persisted
+   * This prevents memory leaks when threads are stored in Redis
+   */
+  cleanupDeliberationThread(requestId: string): void {
+    this.deliberationThreadsByRequest.delete(requestId);
   }
 
   /**

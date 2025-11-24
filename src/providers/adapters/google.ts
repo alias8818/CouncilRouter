@@ -89,12 +89,14 @@ export class GoogleAdapter extends BaseProviderAdapter {
     const startTime = Date.now();
     try {
       // Use a minimal request to check health
+      // Use header-based authentication to match sendRequest() method
       const response = await fetch(
-        `${this.baseUrl}/models/gemini-pro:generateContent?key=${this.apiKey}`,
+        `${this.baseUrl}/models/gemini-pro:generateContent`,
         {
           method: 'POST',
           headers: {
-            'Content-Type': 'application/json'
+            'Content-Type': 'application/json',
+            'x-goog-api-key': this.apiKey
           },
           body: JSON.stringify({
             contents: [{ role: 'user', parts: [{ text: 'test' }] }]

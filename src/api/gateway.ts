@@ -782,6 +782,8 @@ export class APIGateway implements IAPIGateway {
           JSON.stringify(deliberationThread),
           { EX: 86400 } // 24 hour TTL
         );
+        // Clean up from memory after persisting to Redis to prevent memory leak
+        (this.orchestrationEngine as any).cleanupDeliberationThread?.(userRequest.id);
       }
 
       // Update stored request
