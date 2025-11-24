@@ -244,6 +244,9 @@ CREATE INDEX idx_devils_advocate_logs_created_at ON devils_advocate_logs(created
 -- ============================================================================
 -- API Keys table (for API authentication)
 -- ============================================================================
+-- Enable pgcrypto extension for gen_random_uuid() function
+CREATE EXTENSION IF NOT EXISTS pgcrypto;
+
 CREATE TABLE api_keys (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id VARCHAR(255) NOT NULL,
