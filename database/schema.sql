@@ -260,3 +260,10 @@ CREATE TABLE api_keys (
 CREATE INDEX idx_api_keys_key_hash ON api_keys(key_hash);
 CREATE INDEX idx_api_keys_user_id ON api_keys(user_id);
 CREATE INDEX idx_api_keys_active ON api_keys(active);
+
+-- Seed demo API key for UI (development/testing only)
+-- Key: demo-api-key-for-testing-purposes-only-12345678901234567890
+-- Hash: 52346957575b04c715942a324887efde06f034ca62893fa6a76064d7f65f8e43
+INSERT INTO api_keys (user_id, key_hash, active)
+VALUES ('demo-user', '52346957575b04c715942a324887efde06f034ca62893fa6a76064d7f65f8e43', true)
+ON CONFLICT (key_hash) DO NOTHING;
