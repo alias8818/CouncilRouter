@@ -9,6 +9,7 @@ import { BaseProviderAdapter } from './adapters/base';
 import { OpenAIAdapter } from './adapters/openai';
 import { AnthropicAdapter } from './adapters/anthropic';
 import { GoogleAdapter } from './adapters/google';
+import { GrokAdapter } from './adapters/grok';
 import { ProviderHealthTracker, getSharedHealthTracker } from './health-tracker';
 
 interface ProviderLatencyTracking {
@@ -37,6 +38,7 @@ export class ProviderPool implements IProviderPool {
     const openaiKey = process.env.OPENAI_API_KEY;
     const anthropicKey = process.env.ANTHROPIC_API_KEY;
     const googleKey = process.env.GOOGLE_API_KEY;
+    const xaiKey = process.env.XAI_API_KEY;
 
     const missingKeys: string[] = [];
 
@@ -61,13 +63,20 @@ export class ProviderPool implements IProviderPool {
       missingKeys.push('GOOGLE_API_KEY');
     }
 
+    if (xaiKey) {
+      this.adapters.set('grok', new GrokAdapter(xaiKey));
+      this.initializeHealthTracking('grok');
+    } else {
+      missingKeys.push('XAI_API_KEY');
+    }
+
     // Log warnings for all missing API keys
     if (missingKeys.length > 0) {
       const providers = missingKeys.map(key => key.replace('_API_KEY', '').toLowerCase()).join(', ');
       console.warn(
         `WARNING: Missing API keys detected: ${missingKeys.join(', ')}. ` +
         `The following providers will not be available: ${providers}. ` +
-        `Please set the required environment variables to enable these providers.`
+        'Please set the required environment variables to enable these providers.'
       );
     }
   }

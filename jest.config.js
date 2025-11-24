@@ -11,6 +11,7 @@ module.exports = {
   // Enable test result caching for faster re-runs
   cache: true,
   cacheDirectory: '<rootDir>/.jest-cache',
+  globalSetup: '<rootDir>/src/__tests__/global-setup.ts',
   setupFilesAfterEnv: ['<rootDir>/src/__tests__/jest.setup.ts'],
   // Only collect coverage when explicitly requested (speeds up CI)
   collectCoverage: process.env.COLLECT_COVERAGE === 'true',

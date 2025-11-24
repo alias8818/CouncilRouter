@@ -53,6 +53,9 @@ export class OrchestrationEngine implements IOrchestrationEngine {
   // Track partial responses per request (keyed by request ID) to avoid shared state corruption
   private partialResponsesByRequest: Map<string, TrackedResponse[]> = new Map();
 
+  // Store deliberation threads by request ID for API retrieval
+  private deliberationThreadsByRequest: Map<string, DeliberationThread> = new Map();
+
   constructor(
     providerPool: IProviderPool,
     configManager: IConfigurationManager,
@@ -131,6 +134,9 @@ export class OrchestrationEngine implements IOrchestrationEngine {
         deliberationConfig.rounds
       );
 
+      // Store deliberation thread for API retrieval
+      this.deliberationThreadsByRequest.set(request.id, deliberationThread);
+
       // Synthesize consensus decision
       const consensusDecision = await this.synthesisEngine.synthesize(
         request,
@@ -187,12 +193,23 @@ export class OrchestrationEngine implements IOrchestrationEngine {
 
       if (result.status === 'fulfilled' && result.value.response.success) {
         // Successful response
-        initialResponses.push(result.value.initialResponse);
+        console.log(`✓ Council member ${member.id} (${member.provider}/${member.model}) responded successfully`);
+
+        const initialResponse = result.value.initialResponse;
+        console.error(`[Orchestration] STEP 4: Received InitialResponse for ${member.id}:`, {
+          contentType: typeof initialResponse.content,
+          isArray: Array.isArray(initialResponse.content),
+          contentLength: typeof initialResponse.content === 'string' ? initialResponse.content.length : 'N/A',
+          contentPreview: typeof initialResponse.content === 'string' ? initialResponse.content.substring(0, 200) : JSON.stringify(initialResponse.content).substring(0, 500),
+          hasObjectObject: typeof initialResponse.content === 'string' && initialResponse.content.includes('[object Object]')
+        });
+
+        initialResponses.push(initialResponse);
         this.resetFailureCount(member);
       } else {
         // Failed response - track failure and collect error details
         let errorMessage = `Member ${member.id} (${member.provider}/${member.model}) failed`;
-        
+
         if (result.status === 'fulfilled') {
           // Response was received but marked as failed
           const error = result.value.response.error;
@@ -206,7 +223,7 @@ export class OrchestrationEngine implements IOrchestrationEngine {
           errorMessage += `: ${error?.message || String(error)}`;
           console.error(`Council member ${member.id} promise rejected:`, error);
         }
-        
+
         failureDetails.push(errorMessage);
         this.trackFailure(member);
       }
@@ -217,6 +234,15 @@ export class OrchestrationEngine implements IOrchestrationEngine {
       const errorMsg = `All council members failed to respond. Details:\n${failureDetails.join('\n')}`;
       console.error('All council members failed:', errorMsg);
       throw new Error(errorMsg);
+    }
+
+    // Log summary of successful vs failed members
+    const successfulMembers = initialResponses.map(r => r.councilMemberId).join(', ');
+    console.log(`\n[Request ${request.id}] Council response summary:`);
+    console.log(`  ✓ Successful (${initialResponses.length}/${councilMembers.length}): ${successfulMembers}`);
+    if (failureDetails.length > 0) {
+      console.log(`  ✗ Failed (${failureDetails.length}/${councilMembers.length}):`);
+      failureDetails.forEach(detail => console.log(`    - ${detail}`));
     }
 
     return initialResponses;
@@ -233,14 +259,58 @@ export class OrchestrationEngine implements IOrchestrationEngine {
     const deliberationRounds: DeliberationRound[] = [];
 
     // Round 0: Initial responses
+    console.error(`[Orchestration] STEP 5: Creating Round 0 exchanges from ${initialResponses.length} initial responses`);
     deliberationRounds.push({
       roundNumber: 0,
-      exchanges: initialResponses.map(response => ({
-        councilMemberId: response.councilMemberId,
-        content: response.content,
-        referencesTo: [],
-        tokenUsage: response.tokenUsage
-      }))
+      exchanges: initialResponses.map((response, idx) => {
+        console.error(`[Orchestration] STEP 5.${idx}: Processing initial response ${response.councilMemberId}:`, {
+          contentType: typeof response.content,
+          isArray: Array.isArray(response.content),
+          contentPreview: typeof response.content === 'string' ? response.content.substring(0, 200) : JSON.stringify(response.content).substring(0, 500)
+        });
+
+        // Ensure content is always a string
+        let content = response.content;
+        if (typeof content !== 'string') {
+          if (content && typeof content === 'object') {
+            if (Array.isArray(content)) {
+              // Handle arrays properly - extract strings from each item
+              const contentArray = content as any[];
+              content = contentArray.map((item: any) => {
+                if (typeof item === 'string') {return item;}
+                if (item && typeof item === 'object') {
+                  return item.text || item.content || item.message || JSON.stringify(item);
+                }
+                return String(item || '');
+              }).filter((item: string) => item && !item.includes('[object Object]')).join(' ');
+            } else {
+              content = (content as any).text || (content as any).content || (content as any).message || JSON.stringify(content);
+            }
+          } else {
+            content = String(content || '');
+          }
+        }
+        // Final safety check
+        if (content && typeof content === 'string' && content.includes('[object Object]')) {
+          console.warn(`[Orchestration] Found [object Object] in initial response for ${response.councilMemberId}`);
+          content = 'Content extraction failed';
+        }
+        const exchange = {
+          councilMemberId: response.councilMemberId,
+          content: content,
+          referencesTo: [],
+          tokenUsage: response.tokenUsage
+        };
+
+        console.error(`[Orchestration] STEP 5.${idx}: Created Round 0 exchange for ${response.councilMemberId}:`, {
+          exchangeContentType: typeof exchange.content,
+          exchangeContentLength: typeof exchange.content === 'string' ? exchange.content.length : 'N/A',
+          exchangeContentPreview: typeof exchange.content === 'string' ? exchange.content.substring(0, 200) : JSON.stringify(exchange.content).substring(0, 500),
+          hasObjectObject: typeof exchange.content === 'string' && exchange.content.includes('[object Object]')
+        });
+
+        return exchange;
+      })
     });
 
     // If no deliberation rounds configured, return immediately
@@ -271,13 +341,49 @@ export class OrchestrationEngine implements IOrchestrationEngine {
       });
 
       // Update previous responses for next round
-      previousRoundResponses = roundExchanges.map(exchange => ({
-        councilMemberId: exchange.councilMemberId,
-        content: exchange.content,
-        tokenUsage: exchange.tokenUsage,
-        latency: 0,
-        timestamp: new Date()
-      }));
+      previousRoundResponses = roundExchanges.map(exchange => {
+        // Ensure content is always a string (defensive check)
+        let content = exchange.content;
+        if (typeof content !== 'string') {
+          if (content && typeof content === 'object') {
+            if (Array.isArray(content)) {
+              // Handle arrays properly - extract strings from each item
+              const contentArray = content as any[];
+              content = contentArray.map((item: any) => {
+                if (typeof item === 'string') {return item;}
+                if (item && typeof item === 'object') {
+                  return item.text || item.content || item.message || JSON.stringify(item);
+                }
+                return String(item || '');
+              }).filter((item: string) => item && !item.includes('[object Object]')).join(' ');
+            } else {
+              content = (content as any).text || (content as any).content || (content as any).message || JSON.stringify(content);
+            }
+          } else {
+            content = String(content || '');
+          }
+        }
+        // Final check - if it still contains [object Object], try to extract properly
+        if (content && typeof content === 'string' && content.includes('[object Object]')) {
+          console.warn(`[Orchestration] Found [object Object] in content for ${exchange.councilMemberId}, attempting recovery`);
+          // Try to recover from the original exchange content
+          const original = exchange.content;
+          if (original && typeof original === 'object' && Array.isArray(original)) {
+            const originalArray = original as any[];
+            content = originalArray.map((item: any) => {
+              if (typeof item === 'string') {return item;}
+              return item?.text || item?.content || item?.message || JSON.stringify(item);
+            }).filter((item: string) => item && !item.includes('[object Object]')).join(' ');
+          }
+        }
+        return {
+          councilMemberId: exchange.councilMemberId,
+          content: content,
+          tokenUsage: exchange.tokenUsage,
+          latency: 0,
+          timestamp: new Date()
+        };
+      });
     }
 
     const endTime = Date.now();
@@ -316,6 +422,7 @@ export class OrchestrationEngine implements IOrchestrationEngine {
       );
 
       // Send deliberation request to council member
+      console.error(`[Orchestration] STEP 6: Round ${roundNumber} - Sending deliberation request to ${response.councilMemberId}`);
       const _startTime = Date.now();
       const providerResponse = await this.providerPool.sendRequest(
         member,
@@ -324,8 +431,17 @@ export class OrchestrationEngine implements IOrchestrationEngine {
       );
       const _endTime = Date.now();
 
+      console.error(`[Orchestration] STEP 7: Round ${roundNumber} - Received provider response for ${response.councilMemberId}:`, {
+        success: providerResponse.success,
+        contentType: typeof providerResponse.content,
+        isArray: Array.isArray(providerResponse.content),
+        contentPreview: typeof providerResponse.content === 'string' ? providerResponse.content.substring(0, 200) : JSON.stringify(providerResponse.content).substring(0, 500),
+        hasObjectObject: typeof providerResponse.content === 'string' && providerResponse.content.includes('[object Object]')
+      });
+
       if (!providerResponse.success) {
         // If deliberation fails, use original response
+        console.error(`[Orchestration] STEP 7: Round ${roundNumber} - Deliberation failed for ${response.councilMemberId}, using original response`);
         return {
           councilMemberId: response.councilMemberId,
           content: response.content,
@@ -334,12 +450,70 @@ export class OrchestrationEngine implements IOrchestrationEngine {
         };
       }
 
-      return {
+      // Ensure content is always a string
+      let content = providerResponse.content;
+
+      // Debug logging
+      console.error(`[Orchestration] STEP 8: Round ${roundNumber} - Processing content for ${response.councilMemberId}:`, {
+        contentType: typeof content,
+        isArray: Array.isArray(content),
+        contentPreview: typeof content === 'string' ? content.substring(0, 200) : JSON.stringify(content).substring(0, 500),
+        hasObjectObject: typeof content === 'string' && content.includes('[object Object]')
+      });
+
+      if (typeof content !== 'string') {
+        console.error(`[Orchestration] ERROR: Round ${roundNumber} - Deliberation response for ${response.councilMemberId} has non-string content:`, {
+          type: typeof content,
+          isArray: Array.isArray(content),
+          content: content
+        });
+      } else if (content.includes('[object Object]')) {
+        console.error(`[Orchestration] ERROR: Round ${roundNumber} - Deliberation response for ${response.councilMemberId} has corrupted content string:`, {
+          content: content,
+          contentLength: content.length
+        });
+      }
+
+      if (typeof content !== 'string') {
+        if (content && typeof content === 'object') {
+          if (Array.isArray(content)) {
+            // Handle arrays properly - extract strings from each item
+            const contentArray = content as any[];
+            content = contentArray.map((item: any) => {
+              if (typeof item === 'string') {return item;}
+              if (item && typeof item === 'object') {
+                return item.text || item.content || item.message || JSON.stringify(item);
+              }
+              return String(item || '');
+            }).filter((item: string) => item && !item.includes('[object Object]')).join(' ');
+          } else {
+            content = (content as any).text || (content as any).content || (content as any).message || JSON.stringify(content);
+          }
+        } else {
+          content = String(content || '');
+        }
+      }
+      // Final safety check
+      if (content && typeof content === 'string' && content.includes('[object Object]')) {
+        console.warn(`[Orchestration] Found [object Object] in deliberation response for ${response.councilMemberId}`);
+        content = 'Content extraction failed';
+      }
+
+      const exchange = {
         councilMemberId: response.councilMemberId,
-        content: providerResponse.content,
+        content: content,
         referencesTo: peerResponses.map(r => r.councilMemberId),
         tokenUsage: providerResponse.tokenUsage
       };
+
+      console.error(`[Orchestration] STEP 9: Round ${roundNumber} - Created exchange for ${response.councilMemberId}:`, {
+        exchangeContentType: typeof exchange.content,
+        exchangeContentLength: typeof exchange.content === 'string' ? exchange.content.length : 'N/A',
+        exchangeContentPreview: typeof exchange.content === 'string' ? exchange.content.substring(0, 200) : JSON.stringify(exchange.content).substring(0, 500),
+        hasObjectObject: typeof exchange.content === 'string' && exchange.content.includes('[object Object]')
+      });
+
+      return exchange;
     });
 
     // Wait for all deliberation responses
@@ -417,15 +591,29 @@ export class OrchestrationEngine implements IOrchestrationEngine {
     const deliberationThread: DeliberationThread = {
       rounds: [{
         roundNumber: 0,
-        exchanges: trackedResponses.map((tracked) => ({
-          councilMemberId: tracked.memberId, // Use actual member ID
-          content: tracked.response.content,
-          referencesTo: [],
-          tokenUsage: tracked.response.tokenUsage
-        }))
+        exchanges: trackedResponses.map((tracked) => {
+          // Ensure content is always a string
+          let content = tracked.response.content;
+          if (typeof content !== 'string') {
+            if (content && typeof content === 'object') {
+              content = (content as any).text || (content as any).content || (content as any).message || JSON.stringify(content);
+            } else {
+              content = String(content || '');
+            }
+          }
+          return {
+            councilMemberId: tracked.memberId, // Use actual member ID
+            content: content,
+            referencesTo: [],
+            tokenUsage: tracked.response.tokenUsage
+          };
+        })
       }],
       totalDuration: 0
     };
+
+    // Store deliberation thread for API retrieval
+    this.deliberationThreadsByRequest.set(request.id, deliberationThread);
 
     // Get synthesis config
     const synthesisConfig = await this.configManager.getSynthesisConfig();
@@ -490,10 +678,36 @@ export class OrchestrationEngine implements IOrchestrationEngine {
     const endTime = Date.now();
     const latency = endTime - startTime;
 
+    // Ensure content is always a string before creating InitialResponse
+    let content = response.content;
+
+    // Debug logging
+    if (typeof content !== 'string') {
+      console.warn(`[Orchestration] InitialResponse for ${member.id} has non-string content:`, {
+        type: typeof content,
+        isArray: Array.isArray(content),
+        content: content,
+        responseKeys: response ? Object.keys(response) : []
+      });
+    } else if (content.includes('[object Object]')) {
+      console.error(`[Orchestration] InitialResponse for ${member.id} has corrupted content string:`, {
+        content: content,
+        contentLength: content.length
+      });
+    }
+
+    if (typeof content !== 'string') {
+      if (content && typeof content === 'object') {
+        content = (content as any).text || (content as any).content || (content as any).message || JSON.stringify(content);
+      } else {
+        content = String(content || '');
+      }
+    }
+
     // Convert to InitialResponse format
     const initialResponse: InitialResponse = {
       councilMemberId: member.id,
-      content: response.content,
+      content: content,
       tokenUsage: response.tokenUsage,
       latency,
       timestamp: new Date()
@@ -544,6 +758,13 @@ export class OrchestrationEngine implements IOrchestrationEngine {
   private resetFailureCount(member: CouncilMember): void {
     // Reset failure count in shared tracker (by provider)
     this.healthTracker.resetFailureCount(member.provider);
+  }
+
+  /**
+   * Get deliberation thread for a request (for API retrieval)
+   */
+  getDeliberationThread(requestId: string): DeliberationThread | null {
+    return this.deliberationThreadsByRequest.get(requestId) || null;
   }
 
   /**

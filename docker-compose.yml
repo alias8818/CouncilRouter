@@ -46,7 +46,7 @@ services:
       dockerfile: Dockerfile
     container_name: council-api
     environment:
-      NODE_ENV: ${NODE_ENV:-production}
+      NODE_ENV: ${NODE_ENV:-development}
 
       # Database
       DATABASE_HOST: postgres
@@ -70,6 +70,7 @@ services:
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      XAI_API_KEY: ${XAI_API_KEY}
 
       # Session Configuration
       SESSION_TIMEOUT_MS: ${SESSION_TIMEOUT_MS:-1800000}

@@ -46,17 +46,38 @@ export class GoogleAdapter extends BaseProviderAdapter {
       const requestBody = this.formatRequest(prompt, context);
       const modelPath = `models/${member.model}:generateContent`;
 
-      const response = await fetch(`${this.baseUrl}/${modelPath}?key=${this.apiKey}`, {
+      // Use header-based authentication (preferred for newer models)
+      const response = await fetch(`${this.baseUrl}/${modelPath}`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'x-goog-api-key': this.apiKey
         },
         body: JSON.stringify(requestBody)
       });
 
       if (!response.ok) {
-        const error: any = new Error(`Google API error: ${response.statusText}`);
+        let errorBody = '';
+        try {
+          errorBody = await response.text();
+          const parsed = JSON.parse(errorBody);
+          errorBody = JSON.stringify(parsed, null, 2);
+        } catch {
+          errorBody = errorBody || response.statusText;
+        }
+
+        const errorMsg = `Google API error (${response.status}): ${response.statusText}`;
+        console.error(`[GoogleAdapter] Request failed for model ${member.model}:`, {
+          status: response.status,
+          statusText: response.statusText,
+          errorBody,
+          model: member.model,
+          endpoint: `${this.baseUrl}/${modelPath}`
+        });
+
+        const error: any = new Error(errorMsg);
         error.status = response.status;
+        error.body = errorBody;
         throw error;
       }
 
@@ -120,7 +141,11 @@ export class GoogleAdapter extends BaseProviderAdapter {
   }
 
   protected parseResponse(response: GoogleResponse): { content: string; tokenUsage: TokenUsage } {
-    const content = response.candidates[0]?.content?.parts[0]?.text || '';
+    let content = response.candidates[0]?.content?.parts[0]?.text || '';
+    // Ensure content is always a string
+    if (typeof content !== 'string') {
+      content = String(content || '');
+    }
     const tokenUsage: TokenUsage = {
       promptTokens: response.usageMetadata.promptTokenCount,
       completionTokens: response.usageMetadata.candidatesTokenCount,

@@ -29,6 +29,40 @@ export interface ConsensusDecision {
   synthesisStrategy: SynthesisStrategy;
   contributingMembers: string[];
   timestamp: Date;
+
+  // Iterative consensus metadata (optional)
+  iterativeConsensusMetadata?: {
+    // Total negotiation rounds
+    totalRounds: number;
+
+    // Similarity progression
+    similarityProgression: number[];
+
+    // Consensus achieved flag
+    consensusAchieved: boolean;
+
+    // Fallback used flag
+    fallbackUsed: boolean;
+
+    // Fallback reason
+    fallbackReason?: string;
+
+    // Cost savings from early termination
+    costSavings?: {
+      tokensAvoided: number;
+      estimatedCostSaved: number;
+      costBreakdownByMember?: Record<string, number>;
+    };
+
+    // Deadlock detected flag
+    deadlockDetected: boolean;
+
+    // Human escalation triggered
+    humanEscalationTriggered: boolean;
+
+    // Quality score (0-1) derived from similarity and efficiency
+    qualityScore: number;
+  };
 }
 
 // ============================================================================
@@ -180,7 +214,8 @@ export type ConfigPreset =
 export type SynthesisStrategy =
   | { type: 'consensus-extraction' }
   | { type: 'weighted-fusion'; weights: Map<string, number> }
-  | { type: 'meta-synthesis'; moderatorStrategy: ModeratorStrategy };
+  | { type: 'meta-synthesis'; moderatorStrategy: ModeratorStrategy }
+  | { type: 'iterative-consensus'; config: IterativeConsensusConfig };
 
 export type ModeratorStrategy =
   | { type: 'permanent'; memberId: string }
@@ -440,3 +475,188 @@ export interface ModelRanking {
 }
 
 export type ModelRankings = Record<string, number>;
+
+// ============================================================================
+// Iterative Consensus Models
+// ============================================================================
+
+/**
+ * Configuration for Iterative Consensus synthesis strategy
+ */
+export interface IterativeConsensusConfig {
+  // Maximum negotiation rounds before fallback (1-10)
+  maxRounds: number;
+
+  // Minimum similarity threshold for consensus [0.7-1.0]
+  agreementThreshold: number;
+
+  // Fallback strategy when consensus not reached
+  fallbackStrategy: 'meta-synthesis' | 'consensus-extraction' | 'weighted-fusion';
+
+  // Embedding model for similarity calculation (default: 'text-embedding-3-large')
+  embeddingModel: string;
+
+  // Enable early termination at high similarity
+  earlyTerminationEnabled: boolean;
+  earlyTerminationThreshold: number; // default: 0.95
+
+  // Negotiation mode
+  negotiationMode: 'parallel' | 'sequential';
+
+  // Randomization seed for sequential mode (optional, for deterministic testing)
+  randomizationSeed?: number;
+
+  // Per-round timeout in seconds
+  perRoundTimeout: number;
+
+  // Enable human escalation for deadlocks
+  humanEscalationEnabled: boolean;
+  escalationChannels?: string[]; // email, slack, etc.
+  escalationRateLimit?: number; // max escalations per hour (default: 5)
+
+  // Number of examples to include in prompts (default: 2)
+  exampleCount: number;
+
+  // Custom prompt templates by query type (optional)
+  promptTemplates?: {
+    code?: PromptTemplate;
+    text?: PromptTemplate;
+    custom?: Record<string, PromptTemplate>;
+  };
+
+  // Token pricing map for accurate cost projection
+  tokenPriceMap?: Record<string, { input: number; output: number }>;
+
+  // Custom alert thresholds
+  customAlerts?: {
+    successRateThreshold?: number; // default: 0.7
+    averageRoundsThreshold?: number; // default: 5
+    deadlockRateThreshold?: number; // default: 0.2
+  };
+}
+
+/**
+ * Prompt template for negotiation rounds
+ */
+export interface PromptTemplate {
+  // Template name
+  name: string;
+
+  // Template content with placeholders
+  template: string;
+
+  // Placeholder descriptions
+  placeholders: Record<string, string>;
+}
+
+/**
+ * Response from a council member during negotiation
+ */
+export interface NegotiationResponse {
+  // Council member identifier
+  councilMemberId: string;
+
+  // Response content
+  content: string;
+
+  // Round number
+  roundNumber: number;
+
+  // Timestamp
+  timestamp: Date;
+
+  // Agreement indicator (if endorsing another response)
+  agreesWithMemberId?: string;
+
+  // Embedding vector (cached)
+  embedding?: number[];
+
+  // Token count
+  tokenCount: number;
+}
+
+/**
+ * Result of similarity calculation between responses
+ */
+export interface SimilarityResult {
+  // Pairwise similarity matrix
+  // matrix[i][j] = similarity between response i and j
+  matrix: number[][];
+
+  // Average similarity across all pairs
+  averageSimilarity: number;
+
+  // Minimum similarity (lowest pair)
+  minSimilarity: number;
+
+  // Maximum similarity (highest pair)
+  maxSimilarity: number;
+
+  // Pairs below threshold
+  belowThresholdPairs: Array<{
+    member1: string;
+    member2: string;
+    similarity: number;
+  }>;
+}
+
+/**
+ * Analysis of convergence trend during negotiation
+ */
+export interface ConvergenceTrend {
+  // Trend direction
+  direction: 'converging' | 'diverging' | 'stagnant';
+
+  // Convergence velocity (change per round)
+  velocity: number;
+
+  // Predicted rounds to consensus
+  predictedRounds: number;
+
+  // Deadlock risk level
+  deadlockRisk: 'low' | 'medium' | 'high';
+
+  // Recommendation
+  recommendation: string;
+}
+
+/**
+ * Agreement between council members
+ */
+export interface Agreement {
+  // Members who agree
+  memberIds: string[];
+
+  // Agreed position
+  position: string;
+
+  // Similarity score among agreeing members
+  cohesion: number;
+}
+
+/**
+ * Example of successful negotiation for prompt guidance
+ */
+export interface NegotiationExample {
+  // Example ID
+  id: string;
+
+  // Category
+  category: 'endorsement' | 'refinement' | 'compromise';
+
+  // Anonymized query context
+  queryContext: string;
+
+  // Example disagreement
+  disagreement: string;
+
+  // Example resolution
+  resolution: string;
+
+  // Success metrics
+  roundsToConsensus: number;
+  finalSimilarity: number;
+
+  // Created timestamp
+  createdAt: Date;
+}

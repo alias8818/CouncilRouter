@@ -58,8 +58,27 @@ export class AnthropicAdapter extends BaseProviderAdapter {
       });
 
       if (!response.ok) {
-        const error: any = new Error(`Anthropic API error: ${response.statusText}`);
+        let errorBody = '';
+        try {
+          errorBody = await response.text();
+          const parsed = JSON.parse(errorBody);
+          errorBody = JSON.stringify(parsed, null, 2);
+        } catch {
+          errorBody = errorBody || response.statusText;
+        }
+
+        const errorMsg = `Anthropic API error (${response.status}): ${response.statusText}`;
+        console.error(`[AnthropicAdapter] Request failed for model ${member.model}:`, {
+          status: response.status,
+          statusText: response.statusText,
+          errorBody,
+          model: member.model,
+          endpoint: `${this.baseUrl}/messages`
+        });
+
+        const error: any = new Error(errorMsg);
         error.status = response.status;
+        error.body = errorBody;
         throw error;
       }
 
@@ -123,7 +142,11 @@ export class AnthropicAdapter extends BaseProviderAdapter {
   }
 
   protected parseResponse(response: AnthropicResponse): { content: string; tokenUsage: TokenUsage } {
-    const content = response.content[0]?.text || '';
+    let content = response.content[0]?.text || '';
+    // Ensure content is always a string
+    if (typeof content !== 'string') {
+      content = String(content || '');
+    }
     const tokenUsage: TokenUsage = {
       promptTokens: response.usage.input_tokens,
       completionTokens: response.usage.output_tokens,

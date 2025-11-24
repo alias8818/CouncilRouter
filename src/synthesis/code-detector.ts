@@ -46,6 +46,11 @@ export class CodeDetector {
    * Security: Limits input size to prevent ReDoS attacks
    */
   detectCode(content: string): boolean {
+    // Ensure content is a string
+    if (typeof content !== 'string') {
+      content = String(content || '');
+    }
+
     if (!content || content.trim().length === 0) {
       return false;
     }
@@ -105,6 +110,11 @@ export class CodeDetector {
    * Security: Validates input size and escapes special characters
    */
   extractCode(content: string): string[] {
+    // Ensure content is a string
+    if (typeof content !== 'string') {
+      content = String(content || '');
+    }
+
     if (!content) {
       return [];
     }
@@ -255,6 +265,11 @@ export class CodeDetector {
    * Returns array of code-like segments
    */
   extractCodeSegments(content: string): string[] {
+    // Ensure content is a string
+    if (typeof content !== 'string') {
+      content = String(content || '');
+    }
+
     if (!content) {
       return [];
     }

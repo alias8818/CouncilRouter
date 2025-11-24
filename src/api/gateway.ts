@@ -22,7 +22,8 @@ import {
   APIResponse,
   UserRequest,
   ConsensusDecision,
-  ErrorResponse
+  ErrorResponse,
+  DeliberationThread
 } from '../types/core';
 
 /**
@@ -32,6 +33,7 @@ interface StoredRequest {
   id: string;
   status: 'processing' | 'completed' | 'failed';
   consensusDecision?: ConsensusDecision;
+  deliberationThread?: DeliberationThread;
   error?: string;
   createdAt: Date;
   completedAt?: Date;
@@ -108,9 +110,10 @@ export class APIGateway implements IAPIGateway {
     // JSON body parser
     this.app.use(express.json());
 
-    // Rate limiting (disabled in test mode)
+    // Rate limiting (disabled in test mode and development mode)
     const isTestMode = process.env.NODE_ENV === 'test';
-    if (!isTestMode) {
+    const isDevelopment = process.env.NODE_ENV === 'development';
+    if (!isTestMode && !isDevelopment) {
       const limiter = rateLimit({
         windowMs: 15 * 60 * 1000, // 15 minutes
         max: 100, // limit each IP to 100 requests per windowMs
@@ -132,7 +135,14 @@ export class APIGateway implements IAPIGateway {
   private setupRoutes(): void {
     // Health check endpoint
     this.app.get('/health', (req: Request, res: Response) => {
-      res.json({ status: 'healthy', timestamp: new Date().toISOString() });
+      const version = process.env.APP_VERSION || require('../../package.json').version || 'dev';
+      const buildTime = process.env.BUILD_TIME || 'unknown';
+      res.json({
+        status: 'healthy',
+        timestamp: new Date().toISOString(),
+        version: version,
+        buildTime: buildTime
+      });
     });
 
     // API v1 routes
@@ -153,6 +163,11 @@ export class APIGateway implements IAPIGateway {
     this.app.get('/api/v1/requests/:requestId/stream',
       this.authenticateRequest.bind(this),
       this.streamRequest.bind(this)
+    );
+
+    this.app.get('/api/v1/requests/:requestId/deliberation',
+      this.authenticateRequest.bind(this),
+      this.getDeliberation.bind(this)
     );
 
     // Error handling middleware
@@ -368,7 +383,7 @@ export class APIGateway implements IAPIGateway {
           const response: APIResponse = {
             requestId: status.result.requestId,
             status: 'completed',
-            consensusDecision: status.result.consensusDecision?.content,
+            consensusDecision: status.result.consensusDecision ? this.ensureStringContent(status.result.consensusDecision.content) : undefined,
             createdAt: status.result.timestamp,
             completedAt: status.result.timestamp,
             fromCache: true
@@ -392,7 +407,7 @@ export class APIGateway implements IAPIGateway {
               const response: APIResponse = {
                 requestId: result.requestId,
                 status: 'completed',
-                consensusDecision: result.consensusDecision.content,
+                consensusDecision: this.ensureStringContent(result.consensusDecision.content),
                 createdAt: result.timestamp,
                 completedAt: result.timestamp,
                 fromCache: true
@@ -451,7 +466,7 @@ export class APIGateway implements IAPIGateway {
                 const response: APIResponse = {
                   requestId: result.requestId,
                   status: 'completed',
-                  consensusDecision: result.consensusDecision.content,
+                  consensusDecision: this.ensureStringContent(result.consensusDecision.content),
                   createdAt: result.timestamp,
                   completedAt: result.timestamp,
                   fromCache: true
@@ -483,7 +498,7 @@ export class APIGateway implements IAPIGateway {
             const response: APIResponse = {
               requestId: status.result.requestId,
               status: status.status === 'completed' ? 'completed' : 'processing',
-              consensusDecision: status.result.consensusDecision?.content,
+              consensusDecision: status.result.consensusDecision ? this.ensureStringContent(status.result.consensusDecision.content) : undefined,
               createdAt: status.result.timestamp,
               completedAt: status.status === 'completed' ? status.result.timestamp : undefined,
               fromCache: true
@@ -512,6 +527,14 @@ export class APIGateway implements IAPIGateway {
       if (!sessionId) {
         const session = await this.sessionManager.createSession(userId);
         sessionId = session.id;
+      } else {
+        // Verify session exists, create if it doesn't
+        const session = await this.sessionManager.getSession(sessionId);
+        if (!session) {
+          // Session doesn't exist, create it
+          const newSession = await this.sessionManager.createSession(userId);
+          sessionId = newSession.id;
+        }
       }
 
       // Get conversation context
@@ -614,12 +637,56 @@ export class APIGateway implements IAPIGateway {
       const response: APIResponse = {
         requestId: storedRequest.id,
         status: storedRequest.status,
-        consensusDecision: storedRequest.consensusDecision?.content,
+        consensusDecision: storedRequest.consensusDecision ? this.ensureStringContent(storedRequest.consensusDecision.content) : undefined,
         createdAt: storedRequest.createdAt,
         completedAt: storedRequest.completedAt
       };
 
       res.json(response);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Get deliberation thread for a request
+   */
+  async getDeliberation(
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> {
+    try {
+      const { requestId } = req.params;
+
+      // Try to get from Redis cache first
+      const cached = await this.redis.get(`deliberation:${requestId}`);
+      if (cached) {
+        const deliberationThread: DeliberationThread = JSON.parse(cached);
+        res.json(deliberationThread);
+        return;
+      }
+
+      // Try to get from stored request
+      const storedRequest = await this.fetchRequest(requestId);
+      if (storedRequest?.deliberationThread) {
+        res.json(storedRequest.deliberationThread);
+        return;
+      }
+
+      // Try to get from orchestration engine (if still in memory)
+      const deliberationThread = (this.orchestrationEngine as any).getDeliberationThread?.(requestId);
+      if (deliberationThread) {
+        res.json(deliberationThread);
+        return;
+      }
+
+      res.status(404).json(this.createErrorResponse(
+        'DELIBERATION_NOT_FOUND',
+        `Deliberation thread for request ${requestId} not found`,
+        undefined,
+        false
+      ));
     } catch (error) {
       next(error);
     }
@@ -662,7 +729,7 @@ export class APIGateway implements IAPIGateway {
 
       // If request is already completed, send the result immediately
       if (storedRequest.status === 'completed' && storedRequest.consensusDecision) {
-        this.sendSSE(res, 'message', storedRequest.consensusDecision.content);
+        this.sendSSE(res, 'message', this.ensureStringContent(storedRequest.consensusDecision.content));
         this.sendSSE(res, 'done', 'Request completed');
         res.end();
         // Clean up this connection since it completed immediately
@@ -705,11 +772,26 @@ export class APIGateway implements IAPIGateway {
       // Process through orchestration engine
       const consensusDecision = await this.orchestrationEngine.processRequest(userRequest);
 
+      // Get deliberation thread from orchestration engine
+      const deliberationThread = (this.orchestrationEngine as any).getDeliberationThread(userRequest.id);
+
+      // Store deliberation thread in Redis for API retrieval
+      if (deliberationThread) {
+        await this.redis.set(
+          `deliberation:${userRequest.id}`,
+          JSON.stringify(deliberationThread),
+          { EX: 86400 } // 24 hour TTL
+        );
+      }
+
       // Update stored request
       const storedRequest = await this.fetchRequest(userRequest.id);
       if (storedRequest) {
         storedRequest.status = 'completed';
         storedRequest.consensusDecision = consensusDecision;
+        if (deliberationThread) {
+          storedRequest.deliberationThread = deliberationThread;
+        }
         storedRequest.completedAt = new Date();
         await this.saveRequest(storedRequest);
       }
@@ -791,7 +873,7 @@ export class APIGateway implements IAPIGateway {
     if (!connections) {return;}
 
     connections.forEach(res => {
-      this.sendSSE(res, 'message', consensusDecision.content);
+      this.sendSSE(res, 'message', this.ensureStringContent(consensusDecision.content));
       this.sendSSE(res, 'done', 'Request completed');
       res.end();
     });
@@ -978,6 +1060,31 @@ export class APIGateway implements IAPIGateway {
   }
 
   /**
+   * Helper function to ensure content is always a string
+   */
+  private ensureStringContent(content: any): string {
+    if (typeof content === 'string') {
+      return content;
+    }
+    if (content && typeof content === 'object') {
+      if (Array.isArray(content)) {
+        return content.map((item: any) => {
+          if (typeof item === 'string') {
+            return item;
+          } else if (item && typeof item === 'object') {
+            return item.text || item.content || item.message || JSON.stringify(item);
+          } else {
+            return String(item || '');
+          }
+        }).filter((item: string) => item && !item.includes('[object Object]')).join(' ');
+      } else {
+        return (content).text || (content).content || (content).message || JSON.stringify(content);
+      }
+    }
+    return String(content || '');
+  }
+
+  /**
    * Fetch request from Redis
    */
   private async fetchRequest(requestId: string): Promise<StoredRequest | null> {
@@ -993,6 +1100,8 @@ export class APIGateway implements IAPIGateway {
     }
     if (request.consensusDecision) {
       request.consensusDecision.timestamp = new Date(request.consensusDecision.timestamp);
+      // Ensure content is always a string after deserialization
+      request.consensusDecision.content = this.ensureStringContent(request.consensusDecision.content);
     }
 
     return request;

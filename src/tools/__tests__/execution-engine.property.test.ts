@@ -43,12 +43,26 @@ describe('Tool Execution Engine - Property Tests', () => {
     engine.registerAdapter(functionAdapter);
     engine.registerAdapter(new HTTPToolAdapter());
 
-    // Clean up test data (ignore if table doesn't exist)
+    // Clean up test data (check if table exists first to avoid PostgreSQL error logs)
     try {
-      await dbPool.query('DELETE FROM tool_usage WHERE request_id LIKE $1', ['test-%']);
+      // Check if table exists before trying to delete
+      const tableCheck = await dbPool.query(`
+        SELECT EXISTS (
+          SELECT FROM information_schema.tables 
+          WHERE table_schema = 'public' 
+          AND table_name = 'tool_usage'
+        )
+      `);
+      
+      if (tableCheck.rows[0]?.exists) {
+        // Cast UUID to text for LIKE comparison
+        await dbPool.query('DELETE FROM tool_usage WHERE request_id::text LIKE $1', ['test-%']);
+      }
     } catch (error: any) {
-      // Ignore error if table doesn't exist (e.g., in test environments without full schema)
-      if (!error.message?.includes('does not exist')) {
+      // Silently ignore errors - table might not exist in test environment
+      // PostgreSQL error code 42P01 = relation does not exist
+      if (error.code !== '42P01' && !error.message?.includes('does not exist')) {
+        // Only throw if it's not a "table doesn't exist" error
         throw error;
       }
     }

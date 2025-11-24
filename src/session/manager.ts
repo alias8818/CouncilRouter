@@ -90,6 +90,22 @@ export class SessionManager implements ISessionManager {
       // Begin transaction
       await client.query('BEGIN');
 
+      // Verify session exists before adding history
+      const sessionCheck = await client.query(
+        'SELECT id FROM sessions WHERE id = $1 AND expired = false',
+        [sessionId]
+      );
+
+      if (sessionCheck.rows.length === 0) {
+        // Session doesn't exist - this shouldn't happen if sessions are created properly
+        // But handle it gracefully by throwing a more descriptive error
+        await client.query('ROLLBACK');
+        throw new Error(
+          `Session ${sessionId} does not exist. Sessions must be created before adding history. ` +
+          'This may indicate a race condition or session cleanup issue.'
+        );
+      }
+
       // Add to database
       await client.query(
         `INSERT INTO session_history (id, session_id, role, content, request_id, created_at)

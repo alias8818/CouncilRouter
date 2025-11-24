@@ -57,14 +57,47 @@ export class SynthesisEngine implements ISynthesisEngine {
   ): Promise<ConsensusDecision> {
     // Extract query from request
     const query = request.query;
+    console.error(`[Synthesis] STEP 10: Starting synthesis for query: "${query.substring(0, 100)}"`);
 
     // Validate query (null/empty check)
     if (!query || query.trim().length === 0) {
       console.warn('User query is null or empty, proceeding with degraded synthesis');
     }
 
-    // Extract all exchanges from all rounds
-    const allExchanges = thread.rounds.flatMap(round => round.exchanges);
+    // Extract only Round 0 exchanges (initial responses) for synthesis
+    // Deliberation rounds (Round 1+) are internal discussion and should not be included in the final answer
+    const round0 = thread.rounds.find(round => round.roundNumber === 0);
+    if (!round0 || !round0.exchanges || round0.exchanges.length === 0) {
+      throw new Error('Cannot synthesize consensus: no initial responses (Round 0) available');
+    }
+
+    const allExchanges = round0.exchanges;
+
+    // Debug logging: Check exchanges before adding
+    allExchanges.forEach((exchange, idx) => {
+      console.error(`[Synthesis] STEP 11: Round 0 exchange ${idx} (${exchange.councilMemberId}):`, {
+        contentType: typeof exchange.content,
+        isArray: Array.isArray(exchange.content),
+        contentLength: typeof exchange.content === 'string' ? exchange.content.length : 'N/A',
+        contentPreview: typeof exchange.content === 'string' ? exchange.content.substring(0, 200) : JSON.stringify(exchange.content).substring(0, 500),
+        hasObjectObject: typeof exchange.content === 'string' && exchange.content.includes('[object Object]')
+      });
+
+      if (typeof exchange.content !== 'string') {
+        console.error(`[Synthesis] ERROR: Round 0 exchange ${exchange.councilMemberId} has non-string content:`, {
+          type: typeof exchange.content,
+          isArray: Array.isArray(exchange.content),
+          content: exchange.content
+        });
+      } else if (exchange.content.includes('[object Object]')) {
+        console.error(`[Synthesis] ERROR: Round 0 exchange ${exchange.councilMemberId} has corrupted content:`, {
+          content: exchange.content,
+          exchangeKeys: Object.keys(exchange)
+        });
+      }
+    });
+
+    console.error(`[Synthesis] STEP 12: Processing ${allExchanges.length} initial responses (Round 0) for synthesis`);
 
     // Fixed: Throw error instead of returning placeholder when no exchanges exist
     // This allows callers to properly handle the failure case
@@ -108,7 +141,8 @@ export class SynthesisEngine implements ISynthesisEngine {
           // Detect if this is a code request
           const isCodeRequest = allExchanges.some(e => {
             try {
-              return this.codeDetector.detectCode(e.content);
+              const content = typeof e.content === 'string' ? e.content : String(e.content || '');
+              return this.codeDetector.detectCode(content);
             } catch {
               return false;
             }
@@ -122,7 +156,7 @@ export class SynthesisEngine implements ISynthesisEngine {
             // Prepare responses for Devil's Advocate
             const responses = allExchanges.map(e => ({
               councilMemberId: e.councilMemberId,
-              content: e.content
+              content: typeof e.content === 'string' ? e.content : String(e.content || '')
             }));
 
             // Invoke Devil's Advocate
@@ -175,7 +209,8 @@ export class SynthesisEngine implements ISynthesisEngine {
     // Detect if responses contain code
     const isCodeRequest = exchanges.some(e => {
       try {
-        return this.codeDetector.detectCode(e.content);
+        const content = typeof e.content === 'string' ? e.content : String(e.content || '');
+        return this.codeDetector.detectCode(content);
       } catch {
         return false;
       }
@@ -220,29 +255,257 @@ export class SynthesisEngine implements ISynthesisEngine {
         const currentValidation = validationWeights.get(current.councilMemberId) || 0;
         return currentValidation > bestValidation ? current : best;
       });
-      majorityContent = bestResponse.content;
+      majorityContent = typeof bestResponse.content === 'string' ? bestResponse.content : String(bestResponse.content || '');
     } else {
-      // Text: concatenate majority group responses
-      majorityContent = majorityGroup.map(e => e.content).join('\n\n');
+      // Text: concatenate majority group responses, deduplicating identical content
+      const extractedContents = majorityGroup.map(e => {
+        // Ensure we extract content properly - handle various content formats
+        let content: any = e.content;
+
+        // Check if content is already corrupted (contains [object Object])
+        if (typeof content === 'string' && content.includes('[object Object]')) {
+          console.error(`[Synthesis] Exchange ${e.councilMemberId} has corrupted content string: '${content}'`);
+          return null;
+        }
+
+        if (typeof content !== 'string') {
+          if (content && typeof content === 'object') {
+            // If content is an object, try to extract text from common fields
+            if (Array.isArray(content)) {
+              content = content.map((item: any, _idx: number) => {
+                if (typeof item === 'string') {
+                  return item;
+                } else if (item && typeof item === 'object') {
+                  const extracted = item.text || item.content || item.message || item.response;
+                  if (extracted && typeof extracted === 'string') {
+                    return extracted;
+                  }
+                  const str = JSON.stringify(item);
+                  return str.includes('[object Object]') ? null : str;
+                } else {
+                  return String(item || '');
+                }
+              }).filter((item: string | null) => item !== null && typeof item === 'string' && !item.includes('[object Object]')).join(' ');
+            } else {
+              content = (content).text || (content).content || (content).message || (content).response;
+              if (!content || typeof content !== 'string') {
+                const stringified = JSON.stringify(content);
+                if (stringified && !stringified.includes('[object Object]')) {
+                  content = stringified;
+                } else {
+                  const keys = Object.keys(content || {});
+                  const stringValues = keys.map((key: string) => {
+                    const val = (content)[key];
+                    return typeof val === 'string' ? val : null;
+                  }).filter((v: string | null) => v !== null);
+                  content = stringValues.length > 0 ? stringValues.join(' ') : null;
+                }
+              }
+            }
+          } else {
+            content = String(content || '');
+          }
+        }
+
+        // Ensure we have a valid string and filter out invalid content
+        if (!content || typeof content !== 'string' || content.includes('[object Object]')) {
+          // Try one more time to extract content
+          if (e.content && typeof e.content === 'object') {
+            const obj = e.content as any;
+            if (Array.isArray(obj)) {
+              const extracted = obj.map((item: any) => {
+                if (typeof item === 'string') {
+                  return item;
+                }
+                return item?.text || item?.content || item?.message || item?.response;
+              }).filter((v: any) => v && typeof v === 'string');
+              content = extracted.length > 0 ? extracted.join(' ') : null;
+            } else {
+              content = obj.text || obj.content || obj.message || obj.response || null;
+            }
+            if (!content || typeof content !== 'string' || content.includes('[object Object]')) {
+              content = null;
+            }
+          } else {
+            content = null;
+          }
+        }
+
+        // Final check - reject if it contains [object Object]
+        if (content && typeof content === 'string' && content.includes('[object Object]')) {
+          return null;
+        }
+
+        return content;
+      }).filter((c: string | null) => c && typeof c === 'string' && !c.includes('[object Object]'));
+
+      // Deduplicate identical content (normalize and compare)
+      const uniqueContents = new Set<string>();
+      const deduplicated: string[] = [];
+
+      for (const content of extractedContents) {
+        const normalized = this.normalizeForSimilarity(content);
+        if (!uniqueContents.has(normalized)) {
+          uniqueContents.add(normalized);
+          deduplicated.push(content);
+        }
+      }
+
+      majorityContent = deduplicated.join('\n\n');
+
+      // Fallback if all content was filtered out
+      if (!majorityContent || majorityContent.trim().length === 0) {
+        // Try to use the next largest valid group if majority is corrupted
+        const validGroups = responseGroups.filter(g => {
+          return g.some(ex => {
+            const c = ex.content;
+            if (typeof c === 'string' && c.includes('[object Object]')) {
+              return false;
+            }
+            return true;
+          });
+        }).sort((a, b) => b.length - a.length);
+
+        if (validGroups.length > 0) {
+          const fallbackGroup = validGroups[0];
+          majorityContent = fallbackGroup.map(e => {
+            let content: any = e.content;
+            if (typeof content === 'string' && content.includes('[object Object]')) {
+              return `Response from ${e.councilMemberId} (content unavailable)`;
+            }
+            if (typeof content !== 'string') {
+              if (content && typeof content === 'object') {
+                if (Array.isArray(content)) {
+                  const contentArray = content;
+                  content = contentArray.map((item: any) => {
+                    if (typeof item === 'string') {
+                      return item;
+                    }
+                    return item?.text || item?.content || item?.message || JSON.stringify(item);
+                  }).filter((item: string) => item && !item.includes('[object Object]')).join(' ');
+                } else {
+                  content = (content).text || (content).content || (content).message || JSON.stringify(content);
+                }
+              } else {
+                content = String(content || '');
+              }
+            }
+            return content && !content.includes('[object Object]') ? content : `Response from ${e.councilMemberId} (content unavailable)`;
+          }).filter(c => c && !c.includes('[object Object]')).join('\n\n');
+        } else {
+          majorityContent = majorityGroup.map(e => `Response from ${e.councilMemberId} (content unavailable)`).join('\n\n');
+        }
+      }
     }
+
+    // Helper function to format content nicely
+    const formatContent = (content: string, maxLength: number = 2000): string => {
+      if (!content) {
+        return '';
+      }
+      // Remove excessive whitespace
+      let formatted = content.trim().replace(/\n{3,}/g, '\n\n');
+      // Truncate if too long
+      if (formatted.length > maxLength) {
+        formatted = formatted.substring(0, maxLength) + '...';
+      }
+      return formatted;
+    };
+
+    // Helper function to extract key points from long content
+    const extractKeyPoints = (content: string): string => {
+      const lines = content.split('\n').filter(line => line.trim());
+      // If content is short, return as-is
+      if (content.length < 300) {
+        return content;
+      }
+      // Extract first paragraph and any bullet points
+      const keyPoints: string[] = [];
+      let firstParagraph = '';
+      let inList = false;
+
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (!trimmed) {
+          continue;
+        }
+        // Capture first substantial paragraph
+        if (!firstParagraph && trimmed.length > 50) {
+          firstParagraph = trimmed;
+          continue;
+        }
+        // Capture bullet points or numbered lists
+        if (trimmed.match(/^[-*•]\s+/) || trimmed.match(/^\d+[.)]\s+/)) {
+          keyPoints.push(trimmed);
+          inList = true;
+        } else if (inList && trimmed.length < 100) {
+          // Continue list items
+          keyPoints.push(trimmed);
+        } else if (keyPoints.length > 0) {
+          // Stop collecting if we hit a non-list item
+          break;
+        }
+      }
+
+      if (firstParagraph && keyPoints.length > 0) {
+        return `${firstParagraph}\n\n${keyPoints.slice(0, 5).join('\n')}`;
+      }
+      return firstParagraph || content.substring(0, 500);
+    };
 
     // Build synthesis with areas of agreement and disagreement
     let synthesis = '';
 
     if (responseGroups.length === 1) {
-      // Full agreement
-      synthesis = `All council members agree:\n\n${majorityContent}`;
+      // Full agreement - show clean consensus
+      const formattedContent = formatContent(majorityContent);
+      synthesis = `✅ **Consensus** (${majorityGroup.length}/${exchangesToUse.length} members agree)\n\n${formattedContent}`;
     } else {
-      // Partial agreement
-      synthesis = `Majority position (${majorityGroup.length}/${exchangesToUse.length} members):\n\n${majorityContent}`;
+      // Partial agreement - show majority first, then alternatives
+      const formattedMajority = formatContent(majorityContent);
+      synthesis = `✅ **Majority Consensus** (${majorityGroup.length}/${exchangesToUse.length} members)\n\n${formattedMajority}`;
 
       // Add minority positions if they exist (only for text, not code)
       if (!isCodeRequest) {
         const minorityGroups = responseGroups.filter(g => g !== majorityGroup);
         if (minorityGroups.length > 0) {
-          synthesis += '\n\nAlternative perspectives:\n\n';
+          synthesis += '\n\n---\n\n**Alternative Perspectives:**\n';
           minorityGroups.forEach((group, idx) => {
-            synthesis += `Position ${idx + 2} (${group.length} members):\n${group[0].content}\n\n`;
+            let content: any = group[0].content;
+            // Skip if already corrupted
+            if (typeof content === 'string' && content.includes('[object Object]')) {
+              console.warn(`[Synthesis] Skipping corrupted minority position ${idx + 2}`);
+              return;
+            }
+            // Handle non-string content
+            if (typeof content !== 'string') {
+              if (content && typeof content === 'object') {
+                if (Array.isArray(content)) {
+                  const contentArray = content;
+                  content = contentArray.map((item: any) => {
+                    if (typeof item === 'string') {
+                      return item;
+                    }
+                    if (item && typeof item === 'object') {
+                      return item.text || item.content || item.message || JSON.stringify(item);
+                    }
+                    return String(item || '');
+                  }).filter((item: string) => item && !item.includes('[object Object]')).join(' ');
+                } else {
+                  content = (content).text || (content).content || (content).message || JSON.stringify(content);
+                }
+              } else {
+                content = String(content || '');
+              }
+            }
+            // Skip if corrupted after extraction
+            if (content && typeof content === 'string' && content.includes('[object Object]')) {
+              console.warn(`[Synthesis] Skipping corrupted minority position ${idx + 2} after extraction`);
+              return;
+            }
+            // Format and truncate long alternative perspectives
+            const formattedContent = extractKeyPoints(formatContent(content, 800));
+            synthesis += `\n\n**Perspective ${idx + 2}** (${group.length} member${group.length > 1 ? 's' : ''})\n${formattedContent}`;
           });
         }
       }
@@ -272,7 +535,8 @@ export class SynthesisEngine implements ISynthesisEngine {
     // Detect if responses contain code
     const isCodeRequest = exchanges.some(e => {
       try {
-        return this.codeDetector.detectCode(e.content);
+        const content = typeof e.content === 'string' ? e.content : String(e.content || '');
+        return this.codeDetector.detectCode(content);
       } catch {
         return false;
       }
@@ -307,7 +571,8 @@ export class SynthesisEngine implements ISynthesisEngine {
       });
 
       const confidence = agreementLevel > 0.8 ? 'high' : agreementLevel > 0.5 ? 'medium' : 'low';
-      return { content: bestExchange.content, confidence, agreementLevel };
+      const content = typeof bestExchange.content === 'string' ? bestExchange.content : String(bestExchange.content || '');
+      return { content, confidence, agreementLevel };
     }
 
     // Text: weighted concatenation
@@ -332,7 +597,10 @@ export class SynthesisEngine implements ISynthesisEngine {
     sortedMembers.forEach(memberId => {
       const memberExchanges = exchangesByMember.get(memberId)!;
       const weight = finalWeights.get(memberId) || 1.0;
-      const memberContent = memberExchanges.map(e => e.content).join('\n');
+      const memberContent = memberExchanges.map(e => {
+        const content = typeof e.content === 'string' ? e.content : String(e.content || '');
+        return content;
+      }).join('\n');
 
       synthesis += `[Weight: ${weight.toFixed(2)}] ${memberId}:\n${memberContent}\n\n`;
     });
@@ -381,7 +649,8 @@ export class SynthesisEngine implements ISynthesisEngine {
       // Detect if responses contain code
       const isCodeRequest = exchanges.some(e => {
         try {
-          return this.codeDetector.detectCode(e.content);
+          const content = typeof e.content === 'string' ? e.content : String(e.content || '');
+          return this.codeDetector.detectCode(content);
         } catch {
           return false;
         }
@@ -410,8 +679,9 @@ export class SynthesisEngine implements ISynthesisEngine {
       prompt += 'Here are the responses from the council members:\n\n';
 
       exchangesToUse.forEach((exchange, _index) => {
+        const content = typeof exchange.content === 'string' ? exchange.content : String(exchange.content || '');
         prompt += `--- Council Member ${exchange.councilMemberId} ---\n`;
-        prompt += `${exchange.content}\n\n`;
+        prompt += `${content}\n\n`;
       });
 
       // Use code-specific prompt template for code requests
@@ -448,8 +718,9 @@ export class SynthesisEngine implements ISynthesisEngine {
 
       // Confidence based on agreement level and moderator success
       const confidence = agreementLevel > 0.7 ? 'high' : agreementLevel > 0.5 ? 'medium' : 'low';
+      const content = typeof response.content === 'string' ? response.content : String(response.content || '');
 
-      return { content: response.content, confidence, agreementLevel };
+      return { content, confidence, agreementLevel };
 
     } catch (error) {
       console.error('Meta-synthesis failed, falling back to structured summary:', error);
@@ -469,7 +740,8 @@ export class SynthesisEngine implements ISynthesisEngine {
       exchangesByMember.forEach((memberExchanges, memberId) => {
         synthesis += `${memberId}:\n`;
         memberExchanges.forEach(exchange => {
-          synthesis += `${exchange.content}\n`;
+          const content = typeof exchange.content === 'string' ? exchange.content : String(exchange.content || '');
+          synthesis += `${content}\n`;
         });
         synthesis += '\n';
       });
@@ -490,7 +762,11 @@ export class SynthesisEngine implements ISynthesisEngine {
 
     // Detect if responses contain code
     try {
-      const hasCode = exchanges.some(e => this.codeDetector.detectCode(e.content));
+      const hasCode = exchanges.some(e => {
+        // Ensure content is a string
+        const content = typeof e.content === 'string' ? e.content : String(e.content || '');
+        return this.codeDetector.detectCode(content);
+      });
 
       if (hasCode) {
         return this.calculateCodeAgreement(exchanges);
@@ -510,9 +786,11 @@ export class SynthesisEngine implements ISynthesisEngine {
   private calculateCodeAgreement(exchanges: Exchange[]): number {
     try {
       const codeBlocks = exchanges.map(e => {
+        // Ensure content is a string
+        const content = typeof e.content === 'string' ? e.content : String(e.content || '');
         // Use extractCodeSegments which handles both markdown blocks
         // and keyword-detected code segments
-        const blocks = this.codeDetector.extractCodeSegments(e.content);
+        const blocks = this.codeDetector.extractCodeSegments(content);
 
         // If we found code segments, use them; otherwise fall back to text similarity
         if (blocks.length > 0) {
@@ -570,7 +848,10 @@ export class SynthesisEngine implements ISynthesisEngine {
    */
   private calculateTextAgreement(exchanges: Exchange[]): number {
     // Use TF-IDF Cosine Similarity for better semantic agreement detection
-    const vectors = this.computeTfIdfVectors(exchanges.map(e => e.content));
+    // Ensure all content is strings
+    const vectors = this.computeTfIdfVectors(exchanges.map(e => {
+      return typeof e.content === 'string' ? e.content : String(e.content || '');
+    }));
 
     let totalSimilarity = 0;
     let comparisons = 0;
@@ -594,7 +875,9 @@ export class SynthesisEngine implements ISynthesisEngine {
 
     for (const exchange of exchanges) {
       try {
-        const codeBlocks = this.codeDetector.extractCode(exchange.content);
+        // Ensure content is a string
+        const content = typeof exchange.content === 'string' ? exchange.content : String(exchange.content || '');
+        const codeBlocks = this.codeDetector.extractCode(content);
 
         if (codeBlocks.length === 0) {
           // No code detected, use neutral weight
@@ -634,6 +917,11 @@ export class SynthesisEngine implements ISynthesisEngine {
    * Tokenize text into words
    */
   private tokenize(text: string): string[] {
+    // Ensure text is a string
+    if (typeof text !== 'string') {
+      text = String(text || '');
+    }
+
     return text
       .toLowerCase()
       .replace(/[^\w\s]/g, ' ')
@@ -707,6 +995,109 @@ export class SynthesisEngine implements ISynthesisEngine {
   }
 
   /**
+   * Normalize text for better similarity comparison
+   * Handles mathematical expressions and common variations
+   */
+  private normalizeForSimilarity(text: string): string {
+    // Normalize mathematical expressions: treat "=" and "is" as equivalent
+    let normalized = text.toLowerCase().trim();
+
+    // Remove markdown formatting (bold, italic, code blocks, etc.)
+    normalized = normalized.replace(/\*\*/g, ''); // Remove **bold**
+    normalized = normalized.replace(/\*/g, ''); // Remove *italic* or *bold*
+    normalized = normalized.replace(/`/g, ''); // Remove `code`
+    normalized = normalized.replace(/#{1,6}\s+/g, ''); // Remove markdown headers
+    normalized = normalized.replace(/\[([^\]]+)\]\([^)]+\)/g, '$1'); // Remove [link](url) -> keep text
+
+    // Remove trailing punctuation (periods, commas, etc.) for comparison
+    normalized = normalized.replace(/[.,;:!?]+$/g, '');
+
+    // Replace common mathematical equivalences
+    normalized = normalized.replace(/\s*is\s+/g, ' = ');
+    normalized = normalized.replace(/\s*equals\s+/g, ' = ');
+    normalized = normalized.replace(/\s*=\s*/g, ' = ');
+
+    // Normalize all whitespace (spaces, tabs, etc.) to single spaces
+    normalized = normalized.replace(/\s+/g, ' ');
+
+    // Remove spaces around operators for mathematical expressions
+    normalized = normalized.replace(/\s*\+\s*/g, '+');
+    normalized = normalized.replace(/\s*-\s*/g, '-');
+    normalized = normalized.replace(/\s*\*\s*/g, '*');
+    normalized = normalized.replace(/\s*\/\s*/g, '/');
+    normalized = normalized.replace(/\s*=\s*/g, '=');
+
+    // Trim again after all replacements
+    normalized = normalized.trim();
+
+    return normalized;
+  }
+
+  /**
+   * Extract the core answer from a response (for very short responses)
+   * Handles cases like "4" vs "2 + 2 = 4" - both should be considered equivalent
+   */
+  private extractCoreAnswer(text: string): string {
+    const normalized = this.normalizeForSimilarity(text);
+
+    // If the response is just a number, return it
+    const justNumber = normalized.match(/^(\d+)$/);
+    if (justNumber) {
+      return justNumber[1];
+    }
+
+    // If the response contains an equation (after normalization, operators have no spaces)
+    // Match patterns like "2+2=4" or "2-2=0" etc.
+    const equationMatch = normalized.match(/(\d+)[+\-*/](\d+)=(\d+)/);
+    if (equationMatch) {
+      return equationMatch[3]; // Return the result
+    }
+
+    // Extract any standalone number (likely the answer)
+    // For very short responses, extract the last number (usually the answer)
+    const numbers = normalized.match(/\d+/g);
+    if (numbers && numbers.length > 0 && normalized.length < 50) {
+      // Return the last number (usually the answer in equations)
+      return numbers[numbers.length - 1];
+    }
+
+    return normalized;
+  }
+
+  /**
+   * Check if two short responses are semantically equivalent
+   * Useful for very short responses where TF-IDF might not work well
+   */
+  private areSemanticallyEquivalent(text1: string, text2: string): boolean {
+    const norm1 = this.normalizeForSimilarity(text1);
+    const norm2 = this.normalizeForSimilarity(text2);
+
+    // For very short responses, extract core answers
+    if (norm1.length < 50 && norm2.length < 50) {
+      const core1 = this.extractCoreAnswer(text1);
+      const core2 = this.extractCoreAnswer(text2);
+
+      // If both have the same core answer (e.g., both extract to "4"), they're equivalent
+      if (core1 === core2 && core1.length > 0) {
+        return true;
+      }
+
+      // Also check exact match after normalization
+      if (norm1 === norm2) {
+        return true;
+      }
+    }
+
+    // For longer responses, check if one contains the other (after normalization)
+    // This handles cases where one response is more verbose but contains the same core answer
+    if (norm1.length < 100 && norm2.length < 100) {
+      return norm1 === norm2 || norm1.includes(norm2) || norm2.includes(norm1);
+    }
+
+    return false;
+  }
+
+  /**
    * Group similar responses together
    */
   private groupSimilarResponses(exchanges: Exchange[]): Exchange[][] {
@@ -714,7 +1105,14 @@ export class SynthesisEngine implements ISynthesisEngine {
       return [];
     }
 
-    const vectors = this.computeTfIdfVectors(exchanges.map(e => e.content));
+    const contents = exchanges.map(e => {
+      return typeof e.content === 'string' ? e.content : String(e.content || '');
+    });
+
+    // Compute TF-IDF vectors once for all exchanges
+    const vectors = this.computeTfIdfVectors(contents);
+
+    // First pass: Check for semantically equivalent short responses
     const groups: Exchange[][] = [];
     const used = new Set<number>();
 
@@ -724,15 +1122,30 @@ export class SynthesisEngine implements ISynthesisEngine {
       const group: Exchange[] = [exchanges[i]];
       used.add(i);
 
+      // Check for semantic equivalence first (for short responses)
       for (let j = i + 1; j < exchanges.length; j++) {
         if (used.has(j)) {continue;}
 
-        const similarity = this.cosineSimilarity(vectors[i], vectors[j]);
-
-        // Group if similarity > 0.6 (stricter threshold for grouping)
-        if (similarity > 0.6) {
+        if (this.areSemanticallyEquivalent(contents[i], contents[j])) {
           group.push(exchanges[j]);
           used.add(j);
+        }
+      }
+
+      // If we didn't find semantic matches, use TF-IDF similarity
+      if (group.length === 1) {
+        for (let j = i + 1; j < exchanges.length; j++) {
+          if (used.has(j)) {continue;}
+
+          const similarity = this.cosineSimilarity(vectors[i], vectors[j]);
+
+          // Use adaptive threshold: lower for short responses, higher for longer ones
+          const threshold = contents[i].length < 100 ? 0.4 : 0.6;
+
+          if (similarity > threshold) {
+            group.push(exchanges[j]);
+            used.add(j);
+          }
         }
       }
 
@@ -750,7 +1163,8 @@ export class SynthesisEngine implements ISynthesisEngine {
     const wordFrequency = new Map<string, number>();
 
     exchanges.forEach(exchange => {
-      const words = this.tokenize(exchange.content);
+      const content = typeof exchange.content === 'string' ? exchange.content : String(exchange.content || '');
+      const words = this.tokenize(content);
       words.forEach(word => {
         wordFrequency.set(word, (wordFrequency.get(word) || 0) + 1);
       });

@@ -35,6 +35,7 @@ export { BaseProviderAdapter } from './providers/adapters/base';
 export { OpenAIAdapter } from './providers/adapters/openai';
 export { AnthropicAdapter } from './providers/adapters/anthropic';
 export { GoogleAdapter } from './providers/adapters/google';
+export { GrokAdapter } from './providers/adapters/grok';
 
 // Export cost calculator
 export { CostCalculator } from './cost/calculator';

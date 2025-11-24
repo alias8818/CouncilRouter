@@ -77,15 +77,59 @@ export abstract class BaseProviderAdapter {
             timeoutPromise
           ]);
 
+          console.error(`[ProviderAdapter] STEP 1: Raw response received for ${member.id}:`, {
+            responseType: typeof response,
+            isArray: Array.isArray(response),
+            responseKeys: response && typeof response === 'object' ? Object.keys(response) : [],
+            responsePreview: typeof response === 'string' ? response.substring(0, 200) : JSON.stringify(response).substring(0, 500)
+          });
+
           const { content, tokenUsage } = this.parseResponse(response);
+
+          console.error(`[ProviderAdapter] STEP 2: After parseResponse for ${member.id}:`, {
+            contentType: typeof content,
+            isArray: Array.isArray(content),
+            contentLength: typeof content === 'string' ? content.length : 'N/A',
+            contentPreview: typeof content === 'string' ? content.substring(0, 200) : JSON.stringify(content).substring(0, 500),
+            hasObjectObject: typeof content === 'string' && content.includes('[object Object]')
+          });
+
+          // Debug logging: Check content type after parsing
+          if (typeof content !== 'string') {
+            console.error(`[ProviderAdapter] ERROR: parseResponse returned non-string content for ${member.id}:`, {
+              type: typeof content,
+              isArray: Array.isArray(content),
+              content: content,
+              memberId: member.id,
+              rawResponse: response
+            });
+          } else if (content.includes('[object Object]')) {
+            console.error(`[ProviderAdapter] ERROR: parseResponse returned corrupted content string for ${member.id}:`, {
+              content: content,
+              memberId: member.id,
+              responseType: typeof response,
+              responseKeys: response ? Object.keys(response) : [],
+              rawResponse: response
+            });
+          }
+
           const latency = Date.now() - startTime;
 
-          return {
+          const result = {
             content,
             tokenUsage,
             latency,
             success: true
           };
+
+          console.error(`[ProviderAdapter] STEP 3: Returning ProviderResponse for ${member.id}:`, {
+            resultContentType: typeof result.content,
+            resultContentLength: typeof result.content === 'string' ? result.content.length : 'N/A',
+            resultContentPreview: typeof result.content === 'string' ? result.content.substring(0, 200) : JSON.stringify(result.content).substring(0, 500),
+            hasObjectObject: typeof result.content === 'string' && result.content.includes('[object Object]')
+          });
+
+          return result;
         } finally {
           // Always clear timeout, whether request succeeded or failed
           if (timeoutId !== null) {

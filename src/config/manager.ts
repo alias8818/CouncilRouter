@@ -550,16 +550,30 @@ export class ConfigurationManager implements IConfigurationManager {
     return {
       members: [
         {
-          id: 'gpt-4-default',
+          id: 'gpt-5.1-default',
           provider: 'openai',
-          model: 'gpt-4',
+          model: 'gpt-5.1',
           timeout: 30,
           retryPolicy: this.getDefaultRetryPolicy()
         },
         {
-          id: 'claude-3-default',
+          id: 'claude-sonnet-4.5-default',
           provider: 'anthropic',
-          model: 'claude-3-opus-20240229',
+          model: 'claude-sonnet-4-5-20250929',
+          timeout: 30,
+          retryPolicy: this.getDefaultRetryPolicy()
+        },
+        {
+          id: 'gemini-3-pro-default',
+          provider: 'google',
+          model: 'gemini-3-pro-preview',
+          timeout: 30,
+          retryPolicy: this.getDefaultRetryPolicy()
+        },
+        {
+          id: 'grok-4.1-default',
+          provider: 'grok',
+          model: 'grok-4-1-fast-non-reasoning',
           timeout: 30,
           retryPolicy: this.getDefaultRetryPolicy()
         }
