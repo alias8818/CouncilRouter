@@ -179,6 +179,7 @@ export class OrchestrationEngine implements IOrchestrationEngine {
 
     // Process results and track failures
     const initialResponses: InitialResponse[] = [];
+    const failureDetails: string[] = [];
 
     for (let i = 0; i < results.length; i++) {
       const result = results[i];
@@ -189,15 +190,33 @@ export class OrchestrationEngine implements IOrchestrationEngine {
         initialResponses.push(result.value.initialResponse);
         this.resetFailureCount(member);
       } else {
-        // Failed response - track failure
-        // Handle both rejected promises and failed responses
+        // Failed response - track failure and collect error details
+        let errorMessage = `Member ${member.id} (${member.provider}/${member.model}) failed`;
+        
+        if (result.status === 'fulfilled') {
+          // Response was received but marked as failed
+          const error = result.value.response.error;
+          if (error) {
+            errorMessage += `: ${error.message}`;
+            console.error(`Council member ${member.id} failed:`, error.message);
+          }
+        } else {
+          // Promise was rejected
+          const error = result.reason;
+          errorMessage += `: ${error?.message || String(error)}`;
+          console.error(`Council member ${member.id} promise rejected:`, error);
+        }
+        
+        failureDetails.push(errorMessage);
         this.trackFailure(member);
       }
     }
 
     // Check if we have at least one successful response
     if (initialResponses.length === 0) {
-      throw new Error('All council members failed to respond');
+      const errorMsg = `All council members failed to respond. Details:\n${failureDetails.join('\n')}`;
+      console.error('All council members failed:', errorMsg);
+      throw new Error(errorMsg);
     }
 
     return initialResponses;

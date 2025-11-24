@@ -57,6 +57,32 @@ async function startServer() {
   const sessionManager = new SessionManager(pool, redis as any);
   const eventLogger = new EventLogger(pool);
   const providerPool = new ProviderPool();
+  
+  // Validate council configuration against available providers
+  try {
+    const councilConfig = await configManager.getCouncilConfig();
+    const missingProviders: string[] = [];
+    const availableProviders = new Set(providerPool.getAllProviderHealth().map(h => h.providerId));
+    
+    for (const member of councilConfig.members) {
+      if (!availableProviders.has(member.provider)) {
+        const envVarName = `${member.provider.toUpperCase()}_API_KEY`;
+        missingProviders.push(`${member.id} (${member.provider}/${member.model}) - missing ${envVarName}`);
+      }
+    }
+    
+    if (missingProviders.length > 0) {
+      console.warn('\n⚠️  WARNING: Some council members are configured but their providers are not available:');
+      missingProviders.forEach(msg => console.warn(`   - ${msg}`));
+      console.warn('\n   Requests will fail until these API keys are configured.');
+      console.warn('   Set the environment variables in your .env file or docker-compose.yml\n');
+    } else {
+      console.log('✓ Council configuration validated');
+    }
+  } catch (error) {
+    console.warn('⚠️  Could not validate council configuration:', error);
+  }
+  
   const synthesisEngine = new SynthesisEngine(providerPool, configManager);
   const orchestrationEngine = new OrchestrationEngine(
     providerPool,

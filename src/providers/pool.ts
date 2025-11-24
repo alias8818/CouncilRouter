@@ -95,12 +95,16 @@ export class ProviderPool implements IProviderPool {
     const adapter = this.adapters.get(member.provider);
 
     if (!adapter) {
+      const envVarName = `${member.provider.toUpperCase()}_API_KEY`;
+      const errorMsg = `Provider ${member.provider} not configured. ` +
+        `Please set the ${envVarName} environment variable to enable this provider.`;
+      console.error(`[ProviderPool] ${errorMsg}`);
       return {
         content: '',
         tokenUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
         latency: 0,
         success: false,
-        error: new Error(`Provider ${member.provider} not configured`)
+        error: new Error(errorMsg)
       };
     }
 
