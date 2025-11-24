@@ -46,7 +46,7 @@ services:
       dockerfile: Dockerfile
     container_name: council-api
     environment:
-      NODE_ENV: ${NODE_ENV:-development}
+      NODE_ENV: ${NODE_ENV:-production}
 
       # Database
       DATABASE_HOST: postgres

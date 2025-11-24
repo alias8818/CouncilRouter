@@ -185,8 +185,13 @@ export class GrokAdapter extends BaseProviderAdapter {
       }
     }
 
+    // Ensure content is definitely a string after all conversions
+    if (typeof content !== 'string') {
+      content = String(content || '');
+    }
+
     // Final check for corruption
-    if (content.includes('[object Object]')) {
+    if (typeof content === 'string' && content.includes('[object Object]')) {
       console.error('[GrokAdapter] parseResponse produced corrupted content:', {
         content: content,
         originalType: typeof response.choices?.[0]?.message?.content,
