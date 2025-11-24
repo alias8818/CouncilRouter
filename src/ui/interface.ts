@@ -448,7 +448,8 @@ export class UserInterface {
       
       try {
         // Get API key from localStorage (in production, use proper auth)
-        const apiKey = localStorage.getItem('apiKey') || 'demo-api-key';
+        // Default key must be at least 32 characters for production mode
+        const apiKey = localStorage.getItem('apiKey') || 'demo-api-key-for-testing-purposes-only-12345678901234567890';
         
         // Submit request
         const response = await fetch(\`\${config.apiBaseUrl}/api/v1/requests\`, {
@@ -486,7 +487,7 @@ export class UserInterface {
     
     // Start streaming response
     function startStreaming(requestId) {
-      const apiKey = localStorage.getItem('apiKey') || 'demo-api-key';
+      const apiKey = localStorage.getItem('apiKey') || 'demo-api-key-for-testing-purposes-only-12345678901234567890';
       
       eventSource = new EventSource(
         \`\${config.apiBaseUrl}/api/v1/requests/\${requestId}/stream?apiKey=\${apiKey}\`
@@ -524,7 +525,7 @@ export class UserInterface {
     
     // Poll for response (fallback)
     async function pollForResponse(requestId) {
-      const apiKey = localStorage.getItem('apiKey') || 'demo-api-key';
+      const apiKey = localStorage.getItem('apiKey') || 'demo-api-key-for-testing-purposes-only-12345678901234567890';
       const maxAttempts = 60; // 60 seconds
       let attempts = 0;
       

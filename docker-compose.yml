@@ -99,6 +99,52 @@ services:
       retries: 3
       start_period: 40s
 
+  # AI Council Proxy UI
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile.ui
+    container_name: council-ui
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+
+      # Database
+      DATABASE_HOST: postgres
+      DATABASE_PORT: 5432
+      DATABASE_NAME: ${DATABASE_NAME:-ai_council_proxy}
+      DATABASE_USER: ${DATABASE_USER:-postgres}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-postgres}
+      DATABASE_URL: postgresql://${DATABASE_USER:-postgres}:${DATABASE_PASSWORD:-postgres}@postgres:5432/${DATABASE_NAME:-ai_council_proxy}
+
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_URL: redis://redis:6379
+
+      # UI Configuration
+      UI_PORT: ${UI_PORT:-8080}
+      # API_BASE_URL defaults to http://localhost:3000 in code (for browser access)
+      # Override if needed for different deployment scenarios
+      API_BASE_URL: ${API_BASE_URL}
+    ports:
+      - "${UI_PORT:-8080}:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - council-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+
 volumes:
   postgres_data:
     driver: local
