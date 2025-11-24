@@ -57,15 +57,19 @@ async function startUIServer() {
 
   // Start User Interface
   const ui = new UserInterface(configManager, apiBaseUrl);
-  
+
   console.log(`Starting UI server on port ${uiPort}...`);
   await ui.start(uiPort);
   console.log(`✓ UI server running on http://0.0.0.0:${uiPort}`);
   console.log(`✓ API Gateway URL: ${apiBaseUrl}`);
 
   // Handle graceful shutdown
-  const shutdown = async (signal: string) => {
-    console.log(`\n${signal} received. Shutting down gracefully...`);
+  const shutdown = async (signal: string, isError: boolean = false) => {
+    if (isError) {
+      console.error(`\n${signal} received. Shutting down due to error...`);
+    } else {
+      console.log(`\n${signal} received. Shutting down gracefully...`);
+    }
     try {
       await ui.stop();
       console.log('✓ UI server stopped');
@@ -74,25 +78,25 @@ async function startUIServer() {
       await pool.end();
       console.log('✓ PostgreSQL disconnected');
       console.log('Shutdown complete');
-      process.exit(0);
+      process.exit(isError ? 1 : 0);
     } catch (error) {
       console.error('Error during shutdown:', error);
       process.exit(1);
     }
   };
 
-  process.on('SIGTERM', () => void shutdown('SIGTERM'));
-  process.on('SIGINT', () => void shutdown('SIGINT'));
+  process.on('SIGTERM', () => void shutdown('SIGTERM', false));
+  process.on('SIGINT', () => void shutdown('SIGINT', false));
 
   // Handle uncaught errors
   process.on('uncaughtException', (error) => {
     console.error('Uncaught exception:', error);
-    void shutdown('UNCAUGHT_EXCEPTION');
+    void shutdown('UNCAUGHT_EXCEPTION', true);
   });
 
   process.on('unhandledRejection', (reason, promise) => {
     console.error('Unhandled rejection at:', promise, 'reason:', reason);
-    void shutdown('UNHANDLED_REJECTION');
+    void shutdown('UNHANDLED_REJECTION', true);
   });
 }
 
