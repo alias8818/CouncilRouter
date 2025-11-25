@@ -95,6 +95,26 @@ curl http://localhost:3000/health
 
 That's it! The API is now running on `http://localhost:3000`.
 
+### Admin Dashboard
+
+Start the web-based admin interface for monitoring and configuration:
+
+```bash
+# Start the admin dashboard (runs on port 3001)
+npm run admin
+
+# Access at: http://localhost:3001
+```
+
+The dashboard provides:
+- 📊 Real-time system metrics and performance
+- 🌐 Provider health monitoring
+- ⚙️ Configuration management
+- 💰 Cost tracking and analytics
+- 📝 System logs and activity feed
+
+See [Admin Dashboard Documentation](docs/ADMIN_DASHBOARD.md) for details.
+
 ---
 
 ## 📖 **Usage Examples**
@@ -282,6 +302,7 @@ CouncilRouter/
 - **[Quick Start Guide](docs/QUICK_START.md)** - Get running in 5 minutes
 - **[API Documentation](docs/API_DOCUMENTATION.md)** - REST API reference
 - **[Configuration Guide](docs/CONFIGURATION_GUIDE.md)** - Council setup & presets
+- **[Admin Dashboard](docs/ADMIN_DASHBOARD.md)** - Web-based monitoring & management
 - **[Deployment Guide](docs/DEPLOYMENT_GUIDE.md)** - Production deployment
 - **[Architecture Overview](docs/PROJECT_STRUCTURE.md)** - System design
 

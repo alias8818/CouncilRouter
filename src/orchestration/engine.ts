@@ -7,7 +7,13 @@ import { IOrchestrationEngine } from '../interfaces/IOrchestrationEngine';
 import { IProviderPool } from '../interfaces/IProviderPool';
 import { IConfigurationManager } from '../interfaces/IConfigurationManager';
 import { ISynthesisEngine } from '../interfaces/ISynthesisEngine';
-import { ProviderHealthTracker, getSharedHealthTracker } from '../providers/health-tracker';
+import { logger } from '../utils/logger';
+import {
+  ProviderHealthTracker,
+  getSharedHealthTracker
+} from '../providers/health-tracker';
+import { RequestDeduplicator } from './request-deduplicator';
+import { CostCalculator } from '../cost/calculator';
 import {
   UserRequest,
   CouncilMember,
@@ -16,7 +22,14 @@ import {
   ConsensusDecision,
   ProviderResponse,
   DeliberationRound,
-  Exchange
+  Exchange,
+  RequestMetrics,
+  ProcessRequestResult,
+  CouncilConfig,
+  DeliberationConfig,
+  PerformanceConfig,
+  SynthesisConfig,
+  ConfigPreset
 } from '../types/core';
 
 /**
@@ -49,12 +62,15 @@ export class OrchestrationEngine implements IOrchestrationEngine {
   private synthesisEngine: ISynthesisEngine;
 
   private healthTracker: ProviderHealthTracker;
+  private deduplicator: RequestDeduplicator;
+  private costCalculator: CostCalculator;
 
   // Track partial responses per request (keyed by request ID) to avoid shared state corruption
   private partialResponsesByRequest: Map<string, TrackedResponse[]> = new Map();
 
   // Store deliberation threads by request ID for API retrieval
-  private deliberationThreadsByRequest: Map<string, DeliberationThread> = new Map();
+  private deliberationThreadsByRequest: Map<string, DeliberationThread> =
+    new Map();
 
   constructor(
     providerPool: IProviderPool,
@@ -67,36 +83,111 @@ export class OrchestrationEngine implements IOrchestrationEngine {
     this.synthesisEngine = synthesisEngine;
     // Use shared tracker for consistent failure tracking across components
     this.healthTracker = healthTracker || getSharedHealthTracker();
+    this.deduplicator = new RequestDeduplicator();
+    this.costCalculator = new CostCalculator();
   }
 
   /**
    * Process a user request through the entire council deliberation cycle
    */
-  async processRequest(request: UserRequest): Promise<ConsensusDecision> {
-    // Get configurations
-    const councilConfig = await this.configManager.getCouncilConfig();
-    const deliberationConfig = await this.configManager.getDeliberationConfig();
-    const performanceConfig = await this.configManager.getPerformanceConfig();
-    const synthesisConfig = await this.configManager.getSynthesisConfig();
+  async processRequest(request: UserRequest): Promise<ProcessRequestResult> {
+    const reqId = request.id;
+    const orchestrationStartTime = Date.now();
+
+    logger.info('Orchestration started', { requestId: reqId, component: 'Orchestration' });
+
+    // Initialize metrics tracking
+    const metrics: RequestMetrics = {
+      memberCosts: new Map(),
+      memberLatencies: new Map(),
+      memberTokens: new Map()
+    };
+
+    // Get configurations - use per-request preset if specified, otherwise use system config
+    let councilConfig: CouncilConfig;
+    let deliberationConfig: DeliberationConfig;
+    let performanceConfig: PerformanceConfig;
+    let synthesisConfig: SynthesisConfig;
+
+    if (request.preset) {
+      // Use preset-specific configuration for this request
+      const presetConfigs = await this.getPresetConfigurations(request.preset);
+
+      // Validate preset configs are present
+      if (!presetConfigs.council) {
+        throw new Error(
+          `Preset '${request.preset}' configuration is missing council config. ` +
+          'Please check the preset configuration in the database.'
+        );
+      }
+      if (!presetConfigs.deliberation) {
+        throw new Error(
+          `Preset '${request.preset}' configuration is missing deliberation config. ` +
+          'Please check the preset configuration in the database.'
+        );
+      }
+      if (!presetConfigs.performance) {
+        throw new Error(
+          `Preset '${request.preset}' configuration is missing performance config. ` +
+          'Please check the preset configuration in the database.'
+        );
+      }
+      if (!presetConfigs.synthesis) {
+        throw new Error(
+          `Preset '${request.preset}' configuration is missing synthesis config. ` +
+          'Please check the preset configuration in the database.'
+        );
+      }
+
+      councilConfig = presetConfigs.council;
+      deliberationConfig = presetConfigs.deliberation;
+      performanceConfig = presetConfigs.performance;
+      synthesisConfig = presetConfigs.synthesis;
+    } else {
+      // Use system-wide configuration
+      councilConfig = await this.configManager.getCouncilConfig();
+      deliberationConfig = await this.configManager.getDeliberationConfig();
+      performanceConfig = await this.configManager.getPerformanceConfig();
+      synthesisConfig = await this.configManager.getSynthesisConfig();
+    }
 
     // Filter out disabled members
     const activeMembers = await this.filterActiveMembers(councilConfig.members);
 
+    // Log council configuration
+    logger.info(`Council: ${activeMembers.length} members, ${deliberationConfig.rounds} deliberation rounds`, {
+      requestId: reqId,
+      component: 'Orchestration'
+    });
+    activeMembers.forEach(m => {
+      logger.debug(`  • ${m.id}: ${m.provider}/${m.model}`, { requestId: reqId, memberId: m.id });
+    });
+    logger.info(`Strategy: ${synthesisConfig.strategy.type}, timeout: ${performanceConfig.globalTimeout}s`, {
+      requestId: reqId,
+      component: 'Orchestration'
+    });
+
     // Check minimum quorum
-    if (councilConfig.requireMinimumForConsensus &&
-        activeMembers.length < councilConfig.minimumSize) {
+    if (
+      councilConfig.requireMinimumForConsensus &&
+      activeMembers.length < councilConfig.minimumSize
+    ) {
       throw new Error(
         `Insufficient council members: ${activeMembers.length} available, ` +
-        `${councilConfig.minimumSize} required`
+          `${councilConfig.minimumSize} required`
       );
     }
 
     // Set up global timeout
     // Validate globalTimeout value to prevent NaN
-    if (typeof performanceConfig.globalTimeout !== 'number' ||
-        isNaN(performanceConfig.globalTimeout) ||
-        performanceConfig.globalTimeout <= 0) {
-      throw new Error(`Invalid globalTimeout value: ${performanceConfig.globalTimeout}`);
+    if (
+      typeof performanceConfig.globalTimeout !== 'number' ||
+      isNaN(performanceConfig.globalTimeout) ||
+      performanceConfig.globalTimeout <= 0
+    ) {
+      throw new Error(
+        `Invalid globalTimeout value: ${performanceConfig.globalTimeout}`
+      );
     }
     const globalTimeoutMs = performanceConfig.globalTimeout * 1000;
     const globalTimeoutPromise = this.createGlobalTimeout(globalTimeoutMs);
@@ -106,11 +197,21 @@ export class OrchestrationEngine implements IOrchestrationEngine {
       this.partialResponsesByRequest.set(request.id, []);
 
       // Distribute request to council with global timeout
-      const distributionPromise = this.distributeToCouncil(request, activeMembers);
+      logger.deliberationRoundStart(reqId, 0, activeMembers.length);
+      const distributionStartTime = Date.now();
+
+      const distributionPromise = this.distributeToCouncil(
+        request,
+        activeMembers,
+        metrics
+      );
 
       // Use Promise.race with proper timeout handling
       const raceResult = await Promise.race([
-        distributionPromise.then(responses => ({ type: 'success' as const, responses })),
+        distributionPromise.then((responses) => ({
+          type: 'success' as const,
+          responses
+        })),
         globalTimeoutPromise.then(() => ({ type: 'timeout' as const }))
       ]);
 
@@ -119,36 +220,75 @@ export class OrchestrationEngine implements IOrchestrationEngine {
         // Use Promise.allSettled to ensure all callbacks complete
         await Promise.allSettled([distributionPromise]);
         // Get partial responses for this request
-        const partialResponses = this.partialResponsesByRequest.get(request.id) || [];
+        const partialResponses =
+          this.partialResponsesByRequest.get(request.id) || [];
         // Clean up tracking
         this.partialResponsesByRequest.delete(request.id);
-        return await this.handleTimeout(request, partialResponses);
+        const consensusDecision = await this.handleTimeout(
+          request,
+          partialResponses
+        );
+        return { consensusDecision, metrics };
       }
 
       // Clean up tracking
       this.partialResponsesByRequest.delete(request.id);
 
+      // raceResult.responses is already InitialResponse[] from distributeToCouncil
+      const initialResponses = raceResult.responses;
+
+      const distributionDuration = Date.now() - distributionStartTime;
+      const successCount = initialResponses.filter(r => r.content && r.content.length > 0).length;
+      const failCount = initialResponses.length - successCount;
+      logger.deliberationRoundEnd(reqId, 0, distributionDuration);
+      logger.info(`Initial responses: ${successCount} success, ${failCount} failed`, { requestId: reqId, component: 'Orchestration' });
+
+      // Log each member's response
+      initialResponses.forEach(r => {
+        const contentLen = typeof r.content === 'string' ? r.content.length : 0;
+        if (contentLen > 0) {
+          logger.memberResponse(reqId, r.councilMemberId, true, 0, contentLen);
+          logger.contentPreview(reqId, r.councilMemberId,
+            typeof r.content === 'string' ? r.content : JSON.stringify(r.content));
+        } else {
+          logger.memberError(reqId, r.councilMemberId, 'Empty or missing response');
+        }
+      });
+
       // Conduct deliberation if configured
+      // Pass activeMembers for per-request preset support
       const deliberationThread = await this.conductDeliberation(
-        raceResult.responses,
-        deliberationConfig.rounds
+        initialResponses,
+        deliberationConfig.rounds,
+        metrics,
+        activeMembers,
+        reqId  // Pass request ID for logging
       );
 
       // Store deliberation thread for API retrieval
       this.deliberationThreadsByRequest.set(request.id, deliberationThread);
 
       // Synthesize consensus decision
+      logger.synthesisStart(reqId, synthesisConfig.strategy.type, deliberationThread.rounds[0]?.exchanges?.length || 0);
+      const synthesisStartTime = Date.now();
+
       const consensusDecision = await this.synthesisEngine.synthesize(
         request,
         deliberationThread,
         synthesisConfig.strategy
       );
 
+      const synthesisDuration = Date.now() - synthesisStartTime;
+      logger.synthesisComplete(reqId, synthesisConfig.strategy.type, synthesisDuration,
+        consensusDecision.confidence, consensusDecision.content.length);
+
       // Note: deliberationThreadsByRequest entry will be cleaned up by the API gateway
       // after it stores the thread in Redis (see gateway.ts processRequestAsync)
 
-      return consensusDecision;
+      return { consensusDecision, metrics };
     } catch (error) {
+      // Clean up tracking on error
+      this.partialResponsesByRequest.delete(request.id);
       // If all members failed, throw error
       throw new Error(`Request processing failed: ${(error as Error).message}`);
     }
@@ -156,18 +296,21 @@ export class OrchestrationEngine implements IOrchestrationEngine {
 
   /**
    * Distribute a request to all configured council members in parallel
+   * @internal metrics parameter is for internal tracking only
    */
   async distributeToCouncil(
     request: UserRequest,
-    councilMembers: CouncilMember[]
+    councilMembers: CouncilMember[],
+    metrics?: RequestMetrics
   ): Promise<InitialResponse[]> {
     // Get or initialize partial responses tracking for this request
-    const partialResponses = this.partialResponsesByRequest.get(request.id) || [];
+    const partialResponses =
+      this.partialResponsesByRequest.get(request.id) || [];
     this.partialResponsesByRequest.set(request.id, partialResponses);
 
     // Create promises for all council member requests
-    const requestPromises = councilMembers.map(member =>
-      this.sendRequestToMember(request, member).then(result => {
+    const requestPromises = councilMembers.map((member) =>
+      this.sendRequestToMember(request, member).then((result) => {
         // Track this response for potential global timeout handling
         if (result.response.success) {
           const tracked = this.partialResponsesByRequest.get(request.id);
@@ -196,16 +339,32 @@ export class OrchestrationEngine implements IOrchestrationEngine {
 
       if (result.status === 'fulfilled' && result.value.response.success) {
         // Successful response
-        console.log(`✓ Council member ${member.id} (${member.provider}/${member.model}) responded successfully`);
-
         const initialResponse = result.value.initialResponse;
-        console.error(`[Orchestration] STEP 4: Received InitialResponse for ${member.id}:`, {
-          contentType: typeof initialResponse.content,
-          isArray: Array.isArray(initialResponse.content),
-          contentLength: typeof initialResponse.content === 'string' ? initialResponse.content.length : 'N/A',
-          contentPreview: typeof initialResponse.content === 'string' ? initialResponse.content.substring(0, 200) : JSON.stringify(initialResponse.content).substring(0, 500),
-          hasObjectObject: typeof initialResponse.content === 'string' && initialResponse.content.includes('[object Object]')
-        });
+
+        // Track metrics for this member (if metrics tracking enabled)
+        if (metrics) {
+          try {
+            const costCalculation = await this.costCalculator.calculateCost(
+              member,
+              initialResponse.tokenUsage
+            );
+            metrics.memberCosts.set(member.id, costCalculation.cost);
+            metrics.memberLatencies.set(member.id, initialResponse.latency);
+            metrics.memberTokens.set(member.id, {
+              prompt: initialResponse.tokenUsage.promptTokens,
+              completion: initialResponse.tokenUsage.completionTokens
+            });
+          } catch (error) {
+            // Log error but don't fail request
+            console.error(`Failed to calculate cost for ${member.id}:`, error);
+            metrics.memberCosts.set(member.id, 0);
+            metrics.memberLatencies.set(member.id, initialResponse.latency);
+            metrics.memberTokens.set(member.id, {
+              prompt: initialResponse.tokenUsage.promptTokens,
+              completion: initialResponse.tokenUsage.completionTokens
+            });
+          }
+        }
 
         initialResponses.push(initialResponse);
         this.resetFailureCount(member);
@@ -239,38 +398,29 @@ export class OrchestrationEngine implements IOrchestrationEngine {
       throw new Error(errorMsg);
     }
 
-    // Log summary of successful vs failed members
-    const successfulMembers = initialResponses.map(r => r.councilMemberId).join(', ');
-    console.log(`\n[Request ${request.id}] Council response summary:`);
-    console.log(`  ✓ Successful (${initialResponses.length}/${councilMembers.length}): ${successfulMembers}`);
-    if (failureDetails.length > 0) {
-      console.log(`  ✗ Failed (${failureDetails.length}/${councilMembers.length}):`);
-      failureDetails.forEach(detail => console.log(`    - ${detail}`));
-    }
-
     return initialResponses;
   }
 
   /**
    * Conduct deliberation rounds with peer response sharing
+   * @param councilMembers Optional council members for per-request preset support
+   * @param requestId Optional request ID for logging
    */
   async conductDeliberation(
     initialResponses: InitialResponse[],
-    rounds: number
+    rounds: number,
+    metrics: RequestMetrics,
+    councilMembers?: CouncilMember[],
+    requestId?: string
   ): Promise<DeliberationThread> {
     const startTime = Date.now();
     const deliberationRounds: DeliberationRound[] = [];
+    const reqId = requestId || 'unknown';
 
-    // Round 0: Initial responses
-    console.error(`[Orchestration] STEP 5: Creating Round 0 exchanges from ${initialResponses.length} initial responses`);
+    // Round 0: Initial responses - already logged in processRequest
     deliberationRounds.push({
       roundNumber: 0,
       exchanges: initialResponses.map((response, idx) => {
-        console.error(`[Orchestration] STEP 5.${idx}: Processing initial response ${response.councilMemberId}:`, {
-          contentType: typeof response.content,
-          isArray: Array.isArray(response.content),
-          contentPreview: typeof response.content === 'string' ? response.content.substring(0, 200) : JSON.stringify(response.content).substring(0, 500)
-        });
 
         // Ensure content is always a string
         let content = response.content;
@@ -279,23 +429,45 @@ export class OrchestrationEngine implements IOrchestrationEngine {
             if (Array.isArray(content)) {
               // Handle arrays properly - extract strings from each item
               const contentArray = content as any[];
-              content = contentArray.map((item: any) => {
-                if (typeof item === 'string') {return item;}
-                if (item && typeof item === 'object') {
-                  return item.text || item.content || item.message || JSON.stringify(item);
-                }
-                return String(item || '');
-              }).filter((item: string) => item && !item.includes('[object Object]')).join(' ');
+              content = contentArray
+                .map((item: any) => {
+                  if (typeof item === 'string') {
+                    return item;
+                  }
+                  if (item && typeof item === 'object') {
+                    return (
+                      item.text ||
+                      item.content ||
+                      item.message ||
+                      JSON.stringify(item)
+                    );
+                  }
+                  return String(item || '');
+                })
+                .filter(
+                  (item: string) => item && !item.includes('[object Object]')
+                )
+                .join(' ');
             } else {
-              content = (content as any).text || (content as any).content || (content as any).message || JSON.stringify(content);
+              content =
+                (content as any).text ||
+                (content as any).content ||
+                (content as any).message ||
+                JSON.stringify(content);
             }
           } else {
             content = String(content || '');
           }
         }
         // Final safety check
-        if (content && typeof content === 'string' && content.includes('[object Object]')) {
-          console.warn(`[Orchestration] Found [object Object] in initial response for ${response.councilMemberId}`);
+        if (
+          content &&
+          typeof content === 'string' &&
+          content.includes('[object Object]')
+        ) {
+          console.warn(
+            `[Orchestration] Found [object Object] in initial response for ${response.councilMemberId}`
+          );
           content = 'Content extraction failed';
         }
         const exchange = {
@@ -304,13 +476,6 @@ export class OrchestrationEngine implements IOrchestrationEngine {
           referencesTo: [],
           tokenUsage: response.tokenUsage
         };
-
-        console.error(`[Orchestration] STEP 5.${idx}: Created Round 0 exchange for ${response.councilMemberId}:`, {
-          exchangeContentType: typeof exchange.content,
-          exchangeContentLength: typeof exchange.content === 'string' ? exchange.content.length : 'N/A',
-          exchangeContentPreview: typeof exchange.content === 'string' ? exchange.content.substring(0, 200) : JSON.stringify(exchange.content).substring(0, 500),
-          hasObjectObject: typeof exchange.content === 'string' && exchange.content.includes('[object Object]')
-        });
 
         return exchange;
       })
@@ -325,18 +490,41 @@ export class OrchestrationEngine implements IOrchestrationEngine {
     }
 
     // Get council members for deliberation
-    const councilConfig = await this.configManager.getCouncilConfig();
-    const memberMap = new Map(councilConfig.members.map(m => [m.id, m]));
+    // Use provided councilMembers if available (for per-request presets), otherwise fetch from config
+    let members: CouncilMember[];
+    if (councilMembers && councilMembers.length > 0) {
+      members = councilMembers;
+    } else {
+      const councilConfig = await this.configManager.getCouncilConfig();
+      members = councilConfig.members;
+    }
+    const memberMap = new Map(members.map((m) => [m.id, m]));
 
     // Conduct deliberation rounds
     let previousRoundResponses = initialResponses;
 
     for (let roundNum = 1; roundNum <= rounds; roundNum++) {
+      const roundStartTime = Date.now();
+      logger.deliberationRoundStart(reqId, roundNum, previousRoundResponses.length);
+
       const roundExchanges = await this.conductDeliberationRound(
         roundNum,
         previousRoundResponses,
-        memberMap
+        memberMap,
+        metrics,
+        reqId
       );
+
+      const roundDuration = Date.now() - roundStartTime;
+      logger.deliberationRoundEnd(reqId, roundNum, roundDuration);
+
+      // Log responses from this round
+      roundExchanges.forEach(ex => {
+        const contentLen = typeof ex.content === 'string' ? ex.content.length : 0;
+        logger.memberResponse(reqId, ex.councilMemberId, true, 0, contentLen);
+        logger.contentPreview(reqId, ex.councilMemberId,
+          typeof ex.content === 'string' ? ex.content : JSON.stringify(ex.content));
+      });
 
       deliberationRounds.push({
         roundNumber: roundNum,
@@ -344,7 +532,7 @@ export class OrchestrationEngine implements IOrchestrationEngine {
       });
 
       // Update previous responses for next round
-      previousRoundResponses = roundExchanges.map(exchange => {
+      previousRoundResponses = roundExchanges.map((exchange) => {
         // Ensure content is always a string (defensive check)
         let content = exchange.content;
         if (typeof content !== 'string') {
@@ -352,31 +540,69 @@ export class OrchestrationEngine implements IOrchestrationEngine {
             if (Array.isArray(content)) {
               // Handle arrays properly - extract strings from each item
               const contentArray = content as any[];
-              content = contentArray.map((item: any) => {
-                if (typeof item === 'string') {return item;}
-                if (item && typeof item === 'object') {
-                  return item.text || item.content || item.message || JSON.stringify(item);
-                }
-                return String(item || '');
-              }).filter((item: string) => item && !item.includes('[object Object]')).join(' ');
+              content = contentArray
+                .map((item: any) => {
+                  if (typeof item === 'string') {
+                    return item;
+                  }
+                  if (item && typeof item === 'object') {
+                    return (
+                      item.text ||
+                      item.content ||
+                      item.message ||
+                      JSON.stringify(item)
+                    );
+                  }
+                  return String(item || '');
+                })
+                .filter(
+                  (item: string) => item && !item.includes('[object Object]')
+                )
+                .join(' ');
             } else {
-              content = (content as any).text || (content as any).content || (content as any).message || JSON.stringify(content);
+              content =
+                (content as any).text ||
+                (content as any).content ||
+                (content as any).message ||
+                JSON.stringify(content);
             }
           } else {
             content = String(content || '');
           }
         }
         // Final check - if it still contains [object Object], try to extract properly
-        if (content && typeof content === 'string' && content.includes('[object Object]')) {
-          console.warn(`[Orchestration] Found [object Object] in content for ${exchange.councilMemberId}, attempting recovery`);
+        if (
+          content &&
+          typeof content === 'string' &&
+          content.includes('[object Object]')
+        ) {
+          console.warn(
+            `[Orchestration] Found [object Object] in content for ${exchange.councilMemberId}, attempting recovery`
+          );
           // Try to recover from the original exchange content
           const original = exchange.content;
-          if (original && typeof original === 'object' && Array.isArray(original)) {
+          if (
+            original &&
+            typeof original === 'object' &&
+            Array.isArray(original)
+          ) {
             const originalArray = original as any[];
-            content = originalArray.map((item: any) => {
-              if (typeof item === 'string') {return item;}
-              return item?.text || item?.content || item?.message || JSON.stringify(item);
-            }).filter((item: string) => item && !item.includes('[object Object]')).join(' ');
+            content = originalArray
+              .map((item: any) => {
+                if (typeof item === 'string') {
+                  return item;
+                }
+                return (
+                  item?.text ||
+                  item?.content ||
+                  item?.message ||
+                  JSON.stringify(item)
+                );
+              })
+              .filter(
+                (item: string) => item && !item.includes('[object Object]')
+              )
+              .join(' ');
           }
         }
         return {
@@ -403,8 +629,12 @@ export class OrchestrationEngine implements IOrchestrationEngine {
   private async conductDeliberationRound(
     roundNumber: number,
     previousResponses: InitialResponse[],
-    memberMap: Map<string, CouncilMember>
+    memberMap: Map<string, CouncilMember>,
+    metrics?: RequestMetrics,
+    requestId?: string
   ): Promise<Exchange[]> {
+    const reqId = requestId || 'unknown';
+
     // Create deliberation prompts for each council member
     const deliberationPromises = previousResponses.map(async (response) => {
       const member = memberMap.get(response.councilMemberId);
@@ -414,7 +644,7 @@ export class OrchestrationEngine implements IOrchestrationEngine {
 
       // Get peer responses (all responses except this member's own)
       const peerResponses = previousResponses.filter(
-        r => r.councilMemberId !== response.councilMemberId
+        (r) => r.councilMemberId !== response.councilMemberId
       );
 
       // Generate deliberation prompt
@@ -425,7 +655,7 @@ export class OrchestrationEngine implements IOrchestrationEngine {
       );
 
       // Send deliberation request to council member
-      console.error(`[Orchestration] STEP 6: Round ${roundNumber} - Sending deliberation request to ${response.councilMemberId}`);
+      logger.memberRequest(reqId, response.councilMemberId, member.provider, member.model);
       const _startTime = Date.now();
       const providerResponse = await this.providerPool.sendRequest(
         member,
@@ -433,22 +663,47 @@ export class OrchestrationEngine implements IOrchestrationEngine {
         undefined // No conversation context for deliberation
       );
       const _endTime = Date.now();
+      const deliberationLatency = _endTime - _startTime;
 
-      console.error(`[Orchestration] STEP 7: Round ${roundNumber} - Received provider response for ${response.councilMemberId}:`, {
-        success: providerResponse.success,
-        contentType: typeof providerResponse.content,
-        isArray: Array.isArray(providerResponse.content),
-        contentPreview: typeof providerResponse.content === 'string' ? providerResponse.content.substring(0, 200) : JSON.stringify(providerResponse.content).substring(0, 500),
-        hasObjectObject: typeof providerResponse.content === 'string' && providerResponse.content.includes('[object Object]')
-      });
+      // Track deliberation costs and tokens (add to existing metrics, if tracking enabled)
+      if (metrics && providerResponse.success) {
+        try {
+          const costCalculation = await this.costCalculator.calculateCost(
+            member,
+            providerResponse.tokenUsage
+          );
+          const existingCost =
+            metrics.memberCosts.get(response.councilMemberId) || 0;
+          metrics.memberCosts.set(
+            response.councilMemberId,
+            existingCost + costCalculation.cost
+          );
+
+          const existingTokens = metrics.memberTokens.get(
+            response.councilMemberId
+          ) || { prompt: 0, completion: 0 };
+          metrics.memberTokens.set(response.councilMemberId, {
+            prompt:
+              existingTokens.prompt + providerResponse.tokenUsage.promptTokens,
+            completion:
+              existingTokens.completion +
+              providerResponse.tokenUsage.completionTokens
+          });
+        } catch (error) {
+          console.error(
+            `Failed to calculate deliberation cost for ${response.councilMemberId}:`,
+            error
+          );
+        }
+      }
 
       if (!providerResponse.success) {
         // If deliberation fails, use original response
-        console.error(`[Orchestration] STEP 7: Round ${roundNumber} - Deliberation failed for ${response.councilMemberId}, using original response`);
+        logger.memberError(reqId, response.councilMemberId, providerResponse.error?.message || 'Unknown error');
         return {
           councilMemberId: response.councilMemberId,
           content: response.content,
-          referencesTo: peerResponses.map(r => r.councilMemberId),
+          referencesTo: peerResponses.map((r) => r.councilMemberId),
           tokenUsage: response.tokenUsage
         };
       }
@@ -456,25 +711,23 @@ export class OrchestrationEngine implements IOrchestrationEngine {
       // Ensure content is always a string
       let content = providerResponse.content;
 
-      // Debug logging
-      console.error(`[Orchestration] STEP 8: Round ${roundNumber} - Processing content for ${response.councilMemberId}:`, {
-        contentType: typeof content,
-        isArray: Array.isArray(content),
-        contentPreview: typeof content === 'string' ? content.substring(0, 200) : JSON.stringify(content).substring(0, 500),
-        hasObjectObject: typeof content === 'string' && content.includes('[object Object]')
-      });
-
       if (typeof content !== 'string') {
-        console.error(`[Orchestration] ERROR: Round ${roundNumber} - Deliberation response for ${response.councilMemberId} has non-string content:`, {
-          type: typeof content,
-          isArray: Array.isArray(content),
-          content: content
-        });
+        console.error(
+          `[Orchestration] ERROR: Round ${roundNumber} - Deliberation response for ${response.councilMemberId} has non-string content:`,
+          {
+            type: typeof content,
+            isArray: Array.isArray(content),
+            content: content
+          }
+        );
       } else if (content.includes('[object Object]')) {
-        console.error(`[Orchestration] ERROR: Round ${roundNumber} - Deliberation response for ${response.councilMemberId} has corrupted content string:`, {
-          content: content,
-          contentLength: content.length
-        });
+        console.error(
+          `[Orchestration] ERROR: Round ${roundNumber} - Deliberation response for ${response.councilMemberId} has corrupted content string:`,
+          {
+            content: content,
+            contentLength: content.length
+          }
+        );
       }
 
       if (typeof content !== 'string') {
@@ -482,39 +735,54 @@ export class OrchestrationEngine implements IOrchestrationEngine {
           if (Array.isArray(content)) {
             // Handle arrays properly - extract strings from each item
             const contentArray = content as any[];
-            content = contentArray.map((item: any) => {
-              if (typeof item === 'string') {return item;}
-              if (item && typeof item === 'object') {
-                return item.text || item.content || item.message || JSON.stringify(item);
-              }
-              return String(item || '');
-            }).filter((item: string) => item && !item.includes('[object Object]')).join(' ');
+            content = contentArray
+              .map((item: any) => {
+                if (typeof item === 'string') {
+                  return item;
+                }
+                if (item && typeof item === 'object') {
+                  return (
+                    item.text ||
+                    item.content ||
+                    item.message ||
+                    JSON.stringify(item)
+                  );
+                }
+                return String(item || '');
+              })
+              .filter(
+                (item: string) => item && !item.includes('[object Object]')
+              )
+              .join(' ');
           } else {
-            content = (content as any).text || (content as any).content || (content as any).message || JSON.stringify(content);
+            content =
+              (content as any).text ||
+              (content as any).content ||
+              (content as any).message ||
+              JSON.stringify(content);
           }
         } else {
           content = String(content || '');
         }
       }
       // Final safety check
-      if (content && typeof content === 'string' && content.includes('[object Object]')) {
-        console.warn(`[Orchestration] Found [object Object] in deliberation response for ${response.councilMemberId}`);
+      if (
+        content &&
+        typeof content === 'string' &&
+        content.includes('[object Object]')
+      ) {
+        console.warn(
+          `[Orchestration] Found [object Object] in deliberation response for ${response.councilMemberId}`
+        );
         content = 'Content extraction failed';
       }
 
       const exchange = {
         councilMemberId: response.councilMemberId,
         content: content,
-        referencesTo: peerResponses.map(r => r.councilMemberId),
+        referencesTo: peerResponses.map((r) => r.councilMemberId),
         tokenUsage: providerResponse.tokenUsage
       };
-
-      console.error(`[Orchestration] STEP 9: Round ${roundNumber} - Created exchange for ${response.councilMemberId}:`, {
-        exchangeContentType: typeof exchange.content,
-        exchangeContentLength: typeof exchange.content === 'string' ? exchange.content.length : 'N/A',
-        exchangeContentPreview: typeof exchange.content === 'string' ? exchange.content.substring(0, 200) : JSON.stringify(exchange.content).substring(0, 500),
-        hasObjectObject: typeof exchange.content === 'string' && exchange.content.includes('[object Object]')
-      });
 
       return exchange;
     });
@@ -527,30 +795,48 @@ export class OrchestrationEngine implements IOrchestrationEngine {
 
   /**
    * Generate a deliberation prompt for peer review
+   * Focuses on SUBSTANTIVE agreement, not presentation or meta-commentary
    */
   private generateDeliberationPrompt(
     ownResponse: InitialResponse,
     peerResponses: InitialResponse[],
     roundNumber: number
   ): string {
-    let prompt = `You are participating in a deliberation round ${roundNumber} with other AI models.\n\n`;
+    // Extract core answers to show, not full verbose responses
+    const extractCore = (content: string): string => {
+      // Try to get first substantive paragraph, removing meta-commentary
+      const cleaned = content
+        .replace(/\*\*Deliberation Response.*?\*\*/gi, '')
+        .replace(/^#+\s*(Analysis|Critique|Round).*$/gim, '')
+        .replace(/Points of (agreement|disagreement)/gi, '')
+        .trim();
+      const paragraphs = cleaned.split(/\n\n+/).filter(p => p.trim().length > 20);
+      return paragraphs.length > 0 ? paragraphs[0].substring(0, 500) : cleaned.substring(0, 500);
+    };
 
-    prompt += `Your previous response was:\n"${ownResponse.content}"\n\n`;
+    let prompt = `=== DELIBERATION ROUND ${roundNumber} ===\n\n`;
 
-    prompt += 'Here are the responses from other council members:\n\n';
+    prompt += 'CRITICAL INSTRUCTIONS:\n';
+    prompt += '- Focus ONLY on the FACTUAL CONTENT of responses\n';
+    prompt += '- Do NOT discuss how to present, format, or structure information\n';
+    prompt += '- Do NOT analyze "strengths and weaknesses" of presentation styles\n';
+    prompt += '- Do NOT suggest "tiered structures" or "modular approaches"\n';
+    prompt += '- If you AGREE with the substance, simply state your agreement and provide the same answer\n';
+    prompt += '- Keep your response concise and direct\n\n';
+
+    prompt += `YOUR PREVIOUS ANSWER:\n${extractCore(ownResponse.content)}\n\n`;
+
+    prompt += 'OTHER COUNCIL MEMBERS\' ANSWERS:\n\n';
 
     peerResponses.forEach((peer, index) => {
-      prompt += `Council Member ${index + 1} (${peer.councilMemberId}):\n`;
-      prompt += `"${peer.content}"\n\n`;
+      prompt += `[${peer.councilMemberId}]: ${extractCore(peer.content)}\n\n`;
     });
 
-    prompt += 'Please review these responses and provide your critique, agreement, or alternative perspectives. ';
-    prompt += 'Consider:\n';
-    prompt += '- Points of agreement or disagreement\n';
-    prompt += '- Strengths and weaknesses in each response\n';
-    prompt += '- Additional insights or perspectives not yet covered\n';
-    prompt += '- How your view might be refined based on these perspectives\n\n';
-    prompt += 'Provide your deliberation response:';
+    prompt += 'YOUR TASK:\n';
+    prompt += 'If you agree with the other answers on the FACTS, say so briefly and provide your final answer.\n';
+    prompt += 'If you disagree on FACTS (not presentation), explain why concisely.\n';
+    prompt += 'Do NOT provide lengthy analysis or discuss how to organize information.\n\n';
+    prompt += 'Your response (keep it brief and factual):';
 
     return prompt;
   }
@@ -574,13 +860,19 @@ export class OrchestrationEngine implements IOrchestrationEngine {
 
     // Fixed: Validate that partial responses are TrackedResponse[] with runtime check
     const isTrackedResponse = (obj: any): obj is TrackedResponse => {
-      return obj && typeof obj === 'object' &&
-             'memberId' in obj &&
-             'response' in obj &&
-             'initialResponse' in obj;
+      return (
+        obj &&
+        typeof obj === 'object' &&
+        'memberId' in obj &&
+        'response' in obj &&
+        'initialResponse' in obj
+      );
     };
 
-    if (!Array.isArray(partialResponses) || !partialResponses.every(isTrackedResponse)) {
+    if (
+      !Array.isArray(partialResponses) ||
+      !partialResponses.every(isTrackedResponse)
+    ) {
       throw new Error('Invalid partial responses: expected TrackedResponse[]');
     }
 
@@ -592,26 +884,32 @@ export class OrchestrationEngine implements IOrchestrationEngine {
 
     // Convert to deliberation thread with actual member IDs
     const deliberationThread: DeliberationThread = {
-      rounds: [{
-        roundNumber: 0,
-        exchanges: trackedResponses.map((tracked) => {
-          // Ensure content is always a string
-          let content = tracked.response.content;
-          if (typeof content !== 'string') {
-            if (content && typeof content === 'object') {
-              content = (content as any).text || (content as any).content || (content as any).message || JSON.stringify(content);
-            } else {
-              content = String(content || '');
+      rounds: [
+        {
+          roundNumber: 0,
+          exchanges: trackedResponses.map((tracked) => {
+            // Ensure content is always a string
+            let content = tracked.response.content;
+            if (typeof content !== 'string') {
+              if (content && typeof content === 'object') {
+                content =
+                  (content as any).text ||
+                  (content as any).content ||
+                  (content as any).message ||
+                  JSON.stringify(content);
+              } else {
+                content = String(content || '');
+              }
             }
-          }
-          return {
-            councilMemberId: tracked.memberId, // Use actual member ID
-            content: content,
-            referencesTo: [],
-            tokenUsage: tracked.response.tokenUsage
-          };
-        })
-      }],
+            return {
+              councilMemberId: tracked.memberId, // Use actual member ID
+              content: content,
+              referencesTo: [],
+              tokenUsage: tracked.response.tokenUsage
+            };
+          })
+        }
+      ],
       totalDuration: 0
     };
 
@@ -641,17 +939,28 @@ export class OrchestrationEngine implements IOrchestrationEngine {
   /**
    * Send request to a single council member with timeout handling
    * CRITICAL FIX: Properly clears timeout to prevent resource leaks
+   * CRITICAL FIX: Uses deduplication to prevent duplicate requests
    */
   private async sendRequestToMember(
     request: UserRequest,
     member: CouncilMember
-  ): Promise<{ response: ProviderResponse; initialResponse: InitialResponse; memberId: string }> {
+  ): Promise<{
+    response: ProviderResponse;
+    initialResponse: InitialResponse;
+    memberId: string;
+  }> {
     const startTime = Date.now();
 
     // Create timeout promise for this specific member with cleanup
     // Validate timeout value to prevent NaN
-    if (typeof member.timeout !== 'number' || isNaN(member.timeout) || member.timeout <= 0) {
-      throw new Error(`Invalid timeout value for member ${member.id}: ${member.timeout}`);
+    if (
+      typeof member.timeout !== 'number' ||
+      isNaN(member.timeout) ||
+      member.timeout <= 0
+    ) {
+      throw new Error(
+        `Invalid timeout value for member ${member.id}: ${member.timeout}`
+      );
     }
     const timeoutMs = member.timeout * 1000;
     let timeoutId: NodeJS.Timeout | null = null;
@@ -664,22 +973,34 @@ export class OrchestrationEngine implements IOrchestrationEngine {
           tokenUsage: { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
           latency: timeoutMs,
           success: false,
-          error: new Error(`Request to ${member.id} timed out after ${member.timeout}s`)
+          error: new Error(
+            `Request to ${member.id} timed out after ${member.timeout}s`
+          )
         });
       }, timeoutMs);
     });
 
-    // Race between actual request and timeout
-    const response = await Promise.race([
-      this.providerPool.sendRequest(member, request.query, request.context),
-      timeoutPromise
-    ]);
+    // Use deduplicator to prevent duplicate requests to the same member with the same prompt
+    const response = await this.deduplicator.executeWithDeduplication(
+      request.id,
+      member,
+      request.query,
+      async () => {
+        // Race between actual request and timeout
+        const result = await Promise.race([
+          this.providerPool.sendRequest(member, request.query, request.context),
+          timeoutPromise
+        ]);
 
-    // CRITICAL FIX: Clear timeout if request completed first to prevent resource leak
-    if (timeoutId !== null) {
-      clearTimeout(timeoutId);
-      timeoutId = null;
-    }
+        // CRITICAL FIX: Clear timeout if request completed first to prevent resource leak
+        if (timeoutId !== null) {
+          clearTimeout(timeoutId);
+          timeoutId = null;
+        }
+
+        return result;
+      }
+    );
 
     const endTime = Date.now();
     const latency = endTime - startTime;
@@ -689,22 +1010,32 @@ export class OrchestrationEngine implements IOrchestrationEngine {
 
     // Debug logging
     if (typeof content !== 'string') {
-      console.warn(`[Orchestration] InitialResponse for ${member.id} has non-string content:`, {
-        type: typeof content,
-        isArray: Array.isArray(content),
-        content: content,
-        responseKeys: response ? Object.keys(response) : []
-      });
+      console.warn(
+        `[Orchestration] InitialResponse for ${member.id} has non-string content:`,
+        {
+          type: typeof content,
+          isArray: Array.isArray(content),
+          content: content,
+          responseKeys: response ? Object.keys(response) : []
+        }
+      );
     } else if (content.includes('[object Object]')) {
-      console.error(`[Orchestration] InitialResponse for ${member.id} has corrupted content string:`, {
-        content: content,
-        contentLength: content.length
-      });
+      console.error(
+        `[Orchestration] InitialResponse for ${member.id} has corrupted content string:`,
+        {
+          content: content,
+          contentLength: content.length
+        }
+      );
     }
 
     if (typeof content !== 'string') {
       if (content && typeof content === 'object') {
-        content = (content as any).text || (content as any).content || (content as any).message || JSON.stringify(content);
+        content =
+          (content as any).text ||
+          (content as any).content ||
+          (content as any).message ||
+          JSON.stringify(content);
       } else {
         content = String(content || '');
       }
@@ -725,7 +1056,9 @@ export class OrchestrationEngine implements IOrchestrationEngine {
   /**
    * Filter out disabled members based on provider health
    */
-  private async filterActiveMembers(members: CouncilMember[]): Promise<CouncilMember[]> {
+  private async filterActiveMembers(
+    members: CouncilMember[]
+  ): Promise<CouncilMember[]> {
     const activeMembers: CouncilMember[] = [];
 
     for (const member of members) {
@@ -749,10 +1082,13 @@ export class OrchestrationEngine implements IOrchestrationEngine {
     // Check if the provider should now be disabled (threshold was reached)
     if (this.healthTracker.isDisabled(member.provider)) {
       const failureCount = this.healthTracker.getFailureCount(member.provider);
-      const disabledReason = this.healthTracker.getDisabledReason(member.provider);
+      const disabledReason = this.healthTracker.getDisabledReason(
+        member.provider
+      );
       this.providerPool.markProviderDisabled(
         member.provider,
-        disabledReason || `Provider ${member.provider} failed ${failureCount} consecutive times`
+        disabledReason ||
+          `Provider ${member.provider} failed ${failureCount} consecutive times`
       );
     }
   }
@@ -796,4 +1132,152 @@ export class OrchestrationEngine implements IOrchestrationEngine {
     });
   }
 
+  /**
+   * Get preset configurations for per-request preset support
+   * Delegates to ConfigurationManager (DB-driven)
+   */
+  private async getPresetConfigurations(preset: ConfigPreset): Promise<{
+    council: CouncilConfig;
+    deliberation: DeliberationConfig;
+    performance: PerformanceConfig;
+    synthesis: SynthesisConfig;
+  }> {
+    // Delegate to configManager (DB-driven, cached)
+    const configs = await this.configManager.getPresetConfigurations(preset);
+    return {
+      council: configs.council,
+      deliberation: configs.deliberation,
+      performance: configs.performance,
+      synthesis: configs.synthesis
+    };
+  }
+
+  /**
+   * Process a request with streaming - yields chunks as they arrive from each member
+   * This is used for real-time response display
+   */
+  async *processRequestStreaming(request: UserRequest): AsyncGenerator<StreamEvent> {
+    const reqId = request.id;
+    logger.info('Streaming orchestration started', { requestId: reqId, component: 'Orchestration' });
+
+    // Get council configuration
+    let councilConfig: CouncilConfig;
+    if (request.preset) {
+      const presetConfigs = await this.getPresetConfigurations(request.preset);
+      councilConfig = presetConfigs.council;
+    } else {
+      councilConfig = await this.configManager.getCouncilConfig();
+    }
+
+    const activeMembers = councilConfig.members.filter(m =>
+      !this.healthTracker.isDisabled(m.provider)
+    );
+
+    if (activeMembers.length === 0) {
+      yield {
+        type: 'error',
+        error: 'No active council members available',
+        timestamp: new Date()
+      };
+      return;
+    }
+
+    // Signal streaming start
+    yield {
+      type: 'start',
+      memberCount: activeMembers.length,
+      members: activeMembers.map(m => ({ id: m.id, model: m.model })),
+      timestamp: new Date()
+    };
+
+    // Process each member sequentially (streaming doesn't work well with parallel generators)
+    const fullResponses: Map<string, string> = new Map();
+
+    for (const member of activeMembers) {
+      let fullContent = '';
+
+      try {
+        const stream = this.streamMemberResponse(request, member);
+
+        for await (const chunk of stream) {
+          if (chunk.content) {
+            fullContent += chunk.content;
+            yield {
+              type: 'chunk',
+              memberId: member.id,
+              content: chunk.content,
+              timestamp: new Date()
+            };
+          }
+
+          if (chunk.done) {
+            fullResponses.set(member.id, fullContent);
+            yield {
+              type: 'member_complete',
+              memberId: member.id,
+              contentLength: fullContent.length,
+              timestamp: new Date()
+            };
+          }
+        }
+      } catch (error) {
+        yield {
+          type: 'member_error',
+          memberId: member.id,
+          error: (error as Error).message,
+          timestamp: new Date()
+        };
+      }
+    }
+
+    // Signal completion
+    yield {
+      type: 'complete',
+      responseCount: fullResponses.size,
+      timestamp: new Date()
+    };
+  }
+
+  /**
+   * Stream response from a single council member
+   * @internal
+   */
+  private async *streamMemberResponse(
+    request: UserRequest,
+    member: CouncilMember
+  ): AsyncGenerator<{ content: string; done: boolean }> {
+    try {
+      const adapter = this.providerPool.getAdapter(member.provider);
+
+      // Check if adapter supports streaming
+      if ('sendStreamingRequest' in adapter && typeof adapter.sendStreamingRequest === 'function') {
+        // Use streaming adapter
+        yield* adapter.sendStreamingRequest(member, request.query, request.context);
+      } else {
+        // Fall back to non-streaming - yield single chunk with full response
+        const response = await adapter.sendRequest(member, request.query, request.context);
+        yield { content: response.content, done: false };
+        yield { content: '', done: true };
+      }
+    } catch (error) {
+      logger.error(`Error streaming from ${member.id}`, { component: 'streaming-member', memberId: member.id }, error);
+      throw error;
+    }
+  }
+
+}
+
+/**
+ * Event types for streaming responses
+ */
+export interface StreamEvent {
+  type: 'start' | 'chunk' | 'member_complete' | 'member_error' | 'error' | 'complete';
+  memberId?: string;
+  content?: string;
+  error?: string;
+  memberCount?: number;
+  members?: Array<{ id: string; model: string }>;
+  contentLength?: number;
+  responseCount?: number;
+  timestamp: Date;
 }

@@ -35,28 +35,28 @@ class MockProviderPool implements IProviderPool {
   private disabledProviders: Set<string> = new Set();
   private requestLog: Array<{ member: CouncilMember; prompt: string }> = [];
   private healthTracker: ProviderHealthTracker;
-  
+
   constructor(healthTracker?: ProviderHealthTracker) {
     this.healthTracker = healthTracker || getSharedHealthTracker();
   }
-  
+
   // Track which members received requests
   getRequestLog(): Array<{ member: CouncilMember; prompt: string }> {
     return this.requestLog;
   }
-  
+
   clearRequestLog(): void {
     this.requestLog = [];
   }
-  
+
   setResponse(memberId: string, response: ProviderResponse): void {
     this.responses.set(memberId, response);
   }
-  
+
   setHealthStatus(providerId: string, health: ProviderHealth): void {
     this.healthStatuses.set(providerId, health);
   }
-  
+
   async sendRequest(
     member: CouncilMember,
     prompt: string,
@@ -64,7 +64,7 @@ class MockProviderPool implements IProviderPool {
   ): Promise<ProviderResponse> {
     // Log the request
     this.requestLog.push({ member, prompt });
-    
+
     const response = this.responses.get(member.id);
     if (!response) {
       const successResponse: ProviderResponse = {
@@ -77,21 +77,21 @@ class MockProviderPool implements IProviderPool {
       this.healthTracker.recordSuccess(member.provider);
       return successResponse;
     }
-    
+
     // Record failure/success in health tracker (mimicking ProviderPool.updateHealthTracking)
     if (response.success) {
       this.healthTracker.recordSuccess(member.provider);
     } else {
       this.healthTracker.recordFailure(member.provider);
     }
-    
+
     return response;
   }
-  
+
   getProviderHealth(providerId: string): ProviderHealth {
     const health = this.healthStatuses.get(providerId);
     if (health) return health;
-    
+
     return {
       providerId,
       status: this.disabledProviders.has(providerId) ? 'disabled' : 'healthy',
@@ -125,7 +125,7 @@ class MockConfigurationManager implements IConfigurationManager {
   private synthesisConfig: SynthesisConfig;
   private transparencyConfig: any;
   private devilsAdvocateConfig: DevilsAdvocateConfig;
-  
+
   constructor(
     councilConfig?: CouncilConfig,
     deliberationConfig?: DeliberationConfig,
@@ -139,7 +139,7 @@ class MockConfigurationManager implements IConfigurationManager {
       backoffMultiplier: 2,
       retryableErrors: ['RATE_LIMIT', 'TIMEOUT']
     };
-    
+
     this.councilConfig = councilConfig || {
       members: [
         {
@@ -160,22 +160,22 @@ class MockConfigurationManager implements IConfigurationManager {
       minimumSize: 2,
       requireMinimumForConsensus: false
     };
-    
+
     this.deliberationConfig = deliberationConfig || {
       rounds: 0,
       preset: 'fast'
     };
-    
+
     this.performanceConfig = performanceConfig || {
       globalTimeout: 60,
       enableFastFallback: true,
       streamingEnabled: true
     };
-    
+
     this.synthesisConfig = synthesisConfig || {
       strategy: { type: 'consensus-extraction' }
     };
-    
+
     this.transparencyConfig = {
       enabled: false,
       forcedTransparency: false
@@ -190,35 +190,35 @@ class MockConfigurationManager implements IConfigurationManager {
       model: 'gpt-4'
     };
   }
-  
+
   async getCouncilConfig(): Promise<CouncilConfig> {
     return this.councilConfig;
   }
-  
+
   async updateCouncilConfig(config: CouncilConfig): Promise<void> {
     this.councilConfig = config;
   }
-  
+
   async getDeliberationConfig(): Promise<DeliberationConfig> {
     return this.deliberationConfig;
   }
-  
+
   async getSynthesisConfig(): Promise<SynthesisConfig> {
     return this.synthesisConfig;
   }
-  
+
   async getPerformanceConfig(): Promise<PerformanceConfig> {
     return this.performanceConfig;
   }
-  
+
   async getTransparencyConfig(): Promise<any> {
     return this.transparencyConfig;
   }
-  
+
   async updateTransparencyConfig(config: any): Promise<void> {
     this.transparencyConfig = config;
   }
-  
+
   async getDevilsAdvocateConfig(): Promise<DevilsAdvocateConfig> {
     return this.devilsAdvocateConfig;
   }
@@ -242,7 +242,7 @@ class MockSynthesisEngine implements ISynthesisEngine {
       .flatMap(r => r.exchanges)
       .map(e => e.content)
       .join(' ');
-    
+
     return {
       content,
       confidence: 'high',
@@ -252,7 +252,7 @@ class MockSynthesisEngine implements ISynthesisEngine {
       timestamp: new Date()
     };
   }
-  
+
   async selectModerator(members: CouncilMember[]): Promise<CouncilMember> {
     return members[0];
   }
@@ -290,7 +290,7 @@ const councilConfigArbitrary = fc.record({
 }).filter(config => {
   // Ensure minimum size is valid
   if (config.minimumSize > config.members.length) return false;
-  
+
   // Ensure all member IDs are unique
   const memberIds = config.members.map(m => m.id);
   const uniqueIds = new Set(memberIds);
@@ -332,42 +332,42 @@ describe('Property Test: Request Distribution Completeness', () => {
           const mockProviderPool = new MockProviderPool();
           const mockConfigManager = new MockConfigurationManager(councilConfig);
           const mockSynthesisEngine = new MockSynthesisEngine();
-          
+
           const engine = new OrchestrationEngine(
             mockProviderPool,
             mockConfigManager,
             mockSynthesisEngine
           );
-          
+
           // Clear request log
           mockProviderPool.clearRequestLog();
-          
+
           // Execute
           const responses = await engine.distributeToCouncil(
             request,
             councilConfig.members
           );
-          
+
           // Get the request log
           const requestLog = mockProviderPool.getRequestLog();
-          
+
           // Property assertions:
           // 1. All configured members should have received a request
           const memberIdsInLog = new Set(requestLog.map(log => log.member.id));
           const configuredMemberIds = new Set(councilConfig.members.map(m => m.id));
-          
+
           for (const memberId of configuredMemberIds) {
             expect(memberIdsInLog.has(memberId)).toBe(true);
           }
-          
+
           // 2. Number of requests should equal number of configured members
           expect(requestLog).toHaveLength(councilConfig.members.length);
-          
+
           // 3. Each member should receive the same query
           for (const log of requestLog) {
             expect(log.prompt).toBe(request.query);
           }
-          
+
           // 4. All successful responses should be included in the result
           expect(responses.length).toBeGreaterThan(0);
           expect(responses.length).toBeLessThanOrEqual(councilConfig.members.length);
@@ -402,43 +402,43 @@ describe('Property Test: Active Configuration Enforcement', () => {
           const mockProviderPool = new MockProviderPool();
           const mockConfigManager = new MockConfigurationManager(initialConfig);
           const mockSynthesisEngine = new MockSynthesisEngine();
-          
+
           const engine = new OrchestrationEngine(
             mockProviderPool,
             mockConfigManager,
             mockSynthesisEngine
           );
-          
+
           // Update configuration
           await mockConfigManager.updateCouncilConfig(updatedConfig);
-          
+
           // Clear request log
           mockProviderPool.clearRequestLog();
-          
+
           // Execute request with updated configuration
           try {
             await engine.processRequest(request);
           } catch (_error) {
             // May fail if all members fail, but we still check the distribution
           }
-          
+
           // Get the request log
           const requestLog = mockProviderPool.getRequestLog();
-          
+
           // Property assertions:
           // 1. All members that received requests should be from the updated config
           const updatedMemberIds = new Set(updatedConfig.members.map(m => m.id));
           const requestedMemberIds = new Set(requestLog.map(log => log.member.id));
-          
+
           for (const memberId of requestedMemberIds) {
             expect(updatedMemberIds.has(memberId)).toBe(true);
           }
-          
+
           // 2. No members from the initial config (that aren't in updated config) should be used
           const initialOnlyMembers = initialConfig.members.filter(
             m => !updatedMemberIds.has(m.id)
           );
-          
+
           for (const member of initialOnlyMembers) {
             expect(requestedMemberIds.has(member.id)).toBe(false);
           }
@@ -473,17 +473,17 @@ describe('Property Test: Automatic Member Disabling', () => {
           const mockProviderPool = new MockProviderPool();
           const mockConfigManager = new MockConfigurationManager(councilConfig);
           const mockSynthesisEngine = new MockSynthesisEngine();
-          
+
           const engine = new OrchestrationEngine(
             mockProviderPool,
             mockConfigManager,
             mockSynthesisEngine
           );
-          
+
           // Pick a member to fail consistently
           const failingMember = councilConfig.members[0];
           const failingProvider = failingMember.provider;
-          
+
           // Set up ALL members with the same provider as the failing member to fail
           // This ensures failures are tracked correctly (successes reset failure counts)
           for (const member of councilConfig.members) {
@@ -506,7 +506,7 @@ describe('Property Test: Automatic Member Disabling', () => {
               });
             }
           }
-          
+
           // Trigger failures
           for (let i = 0; i < numFailures; i++) {
             try {
@@ -515,7 +515,7 @@ describe('Property Test: Automatic Member Disabling', () => {
               // May throw if all members fail, continue
             }
           }
-          
+
           // Property assertions:
           // After threshold failures (5), the provider should be marked as disabled
           // Note: The engine uses a health tracker to track failures, and trackFailure()
@@ -530,7 +530,7 @@ describe('Property Test: Automatic Member Disabling', () => {
       { numRuns: getPropertyTestRuns() }
     );
   }, 120000);
-  
+
   test('should exclude disabled members from subsequent requests', async () => {
     await fc.assert(
       fc.asyncProperty(
@@ -541,16 +541,16 @@ describe('Property Test: Automatic Member Disabling', () => {
           const mockProviderPool = new MockProviderPool();
           const mockConfigManager = new MockConfigurationManager(councilConfig);
           const mockSynthesisEngine = new MockSynthesisEngine();
-          
+
           const engine = new OrchestrationEngine(
             mockProviderPool,
             mockConfigManager,
             mockSynthesisEngine
           );
-          
+
           // Pick a member to disable
           const disabledMember = councilConfig.members[0];
-          
+
           // Mark the provider as disabled
           mockProviderPool.setHealthStatus(disabledMember.provider, {
             providerId: disabledMember.provider,
@@ -558,20 +558,20 @@ describe('Property Test: Automatic Member Disabling', () => {
             successRate: 0,
             avgLatency: 0
           });
-          
+
           // Clear request log
           mockProviderPool.clearRequestLog();
-          
+
           // Execute request
           try {
             await engine.processRequest(request);
           } catch (_error) {
             // May fail if minimum quorum not met
           }
-          
+
           // Get the request log
           const requestLog = mockProviderPool.getRequestLog();
-          
+
           // Property assertions:
           // The disabled member should not have received any requests
           const requestedMemberIds = requestLog.map(log => log.member.id);
@@ -604,24 +604,24 @@ describe('Property Test: Deliberation Round Count Enforcement', () => {
         async (councilConfig, numRounds) => {
           // Setup
           const mockProviderPool = new MockProviderPool();
-          
+
           const deliberationConfig: DeliberationConfig = {
             rounds: numRounds,
             preset: 'balanced'
           };
-          
+
           const mockConfigManager = new MockConfigurationManager(
             councilConfig,
             deliberationConfig
           );
           const mockSynthesisEngine = new MockSynthesisEngine();
-          
+
           const engine = new OrchestrationEngine(
             mockProviderPool,
             mockConfigManager,
             mockSynthesisEngine
           );
-          
+
           // Create initial responses (one per council member)
           const initialResponses = councilConfig.members.map(member => ({
             councilMemberId: member.id,
@@ -630,39 +630,39 @@ describe('Property Test: Deliberation Round Count Enforcement', () => {
             latency: 100,
             timestamp: new Date()
           }));
-          
+
           // Execute deliberation
           const deliberationThread = await engine.conductDeliberation(
             initialResponses,
             numRounds
           );
-          
+
           // Property assertions:
           // 1. The deliberation thread should have exactly N+1 rounds
           //    (round 0 for initial responses + N deliberation rounds)
           expect(deliberationThread.rounds).toHaveLength(numRounds + 1);
-          
+
           // 2. Round 0 should contain the initial responses
           expect(deliberationThread.rounds[0].roundNumber).toBe(0);
           expect(deliberationThread.rounds[0].exchanges).toHaveLength(councilConfig.members.length);
-          
+
           // 3. Each subsequent round should be numbered correctly (1 through N)
           for (let i = 1; i <= numRounds; i++) {
             expect(deliberationThread.rounds[i].roundNumber).toBe(i);
-            
+
             // Each deliberation round should have exchanges from all members
             expect(deliberationThread.rounds[i].exchanges).toHaveLength(councilConfig.members.length);
-            
+
             // Each exchange should reference peer responses
             for (const exchange of deliberationThread.rounds[i].exchanges) {
               expect(exchange.referencesTo).toBeDefined();
               expect(Array.isArray(exchange.referencesTo)).toBe(true);
-              
+
               // Should reference all other members (not self)
               expect(exchange.referencesTo).toHaveLength(councilConfig.members.length - 1);
             }
           }
-          
+
           // 4. Total duration should be recorded
           expect(deliberationThread.totalDuration).toBeGreaterThanOrEqual(0);
         }
@@ -670,7 +670,7 @@ describe('Property Test: Deliberation Round Count Enforcement', () => {
       { numRuns: getPropertyTestRuns() }
     );
   }, 120000);
-  
+
   test('should skip deliberation when rounds equals 0', async () => {
     await fc.assert(
       fc.asyncProperty(
@@ -678,24 +678,24 @@ describe('Property Test: Deliberation Round Count Enforcement', () => {
         async (councilConfig) => {
           // Setup with 0 deliberation rounds
           const mockProviderPool = new MockProviderPool();
-          
+
           const deliberationConfig: DeliberationConfig = {
             rounds: 0,
             preset: 'fast'
           };
-          
+
           const mockConfigManager = new MockConfigurationManager(
             councilConfig,
             deliberationConfig
           );
           const mockSynthesisEngine = new MockSynthesisEngine();
-          
+
           const engine = new OrchestrationEngine(
             mockProviderPool,
             mockConfigManager,
             mockSynthesisEngine
           );
-          
+
           // Create initial responses
           const initialResponses = councilConfig.members.map(member => ({
             councilMemberId: member.id,
@@ -704,21 +704,21 @@ describe('Property Test: Deliberation Round Count Enforcement', () => {
             latency: 100,
             timestamp: new Date()
           }));
-          
+
           // Execute deliberation with 0 rounds
           const deliberationThread = await engine.conductDeliberation(
             initialResponses,
             0
           );
-          
+
           // Property assertions:
           // 1. Should have exactly 1 round (round 0 with initial responses only)
           expect(deliberationThread.rounds).toHaveLength(1);
-          
+
           // 2. Round 0 should contain the initial responses
           expect(deliberationThread.rounds[0].roundNumber).toBe(0);
           expect(deliberationThread.rounds[0].exchanges).toHaveLength(councilConfig.members.length);
-          
+
           // 3. No peer review exchanges should occur
           // (all exchanges should be the initial responses with empty referencesTo)
           for (const exchange of deliberationThread.rounds[0].exchanges) {
@@ -752,24 +752,24 @@ describe('Property Test: Peer Response Sharing Completeness', () => {
         async (councilConfig, numRounds) => {
           // Setup
           const mockProviderPool = new MockProviderPool();
-          
+
           const deliberationConfig: DeliberationConfig = {
             rounds: numRounds,
             preset: 'balanced'
           };
-          
+
           const mockConfigManager = new MockConfigurationManager(
             councilConfig,
             deliberationConfig
           );
           const mockSynthesisEngine = new MockSynthesisEngine();
-          
+
           const engine = new OrchestrationEngine(
             mockProviderPool,
             mockConfigManager,
             mockSynthesisEngine
           );
-          
+
           // Create initial responses (one per council member)
           const initialResponses = councilConfig.members.map(member => ({
             councilMemberId: member.id,
@@ -778,70 +778,70 @@ describe('Property Test: Peer Response Sharing Completeness', () => {
             latency: 100,
             timestamp: new Date()
           }));
-          
+
           // Clear request log to track deliberation prompts
           mockProviderPool.clearRequestLog();
-          
+
           // Execute deliberation
           const deliberationThread = await engine.conductDeliberation(
             initialResponses,
             numRounds
           );
-          
+
           // Get the request log to inspect deliberation prompts
           const requestLog = mockProviderPool.getRequestLog();
-          
+
           // Property assertions:
           // For each deliberation round (rounds 1 through N)
           for (let roundNum = 1; roundNum <= numRounds; roundNum++) {
             const round = deliberationThread.rounds[roundNum];
-            
+
             // For each council member in this round
             for (const exchange of round.exchanges) {
               const memberId = exchange.councilMemberId;
-              
+
               // 1. The exchange should reference all other members (peer responses)
               expect(exchange.referencesTo).toBeDefined();
               expect(Array.isArray(exchange.referencesTo)).toBe(true);
-              
+
               // 2. Should reference exactly N-1 members (all except self)
               const expectedPeerCount = councilConfig.members.length - 1;
               expect(exchange.referencesTo).toHaveLength(expectedPeerCount);
-              
+
               // 3. Should not reference self
               expect(exchange.referencesTo).not.toContain(memberId);
-              
+
               // 4. Should reference all other council members
               const otherMemberIds = councilConfig.members
                 .filter(m => m.id !== memberId)
                 .map(m => m.id);
-              
+
               for (const otherMemberId of otherMemberIds) {
                 expect(exchange.referencesTo).toContain(otherMemberId);
               }
-              
+
               // 5. No duplicate references
               const uniqueReferences = new Set(exchange.referencesTo);
               expect(uniqueReferences.size).toBe(exchange.referencesTo.length);
             }
           }
-          
+
           // Additional verification: Check that deliberation prompts contain peer responses
           // Each member should have received (numRounds) deliberation prompts
           const expectedDeliberationCalls = councilConfig.members.length * numRounds;
           expect(requestLog).toHaveLength(expectedDeliberationCalls);
-          
+
           // Verify that each deliberation prompt contains references to peer responses
           for (const log of requestLog) {
             const prompt = log.prompt;
-            
+
             // The prompt should mention "other council members" or similar
             expect(prompt).toContain('council member');
-            
+
             // The prompt should contain content from peer responses
             // (checking for the pattern "Council Member" which appears in the prompt)
             const peerMentions = (prompt.match(/Council Member \d+/g) || []).length;
-            
+
             // Should mention at least one peer (N-1 peers for N members)
             expect(peerMentions).toBeGreaterThan(0);
           }
@@ -878,7 +878,7 @@ describe('Property Test: Global Timeout Synthesis Trigger', () => {
             enableFastFallback: true,
             streamingEnabled: true
           };
-          
+
           const mockProviderPool = new MockProviderPool();
           const mockConfigManager = new MockConfigurationManager(
             councilConfig,
@@ -886,13 +886,13 @@ describe('Property Test: Global Timeout Synthesis Trigger', () => {
             performanceConfig
           );
           const mockSynthesisEngine = new MockSynthesisEngine();
-          
+
           const engine = new OrchestrationEngine(
             mockProviderPool,
             mockConfigManager,
             mockSynthesisEngine
           );
-          
+
           // Make some members slow (exceed global timeout)
           const slowMember = councilConfig.members[0];
           mockProviderPool.setResponse(slowMember.id, {
@@ -901,33 +901,33 @@ describe('Property Test: Global Timeout Synthesis Trigger', () => {
             latency: (globalTimeoutSeconds + 2) * 1000,
             success: true
           });
-          
+
           // Execute request and measure time
           const startTime = Date.now();
           let result: ConsensusDecision | null = null;
           let timedOut = false;
-          
+
           try {
             result = await engine.processRequest(request);
           } catch (_error) {
             // May fail if all members timeout
             timedOut = true;
           }
-          
+
           const endTime = Date.now();
           const elapsedSeconds = (endTime - startTime) / 1000;
-          
+
           // Property assertions:
           // 1. Request should complete within reasonable time of global timeout
           // Allow some overhead for processing (2x timeout)
           expect(elapsedSeconds).toBeLessThan(globalTimeoutSeconds * 2 + 5);
-          
+
           // 2. If synthesis succeeded, result should have low confidence due to timeout
           if (result && !timedOut) {
             // The handleTimeout method sets confidence to 'low'
             // We can't directly test this without modifying the implementation,
             // but we can verify that synthesis was triggered
-            expect(result.content).toBeDefined();
+            expect(result.consensusDecision.content).toBeDefined();
           }
         }
       ),
@@ -980,15 +980,15 @@ describe('Property Test: Context Inclusion in Distribution', () => {
           // Setup - Create a mock provider pool that tracks context
           class ContextTrackingProviderPool extends MockProviderPool {
             private contextLog: Array<{ memberId: string; context?: ConversationContext }> = [];
-            
+
             getContextLog(): Array<{ memberId: string; context?: ConversationContext }> {
               return this.contextLog;
             }
-            
+
             clearContextLog(): void {
               this.contextLog = [];
             }
-            
+
             async sendRequest(
               member: CouncilMember,
               prompt: string,
@@ -996,56 +996,56 @@ describe('Property Test: Context Inclusion in Distribution', () => {
             ): Promise<ProviderResponse> {
               // Track the context passed to this member
               this.contextLog.push({ memberId: member.id, context });
-              
+
               // Call parent implementation
               return super.sendRequest(member, prompt, context);
             }
           }
-          
+
           const mockProviderPool = new ContextTrackingProviderPool();
           const mockConfigManager = new MockConfigurationManager(councilConfig);
           const mockSynthesisEngine = new MockSynthesisEngine();
-          
+
           const engine = new OrchestrationEngine(
             mockProviderPool,
             mockConfigManager,
             mockSynthesisEngine
           );
-          
+
           // Clear logs
           mockProviderPool.clearContextLog();
           mockProviderPool.clearRequestLog();
-          
+
           // Execute distribution
           await engine.distributeToCouncil(request, councilConfig.members);
-          
+
           // Get the context log
           const contextLog = mockProviderPool.getContextLog();
-          
+
           // Property assertions:
           // 1. All council members should have received the request
           expect(contextLog).toHaveLength(councilConfig.members.length);
-          
+
           // 2. Each member should have received the same context
           for (const log of contextLog) {
             expect(log.context).toBeDefined();
-            
+
             if (request.context) {
               // Context should match the request context
               expect(log.context).toEqual(request.context);
-              
+
               // Verify context structure
               expect(log.context?.messages).toBeDefined();
               expect(log.context?.totalTokens).toBeDefined();
               expect(log.context?.summarized).toBeDefined();
-              
+
               // Verify messages match
               expect(log.context?.messages.length).toBe(request.context.messages.length);
               expect(log.context?.totalTokens).toBe(request.context.totalTokens);
               expect(log.context?.summarized).toBe(request.context.summarized);
             }
           }
-          
+
           // 3. All members should have received the same context (consistency check)
           if (contextLog.length > 1) {
             const firstContext = contextLog[0].context;
@@ -1058,7 +1058,7 @@ describe('Property Test: Context Inclusion in Distribution', () => {
       { numRuns: getPropertyTestRuns() }
     );
   }, 120000);
-  
+
   test('should handle requests without context gracefully', async () => {
     const requestWithoutContextArbitrary = fc.record({
       id: fc.uuid(),
@@ -1076,11 +1076,11 @@ describe('Property Test: Context Inclusion in Distribution', () => {
           // Setup
           class ContextTrackingProviderPool extends MockProviderPool {
             private contextLog: Array<{ memberId: string; context?: ConversationContext }> = [];
-            
+
             getContextLog(): Array<{ memberId: string; context?: ConversationContext }> {
               return this.contextLog;
             }
-            
+
             async sendRequest(
               member: CouncilMember,
               prompt: string,
@@ -1090,27 +1090,27 @@ describe('Property Test: Context Inclusion in Distribution', () => {
               return super.sendRequest(member, prompt, context);
             }
           }
-          
+
           const mockProviderPool = new ContextTrackingProviderPool();
           const mockConfigManager = new MockConfigurationManager(councilConfig);
           const mockSynthesisEngine = new MockSynthesisEngine();
-          
+
           const engine = new OrchestrationEngine(
             mockProviderPool,
             mockConfigManager,
             mockSynthesisEngine
           );
-          
+
           // Execute distribution
           await engine.distributeToCouncil(request, councilConfig.members);
-          
+
           // Get the context log
           const contextLog = mockProviderPool.getContextLog();
-          
+
           // Property assertions:
           // 1. All members should have been called
           expect(contextLog).toHaveLength(councilConfig.members.length);
-          
+
           // 2. Context should be undefined for all members (no context provided)
           for (const log of contextLog) {
             expect(log.context).toBeUndefined();

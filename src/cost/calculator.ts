@@ -4,6 +4,7 @@
  */
 
 import { TokenUsage, CouncilMember } from '../types/core';
+import { IModelRegistry } from '../interfaces/IModelRegistry';
 
 /**
  * Pricing configuration for a provider/model
@@ -61,9 +62,11 @@ export class CostCalculator {
   private pricingConfigs: Map<string, PricingConfig> = new Map();
   private costAlerts: CostAlert[] = [];
   private periodCosts: Map<string, number> = new Map(); // period key -> accumulated cost
+  private modelRegistry?: IModelRegistry;
 
-  constructor() {
-    // Initialize with default pricing (as of 2024)
+  constructor(modelRegistry?: IModelRegistry) {
+    this.modelRegistry = modelRegistry;
+    // Initialize with default pricing (as of 2024) as fallback
     this.initializeDefaultPricing();
   }
 
@@ -71,12 +74,32 @@ export class CostCalculator {
    * Initialize default pricing for common providers
    */
   private initializeDefaultPricing(): void {
+    // OpenAI GPT-4 (standard)
+    this.addPricingConfig({
+      provider: 'openai',
+      model: 'gpt-4',
+      promptTokenPrice: 0.03, // $0.03 per 1K prompt tokens
+      completionTokenPrice: 0.06, // $0.06 per 1K completion tokens
+      currency: 'USD',
+      version: 'v1.0'
+    });
+
     // OpenAI GPT-4 Turbo
     this.addPricingConfig({
       provider: 'openai',
       model: 'gpt-4-turbo',
       promptTokenPrice: 0.01, // $0.01 per 1K prompt tokens
       completionTokenPrice: 0.03, // $0.03 per 1K completion tokens
+      currency: 'USD',
+      version: 'v1.0'
+    });
+
+    // OpenAI GPT-4o (latest)
+    this.addPricingConfig({
+      provider: 'openai',
+      model: 'gpt-4o',
+      promptTokenPrice: 0.005, // $0.005 per 1K prompt tokens
+      completionTokenPrice: 0.015, // $0.015 per 1K completion tokens
       currency: 'USD',
       version: 'v1.0'
     });
@@ -140,11 +163,47 @@ export class CostCalculator {
 
   /**
    * Calculate cost for a single API call
+   * Uses dynamic pricing from Model Registry if available, falls back to static config
    */
-  calculateCost(
+  async calculateCost(
     member: CouncilMember,
-    tokenUsage: TokenUsage
-  ): CostCalculation {
+    tokenUsage: TokenUsage,
+    date?: Date
+  ): Promise<CostCalculation> {
+    // Try to get pricing from Model Registry first
+    if (this.modelRegistry) {
+      try {
+        const pricingDate = date || new Date();
+        const dynamicPricing = await this.modelRegistry.getPricingForDate(
+          member.model,
+          pricingDate,
+          'standard'
+        );
+
+        if (dynamicPricing) {
+          // Calculate cost using dynamic pricing (per million tokens)
+          const promptCost = (tokenUsage.promptTokens / 1_000_000) * dynamicPricing.inputCostPerMillion;
+          const completionCost = (tokenUsage.completionTokens / 1_000_000) * dynamicPricing.outputCostPerMillion;
+          const totalCost = promptCost + completionCost;
+
+          return {
+            memberId: member.id,
+            provider: member.provider,
+            model: member.model,
+            promptTokens: tokenUsage.promptTokens,
+            completionTokens: tokenUsage.completionTokens,
+            totalTokens: tokenUsage.totalTokens,
+            cost: totalCost,
+            currency: 'USD',
+            pricingVersion: 'dynamic'
+          };
+        }
+      } catch (error) {
+        console.warn(`[CostCalculator] Error fetching dynamic pricing for ${member.model}, falling back to static config:`, error);
+      }
+    }
+
+    // Fallback to static pricing configuration
     const pricing = this.getPricingConfig(member.provider, member.model);
 
     if (!pricing) {
@@ -183,6 +242,54 @@ export class CostCalculator {
       currency: pricing.currency,
       pricingVersion: pricing.version
     };
+  }
+
+  /**
+   * Calculate cost for historical data using pricing from specific date
+   * Supports multiple pricing tiers
+   */
+  async calculateHistoricalCost(
+    member: CouncilMember,
+    tokenUsage: TokenUsage,
+    date: Date,
+    tier: string = 'standard'
+  ): Promise<CostCalculation> {
+    if (!this.modelRegistry) {
+      // Fallback to current pricing if no registry
+      return this.calculateCost(member, tokenUsage, date);
+    }
+
+    try {
+      const historicalPricing = await this.modelRegistry.getPricingForDate(
+        member.model,
+        date,
+        tier
+      );
+
+      if (historicalPricing) {
+        // Calculate cost using historical pricing (per million tokens)
+        const promptCost = (tokenUsage.promptTokens / 1_000_000) * historicalPricing.inputCostPerMillion;
+        const completionCost = (tokenUsage.completionTokens / 1_000_000) * historicalPricing.outputCostPerMillion;
+        const totalCost = promptCost + completionCost;
+
+        return {
+          memberId: member.id,
+          provider: member.provider,
+          model: member.model,
+          promptTokens: tokenUsage.promptTokens,
+          completionTokens: tokenUsage.completionTokens,
+          totalTokens: tokenUsage.totalTokens,
+          cost: totalCost,
+          currency: 'USD',
+          pricingVersion: `historical-${tier}`
+        };
+      }
+    } catch (error) {
+      console.error(`[CostCalculator] Error calculating historical cost for ${member.model}:`, error);
+    }
+
+    // Fallback to current pricing
+    return this.calculateCost(member, tokenUsage, date);
   }
 
   /**
@@ -248,7 +355,7 @@ export class CostCalculator {
 
     // Check each alert
     for (const alert of this.costAlerts) {
-      if (!alert.enabled) {continue;}
+      if (!alert.enabled) { continue; }
 
       // Check if this alert applies to the current period
       if (this.matchesPeriod(period, alert.period)) {

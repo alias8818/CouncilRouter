@@ -39,27 +39,36 @@ Welcome to the AI Council Proxy documentation. This index provides a comprehensi
 - **[README - Architecture](../README.md#architecture)** - High-level system architecture
 - **[Project Structure](PROJECT_STRUCTURE.md)** - Detailed component organization
 - **[Design Document](../.kiro/specs/ai-council-proxy/design.md)** - Complete design specification
+- **[Recent Changes](RECENT_CHANGES.md)** - Latest updates and new features (v2.0.0)
 
 ### API & Integration
 
 - **[API Documentation](API_DOCUMENTATION.md)** - Complete API reference
   - REST endpoints
-  - Authentication
+  - Authentication (JWT and API keys)
   - Request/response formats
+  - Idempotency support
   - Error handling
   - SDK examples (Node.js, Python)
   - Best practices
+- **[Model API Documentation](MODEL_API_DOCUMENTATION.md)** - Model discovery endpoints
+  - List models with filtering
+  - Get model details
+  - View pricing history
 
 ### Configuration
 
 - **[Configuration Guide](CONFIGURATION_GUIDE.md)** - Complete configuration reference
   - Council member configuration
   - Deliberation settings
-  - Synthesis strategies
+  - Synthesis strategies (including Iterative Consensus)
   - Performance tuning
   - Cost management
   - Transparency controls
-  - Configuration presets
+  - Configuration presets (6 presets including free-council)
+- **[Iterative Consensus](ITERATIVE_CONSENSUS.md)** - Advanced negotiation-based synthesis
+- **[Dynamic Model Pricing Setup](DYNAMIC_MODEL_PRICING_SETUP.md)** - Automatic model discovery
+- **[Scraping Configuration Guide](SCRAPING_CONFIGURATION_GUIDE.md)** - Pricing scraper setup
 
 ### Deployment
 
@@ -106,6 +115,10 @@ Welcome to the AI Council Proxy documentation. This index provides a comprehensi
   - Alerting rules
   - Health checks
   - Troubleshooting runbooks
+- **[Admin Dashboard](ADMIN_DASHBOARD.md)** - Web-based administration interface
+- **[Dynamic Pricing Monitoring](DYNAMIC_PRICING_MONITORING.md)** - Model/pricing sync monitoring
+- **[Metrics Tracking](METRICS_TRACKING_COMPLETE.md)** - Performance metrics system
+- **[Rate Limit Protection](RATE_LIMIT_PROTECTION.md)** - Rate limiting and protection
 
 ### Development
 
@@ -219,7 +232,10 @@ Welcome to the AI Council Proxy documentation. This index provides a comprehensi
 |--------|------|---------|----------|
 | Fast Council | ~$0.003 | 2-5s | Quick responses, simple queries |
 | Balanced Council | ~$0.035 | 5-15s | General purpose, good quality |
+| Coding Council | ~$0.08 | 8-15s | Code generation and review |
 | Research Council | ~$0.20 | 20-60s | Research, critical decisions |
+| Cost-Effective Council | ~$0.001 | 3-8s | Budget-friendly option |
+| Free Council | $0.00 | 5-12s | Zero-cost via OpenRouter |
 
 See: [Configuration Guide - Presets](CONFIGURATION_GUIDE.md#configuration-presets)
 
@@ -227,9 +243,14 @@ See: [Configuration Guide - Presets](CONFIGURATION_GUIDE.md#configuration-preset
 
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| `/api/v1/requests` | POST | Submit request |
+| `/api/v1/requests` | POST | Submit request (with idempotency) |
 | `/api/v1/requests/:id` | GET | Get response |
 | `/api/v1/requests/:id/stream` | GET | Stream response |
+| `/api/v1/requests/:id/deliberation` | GET | Get deliberation thread |
+| `/api/v1/requests/:id/negotiation` | GET | Get negotiation details |
+| `/api/v1/models` | GET | List available models |
+| `/api/v1/models/:id` | GET | Get model details |
+| `/api/v1/models/:id/pricing-history` | GET | Get pricing history |
 | `/health` | GET | Health check |
 | `/metrics` | GET | Prometheus metrics |
 
@@ -256,8 +277,14 @@ See: [Monitoring Guide - Key Metrics](MONITORING_GUIDE.md#key-metrics-to-monitor
 | `OPENAI_API_KEY` | No* | - |
 | `ANTHROPIC_API_KEY` | No* | - |
 | `GOOGLE_API_KEY` | No* | - |
+| `XAI_API_KEY` | No* | - |
+| `OPENROUTER_API_KEY` | No* | - |
+| `JWT_SECRET` | Yes | - |
 | `PORT` | No | 3000 |
+| `ADMIN_PORT` | No | 3001 |
 | `NODE_ENV` | No | development |
+| `ENABLE_METRICS_TRACKING` | No | true |
+| `SYNC_SCHEDULE_CRON` | No | 0 2 * * * |
 
 *At least one provider API key required
 
@@ -326,7 +353,10 @@ For technical support:
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 2.0.0 | 2024-01-XX | Major update: Iterative Consensus, Dynamic Model Pricing, OpenRouter, Admin Dashboard, Request Deduplication |
 | 1.0.0 | 2024-01-15 | Initial documentation release |
+
+See: [Recent Changes](RECENT_CHANGES.md) for detailed changelog
 
 ---
 
@@ -336,6 +366,6 @@ This documentation is part of the AI Council Proxy project and is licensed under
 
 ---
 
-**Last Updated:** January 15, 2024  
-**Documentation Version:** 1.0.0  
-**Project Version:** 1.0.0
+**Last Updated:** 2024-01-XX  
+**Documentation Version:** 2.0.0  
+**Project Version:** 2.0.0

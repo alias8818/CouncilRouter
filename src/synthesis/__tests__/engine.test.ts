@@ -74,7 +74,7 @@ describe('SynthesisEngine', () => {
   const createThread = (exchanges: Exchange[]): DeliberationThread => ({
     rounds: [
       {
-        roundNumber: 1,
+        roundNumber: 0,
         exchanges
       }
     ],
@@ -238,7 +238,7 @@ describe('SynthesisEngine', () => {
         const thread: DeliberationThread = {
           rounds: [
             {
-              roundNumber: 1,
+              roundNumber: 0,
               exchanges: [
                 createExchange('member1', 'Initial response 1'),
                 createExchange('member2', 'Initial response 2')

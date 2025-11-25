@@ -113,6 +113,11 @@ describe('SessionManager Atomic Updates Property Test', () => {
               return { rows: [], rowCount: 0 };
             }
 
+            // Session existence check
+            if (query.includes('SELECT id FROM sessions WHERE id =')) {
+              return { rows: [{ id: testData.sessionId }], rowCount: 1 };
+            }
+
             if (query.includes('INSERT INTO session_history')) {
               // Track inserted history entry
               const [id, sessionId, role, content, requestId, timestamp] = params || [];
@@ -260,6 +265,11 @@ describe('SessionManager Atomic Updates Property Test', () => {
               return { rows: [], rowCount: 0 };
             }
 
+            // Session existence check
+            if (query.includes('SELECT id FROM sessions WHERE id =')) {
+              return { rows: [{ id: testData.sessionId }], rowCount: 1 };
+            }
+
             if (query.includes('INSERT INTO session_history')) {
               return { rows: [], rowCount: 1 };
             }
@@ -346,6 +356,11 @@ describe('SessionManager Atomic Updates Property Test', () => {
               return { rows: [], rowCount: 0 };
             }
 
+            // Session existence check
+            if (query.includes('SELECT id FROM sessions WHERE id =')) {
+              return { rows: [{ id: testData.sessionId }], rowCount: 1 };
+            }
+
             if (query.includes('INSERT INTO session_history')) {
               return { rows: [], rowCount: 1 };
             }
@@ -389,22 +404,22 @@ describe('SessionManager Atomic Updates Property Test', () => {
           // Assert: Verify cache was updated with correct data
           // cacheSession uses pipeline, so check multi() was called and exec() was called
           expect(mockRedis.multi).toHaveBeenCalledTimes(1);
-          
+
           const pipeline = (mockRedis.multi as jest.Mock).mock.results[0].value;
           // Verify pipeline was executed
           expect(pipeline.exec).toHaveBeenCalled();
-          
+
           // Verify hSet was called with correct session data
           const hSetCalls = (pipeline.hSet as jest.Mock).mock.calls;
           expect(hSetCalls.length).toBeGreaterThan(0);
-          
+
           const cacheCall = hSetCalls.find((call: any[]) => call[0] === `session:${testData.sessionId}`);
           expect(cacheCall).toBeDefined();
-          
+
           const cachedData = cacheCall[1];
           expect(cachedData.userId).toBe(testData.userId);
           expect(cachedData.contextWindowUsed).toBe(expectedContextWindow.toString());
-          
+
           // Verify history was updated via rPush (if history length changed)
           const rPushCalls = (pipeline.rPush as jest.Mock).mock.calls;
           const historyKey = `session:${testData.sessionId}:history`;

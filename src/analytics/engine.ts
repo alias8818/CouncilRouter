@@ -581,4 +581,317 @@ export class AnalyticsEngine implements IAnalyticsEngine {
     // Ensure we never return NaN
     return isNaN(overlap) ? 0 : overlap;
   }
+
+  /**
+   * Calculate iterative consensus success rate
+   */
+  async calculateConsensusSuccessRate(timeRange: TimeRange): Promise<number> {
+    const cacheKey = `analytics:consensus-success-rate:${timeRange.start.getTime()}-${timeRange.end.getTime()}`;
+
+    const cached = await this.redis.get(cacheKey);
+    if (cached) {
+      return parseFloat(cached);
+    }
+
+    const query = `
+      SELECT 
+        COUNT(*) FILTER (WHERE consensus_achieved = true) as successful,
+        COUNT(*) as total
+      FROM consensus_metadata cm
+      INNER JOIN requests r ON cm.request_id = r.id
+      WHERE r.created_at >= $1 AND r.created_at <= $2
+    `;
+
+    const result = await this.db.query(query, [timeRange.start, timeRange.end]);
+
+    if (!result.rows || result.rows.length === 0 || result.rows[0].total === 0) {
+      return 0;
+    }
+
+    const successRate = result.rows[0].successful / result.rows[0].total;
+    await this.redis.setEx(cacheKey, this.CACHE_TTL, successRate.toString());
+    return successRate;
+  }
+
+  /**
+   * Calculate average rounds to consensus
+   */
+  async calculateAverageRoundsToConsensus(timeRange: TimeRange): Promise<number> {
+    const cacheKey = `analytics:avg-rounds:${timeRange.start.getTime()}-${timeRange.end.getTime()}`;
+
+    const cached = await this.redis.get(cacheKey);
+    if (cached) {
+      return parseFloat(cached);
+    }
+
+    const query = `
+      SELECT AVG(total_rounds) as avg_rounds
+      FROM consensus_metadata cm
+      INNER JOIN requests r ON cm.request_id = r.id
+      WHERE r.created_at >= $1 AND r.created_at <= $2
+        AND consensus_achieved = true
+    `;
+
+    const result = await this.db.query(query, [timeRange.start, timeRange.end]);
+
+    if (!result.rows || result.rows.length === 0 || !result.rows[0].avg_rounds) {
+      return 0;
+    }
+
+    const avgRounds = parseFloat(result.rows[0].avg_rounds);
+    await this.redis.setEx(cacheKey, this.CACHE_TTL, avgRounds.toString());
+    return avgRounds;
+  }
+
+  /**
+   * Calculate fallback rate by reason
+   */
+  async calculateFallbackRateByReason(timeRange: TimeRange): Promise<Map<string, number>> {
+    const cacheKey = `analytics:fallback-rate:${timeRange.start.getTime()}-${timeRange.end.getTime()}`;
+
+    const cached = await this.redis.get(cacheKey);
+    if (cached) {
+      const parsed = JSON.parse(cached);
+      return new Map(Object.entries(parsed));
+    }
+
+    const query = `
+      SELECT 
+        fallback_reason,
+        COUNT(*) as count
+      FROM consensus_metadata cm
+      INNER JOIN requests r ON cm.request_id = r.id
+      WHERE r.created_at >= $1 AND r.created_at <= $2
+        AND fallback_used = true
+      GROUP BY fallback_reason
+    `;
+
+    const result = await this.db.query(query, [timeRange.start, timeRange.end]);
+
+    const totalQuery = `
+      SELECT COUNT(*) as total
+      FROM consensus_metadata cm
+      INNER JOIN requests r ON cm.request_id = r.id
+      WHERE r.created_at >= $1 AND r.created_at <= $2
+    `;
+
+    const totalResult = await this.db.query(totalQuery, [timeRange.start, timeRange.end]);
+    const total = totalResult.rows[0]?.total || 0;
+
+    const rates = new Map<string, number>();
+    for (const row of result.rows) {
+      const reason = row.fallback_reason || 'unknown';
+      rates.set(reason, total > 0 ? row.count / total : 0);
+    }
+
+    await this.redis.setEx(cacheKey, this.CACHE_TTL, JSON.stringify(Object.fromEntries(rates)));
+    return rates;
+  }
+
+  /**
+   * Calculate deadlock rate
+   */
+  async calculateDeadlockRate(timeRange: TimeRange): Promise<number> {
+    const cacheKey = `analytics:deadlock-rate:${timeRange.start.getTime()}-${timeRange.end.getTime()}`;
+
+    const cached = await this.redis.get(cacheKey);
+    if (cached) {
+      return parseFloat(cached);
+    }
+
+    const query = `
+      SELECT 
+        COUNT(*) FILTER (WHERE deadlock_detected = true) as deadlocked,
+        COUNT(*) as total
+      FROM consensus_metadata cm
+      INNER JOIN requests r ON cm.request_id = r.id
+      WHERE r.created_at >= $1 AND r.created_at <= $2
+    `;
+
+    const result = await this.db.query(query, [timeRange.start, timeRange.end]);
+
+    if (!result.rows || result.rows.length === 0 || result.rows[0].total === 0) {
+      return 0;
+    }
+
+    const deadlockRate = result.rows[0].deadlocked / result.rows[0].total;
+    await this.redis.setEx(cacheKey, this.CACHE_TTL, deadlockRate.toString());
+    return deadlockRate;
+  }
+
+  /**
+   * Calculate early termination rate
+   */
+  async calculateEarlyTerminationRate(timeRange: TimeRange): Promise<number> {
+    const cacheKey = `analytics:early-termination-rate:${timeRange.start.getTime()}-${timeRange.end.getTime()}`;
+
+    const cached = await this.redis.get(cacheKey);
+    if (cached) {
+      return parseFloat(cached);
+    }
+
+    const query = `
+      SELECT 
+        COUNT(*) FILTER (WHERE tokens_avoided IS NOT NULL AND tokens_avoided > 0) as early_terminated,
+        COUNT(*) as total
+      FROM consensus_metadata cm
+      INNER JOIN requests r ON cm.request_id = r.id
+      WHERE r.created_at >= $1 AND r.created_at <= $2
+        AND consensus_achieved = true
+    `;
+
+    const result = await this.db.query(query, [timeRange.start, timeRange.end]);
+
+    if (!result.rows || result.rows.length === 0 || result.rows[0].total === 0) {
+      return 0;
+    }
+
+    const earlyTermRate = result.rows[0].early_terminated / result.rows[0].total;
+    await this.redis.setEx(cacheKey, this.CACHE_TTL, earlyTermRate.toString());
+    return earlyTermRate;
+  }
+
+  /**
+   * Calculate total cost savings from early termination
+   */
+  async calculateCostSavings(timeRange: TimeRange): Promise<{ tokensAvoided: number; estimatedCostSaved: number }> {
+    const cacheKey = `analytics:cost-savings:${timeRange.start.getTime()}-${timeRange.end.getTime()}`;
+
+    const cached = await this.redis.get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+
+    const query = `
+      SELECT 
+        COALESCE(SUM(tokens_avoided), 0) as tokens_avoided,
+        COALESCE(SUM(estimated_cost_saved), 0) as estimated_cost_saved
+      FROM consensus_metadata cm
+      INNER JOIN requests r ON cm.request_id = r.id
+      WHERE r.created_at >= $1 AND r.created_at <= $2
+        AND tokens_avoided IS NOT NULL
+    `;
+
+    const result = await this.db.query(query, [timeRange.start, timeRange.end]);
+
+    const savings = {
+      tokensAvoided: parseInt(result.rows[0]?.tokens_avoided || '0', 10),
+      estimatedCostSaved: parseFloat(result.rows[0]?.estimated_cost_saved || '0')
+    };
+
+    await this.redis.setEx(cacheKey, this.CACHE_TTL, JSON.stringify(savings));
+    return savings;
+  }
+
+  /**
+   * Compare iterative consensus vs fallback strategies
+   */
+  async getBenchmarkComparison(timeRange: TimeRange): Promise<{
+    iterativeConsensus: {
+      avgRounds: number;
+      successRate: number;
+      avgCost: number;
+      avgLatency: number;
+      avgQuality: number;
+    };
+    fallbackStrategies: {
+      metaSynthesis: {
+        avgCost: number;
+        avgLatency: number;
+        avgQuality: number;
+      };
+      consensusExtraction: {
+        avgCost: number;
+        avgLatency: number;
+        avgQuality: number;
+      };
+      weightedFusion: {
+        avgCost: number;
+        avgLatency: number;
+        avgQuality: number;
+      };
+    };
+  }> {
+    const cacheKey = `analytics:benchmark:${timeRange.start.getTime()}-${timeRange.end.getTime()}`;
+
+    const cached = await this.redis.get(cacheKey);
+    if (cached) {
+      return JSON.parse(cached);
+    }
+
+    // Get iterative consensus metrics
+    const iterativeQuery = `
+      SELECT 
+        AVG(cm.total_rounds) as avg_rounds,
+        AVG(CASE WHEN cm.consensus_achieved THEN 1.0 ELSE 0.0 END) as success_rate,
+        AVG(r.total_cost) as avg_cost,
+        AVG(r.total_latency_ms) as avg_latency,
+        AVG(cm.final_similarity) as avg_quality
+      FROM consensus_metadata cm
+      INNER JOIN requests r ON cm.request_id = r.id
+      WHERE r.created_at >= $1 AND r.created_at <= $2
+        AND r.synthesis_strategy->>'type' = 'iterative-consensus'
+    `;
+
+    const iterativeResult = await this.db.query(iterativeQuery, [timeRange.start, timeRange.end]);
+    const iterativeRow = iterativeResult.rows[0] || {};
+
+    // Get fallback strategy metrics
+    const fallbackQuery = `
+      SELECT 
+        r.synthesis_strategy->>'type' as strategy_type,
+        AVG(r.total_cost) as avg_cost,
+        AVG(r.total_latency_ms) as avg_latency,
+        AVG(r.agreement_level) as avg_quality
+      FROM requests r
+      WHERE r.created_at >= $1 AND r.created_at <= $2
+        AND r.synthesis_strategy->>'type' IN ('meta-synthesis', 'consensus-extraction', 'weighted-fusion')
+      GROUP BY r.synthesis_strategy->>'type'
+    `;
+
+    const fallbackResult = await this.db.query(fallbackQuery, [timeRange.start, timeRange.end]);
+
+    const fallbackStrategies: any = {
+      metaSynthesis: { avgCost: 0, avgLatency: 0, avgQuality: 0 },
+      consensusExtraction: { avgCost: 0, avgLatency: 0, avgQuality: 0 },
+      weightedFusion: { avgCost: 0, avgLatency: 0, avgQuality: 0 }
+    };
+
+    for (const row of fallbackResult.rows) {
+      const strategyType = row.strategy_type;
+      if (strategyType === 'meta-synthesis') {
+        fallbackStrategies.metaSynthesis = {
+          avgCost: parseFloat(row.avg_cost || '0'),
+          avgLatency: parseFloat(row.avg_latency || '0'),
+          avgQuality: parseFloat(row.avg_quality || '0')
+        };
+      } else if (strategyType === 'consensus-extraction') {
+        fallbackStrategies.consensusExtraction = {
+          avgCost: parseFloat(row.avg_cost || '0'),
+          avgLatency: parseFloat(row.avg_latency || '0'),
+          avgQuality: parseFloat(row.avg_quality || '0')
+        };
+      } else if (strategyType === 'weighted-fusion') {
+        fallbackStrategies.weightedFusion = {
+          avgCost: parseFloat(row.avg_cost || '0'),
+          avgLatency: parseFloat(row.avg_latency || '0'),
+          avgQuality: parseFloat(row.avg_quality || '0')
+        };
+      }
+    }
+
+    const comparison = {
+      iterativeConsensus: {
+        avgRounds: parseFloat(iterativeRow.avg_rounds || '0'),
+        successRate: parseFloat(iterativeRow.success_rate || '0'),
+        avgCost: parseFloat(iterativeRow.avg_cost || '0'),
+        avgLatency: parseFloat(iterativeRow.avg_latency || '0'),
+        avgQuality: parseFloat(iterativeRow.avg_quality || '0')
+      },
+      fallbackStrategies
+    };
+
+    await this.redis.setEx(cacheKey, this.CACHE_TTL, JSON.stringify(comparison));
+    return comparison;
+  }
 }

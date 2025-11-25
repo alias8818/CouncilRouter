@@ -4,7 +4,7 @@ AI Council Proxy is a distributed system that orchestrates multi-model AI delibe
 
 ## Core Concept
 
-Routes user requests to multiple AI models from different providers (OpenAI, Anthropic, Google), orchestrates deliberation among them to reach consensus decisions, and presents a unified response. Includes monitoring dashboard for tracking council interactions, decision-making patterns, and cost metrics.
+Routes user requests to multiple AI models via OpenRouter (unified access to 300+ models), orchestrates deliberation among them to reach consensus decisions, and presents a unified response via REST API. Includes admin dashboard for monitoring council interactions, decision-making patterns, and cost metrics.
 
 ## Key Features
 
@@ -18,9 +18,9 @@ Routes user requests to multiple AI models from different providers (OpenAI, Ant
 
 ## Architecture Layers
 
-1. **Presentation**: User Interface, Admin Dashboard, REST API Gateway
+1. **Presentation**: Admin Dashboard (web UI on port 3001), REST API Gateway
 2. **Application**: Orchestration Engine, Synthesis Engine, Session Manager, Configuration Manager
-3. **Integration**: Provider Pool, Provider Adapters, Retry/Timeout Logic
+3. **Integration**: Provider Pool, OpenRouter Adapter, Retry/Timeout Logic
 4. **Data**: Event Logger, PostgreSQL, Redis Cache
 5. **Analytics**: Metrics Aggregation, Cost Calculator, Performance Analyzer
 
@@ -33,20 +33,29 @@ Initial setup phase. Core interfaces and data models defined. Component implemen
 
 ### Completed Components
 
-- ✅ Provider Pool and Adapters (OpenAI, Anthropic, Google)
-- ✅ Configuration Manager with caching and validation
+- ✅ Provider Pool with OpenRouter Adapter (unified access to 300+ models)
+- ✅ Configuration Manager with database-driven presets
 - ✅ Session Manager with context window management
-- ✅ Synthesis Engine with multiple strategies
-- ✅ Orchestration Engine with timeout handling
+- ✅ Synthesis Engine with multiple strategies (including Iterative Consensus)
+- ✅ Orchestration Engine with timeout handling and request deduplication
 - ✅ Base Provider Adapter with retry logic
-- ✅ REST API Gateway with authentication and streaming
+- ✅ REST API Gateway with authentication, streaming, and idempotency
 - ✅ Event Logger with cost tracking
 - ✅ Analytics Engine with performance metrics
-- ✅ Admin Dashboard with real-time monitoring
+- ✅ Admin Dashboard with real-time monitoring (web interface on port 3001)
 - ✅ Budget Enforcer with spending caps
 - ✅ Tool Execution Engine for external tool use
 - ✅ Idempotency Cache for duplicate request handling
 - ✅ Red Team Testing System for security validation
+- ✅ Dynamic Model Discovery Service (automatic model detection)
+- ✅ Pricing Scraper Service (automatic pricing updates)
+- ✅ Model Registry with usability tracking
+- ✅ Sync Scheduler for automated model/pricing synchronization
+- ✅ Embedding Service for similarity calculations
+- ✅ Iterative Consensus Synthesizer with negotiation
+- ✅ Convergence Detector for deadlock detection
+- ✅ Escalation Service for human review
+- ✅ Metrics Tracking with configurable enable/disable
 
 ### Testing Coverage
 
@@ -70,8 +79,15 @@ Initial setup phase. Core interfaces and data models defined. Component implemen
 - **Automatic Disabling**: Providers disabled after 5 consecutive failures
 - **Exponential Backoff**: Configurable retry policy per provider
 - **Context Window Management**: Automatic summarization when limits exceeded
-- **Synthesis Strategies**: Consensus extraction, weighted fusion, meta-synthesis
-- **Idempotency**: Request deduplication using idempotency keys
+- **Synthesis Strategies**: Consensus extraction, weighted fusion, meta-synthesis, iterative consensus
+- **Iterative Consensus**: Negotiation-based synthesis with similarity tracking and early termination
+- **Idempotency**: Request deduplication using idempotency keys (24-hour TTL)
 - **Budget Enforcement**: Per-provider/model spending caps with automatic disabling
 - **Tool Use**: Council members can execute external tools during deliberation
 - **Shared Health Tracking**: Single source of truth for provider health across components
+- **Dynamic Model Discovery**: Automatic model detection from provider APIs
+- **Pricing Scraping**: Automated pricing updates from provider websites
+- **Database-Driven Presets**: Configuration presets stored in database (single source of truth)
+- **Metrics Toggle**: Performance optimization through configurable metrics tracking
+- **OpenRouter-Only Architecture**: 100% OpenRouter integration for unified access to 300+ models including free tiers
+- **Admin-Only UI**: Web-based admin dashboard (no end-user GUI), API-first design

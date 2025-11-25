@@ -1,0 +1,1202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Council Proxy - Admin Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <style>
+        :root {
+            --bg-primary: #050508;
+            --bg-secondary: #0a0a10;
+            --bg-tertiary: #10101a;
+            --bg-card: rgba(16, 16, 26, 0.6);
+            --bg-card-hover: rgba(20, 20, 35, 0.8);
+            --glass-border: rgba(255, 255, 255, 0.08);
+            --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+            --accent-cyan: #00d4ff;
+            --accent-purple: #a855f7;
+            --accent-pink: #ec4899;
+            --accent-emerald: #10b981;
+            --accent-amber: #f59e0b;
+            --accent-red: #ef4444;
+            --accent-blue: #3b82f6;
+            --text-primary: #f0f0f5;
+            --text-secondary: #a0a0b0;
+            --text-muted: #606070;
+            --gradient-aurora: linear-gradient(135deg, #00d4ff 0%, #a855f7 50%, #ec4899 100%);
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 20px;
+            --radius-xl: 28px;
+            --transition-fast: 0.15s ease;
+            --transition-medium: 0.3s ease;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        /* Markdown rendering styles */
+        .markdown-content {
+            line-height: 1.7;
+        }
+        .markdown-content h1, .markdown-content h2, .markdown-content h3,
+        .markdown-content h4, .markdown-content h5, .markdown-content h6 {
+            margin-top: 1em;
+            margin-bottom: 0.5em;
+            color: var(--accent-cyan);
+        }
+        .markdown-content h1 { font-size: 1.5em; }
+        .markdown-content h2 { font-size: 1.3em; }
+        .markdown-content h3 { font-size: 1.1em; }
+        .markdown-content p {
+            margin-bottom: 0.8em;
+        }
+        .markdown-content ul, .markdown-content ol {
+            margin-left: 1.5em;
+            margin-bottom: 0.8em;
+        }
+        .markdown-content li {
+            margin-bottom: 0.3em;
+        }
+        .markdown-content code {
+            background: rgba(0, 212, 255, 0.1);
+            padding: 0.2em 0.4em;
+            border-radius: 4px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9em;
+            color: var(--accent-cyan);
+        }
+        .markdown-content pre {
+            background: var(--bg-secondary);
+            padding: 1em;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin-bottom: 1em;
+            border: 1px solid var(--glass-border);
+        }
+        .markdown-content pre code {
+            background: none;
+            padding: 0;
+            color: var(--text-primary);
+        }
+        .markdown-content blockquote {
+            border-left: 3px solid var(--accent-purple);
+            padding-left: 1em;
+            margin: 1em 0;
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+        .markdown-content strong {
+            color: var(--accent-emerald);
+            font-weight: 600;
+        }
+        .markdown-content em {
+            color: var(--accent-purple);
+        }
+        .markdown-content a {
+            color: var(--accent-cyan);
+            text-decoration: none;
+        }
+        .markdown-content a:hover {
+            text-decoration: underline;
+        }
+        .markdown-content hr {
+            border: none;
+            border-top: 1px solid var(--glass-border);
+            margin: 1.5em 0;
+        }
+        .markdown-content table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1em 0;
+        }
+        .markdown-content th, .markdown-content td {
+            border: 1px solid var(--glass-border);
+            padding: 0.5em 1em;
+            text-align: left;
+        }
+        .markdown-content th {
+            background: var(--bg-secondary);
+            color: var(--accent-cyan);
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+            line-height: 1.6;
+        }
+
+        .aurora-bg {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 0;
+            overflow: hidden;
+        }
+
+        .aurora-bg::before {
+            content: '';
+            position: absolute;
+            top: -50%; left: -50%;
+            width: 200%; height: 200%;
+            background:
+                radial-gradient(ellipse at 20% 20%, rgba(0, 212, 255, 0.12) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 20%, rgba(168, 85, 247, 0.1) 0%, transparent 50%),
+                radial-gradient(ellipse at 50% 80%, rgba(236, 72, 153, 0.08) 0%, transparent 50%),
+                radial-gradient(ellipse at 80% 80%, rgba(16, 185, 129, 0.06) 0%, transparent 50%);
+            animation: aurora-drift 25s ease-in-out infinite;
+        }
+
+        @keyframes aurora-drift {
+            0%, 100% { transform: translate(0, 0) rotate(0deg); }
+            25% { transform: translate(2%, 1%) rotate(1deg); }
+            50% { transform: translate(-1%, 2%) rotate(-1deg); }
+            75% { transform: translate(-2%, -1%) rotate(0.5deg); }
+        }
+
+        .container {
+            position: relative;
+            z-index: 10;
+            max-width: 1600px;
+            margin: 0 auto;
+            padding: 24px;
+            min-height: 100vh;
+        }
+
+        /* Header */
+        header {
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-xl);
+            padding: 32px 40px;
+            margin-bottom: 32px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        header::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+            background: var(--gradient-aurora);
+            opacity: 0.8;
+        }
+
+        .header-content {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+        }
+
+        .logo-container {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            width: 60px; height: 60px;
+            background: var(--gradient-aurora);
+            border-radius: 18px;
+            font-size: 28px;
+            box-shadow: 0 0 30px rgba(0, 212, 255, 0.3);
+        }
+
+        h1 {
+            font-size: 28px;
+            font-weight: 800;
+            letter-spacing: -0.02em;
+            background: var(--gradient-aurora);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .subtitle {
+            color: var(--text-secondary);
+            font-size: 14px;
+            margin-top: 4px;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .last-updated {
+            color: var(--text-muted);
+            font-size: 13px;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 18px; height: 18px;
+            border: 2px solid rgba(0, 212, 255, 0.2);
+            border-top-color: var(--accent-cyan);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+
+        .loading-spinner.hidden { display: none; }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* Tabs */
+        .tabs {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 32px;
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-lg);
+            padding: 8px;
+            overflow-x: auto;
+        }
+
+        .tab {
+            padding: 14px 24px;
+            background: transparent;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            border-radius: var(--radius-md);
+            transition: all var(--transition-medium);
+            white-space: nowrap;
+        }
+
+        .tab:hover {
+            color: var(--text-primary);
+            background: rgba(255, 255, 255, 0.05);
+        }
+
+        .tab.active {
+            color: var(--bg-primary);
+            background: var(--gradient-aurora);
+        }
+
+        .tab-content { display: none; }
+        .tab-content.active { display: block; animation: fade-in 0.3s ease; }
+
+        @keyframes fade-in {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Cards */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        .card {
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-lg);
+            padding: 28px;
+            transition: all var(--transition-medium);
+        }
+
+        .card:hover {
+            background: var(--bg-card-hover);
+            border-color: rgba(255, 255, 255, 0.12);
+            transform: translateY(-2px);
+        }
+
+        .card h2 {
+            font-size: 16px;
+            font-weight: 700;
+            margin-bottom: 20px;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card-icon {
+            width: 32px; height: 32px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 10px;
+            font-size: 16px;
+        }
+
+        .card-icon.cyan { background: rgba(0, 212, 255, 0.15); }
+        .card-icon.purple { background: rgba(168, 85, 247, 0.15); }
+        .card-icon.emerald { background: rgba(16, 185, 129, 0.15); }
+        .card-icon.amber { background: rgba(245, 158, 11, 0.15); }
+        .card-icon.pink { background: rgba(236, 72, 153, 0.15); }
+
+        /* Metrics */
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 16px 0;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .metric:last-child { border-bottom: none; }
+
+        .metric-label {
+            color: var(--text-secondary);
+            font-size: 14px;
+        }
+
+        .metric-value {
+            font-size: 22px;
+            font-weight: 700;
+            color: var(--text-primary);
+        }
+
+        .metric-value.cyan { color: var(--accent-cyan); }
+        .metric-value.emerald { color: var(--accent-emerald); }
+        .metric-value.amber { color: var(--accent-amber); }
+        .metric-value.purple { color: var(--accent-purple); }
+
+        /* Status Badges */
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .status::before {
+            content: '';
+            width: 8px; height: 8px;
+            border-radius: 50%;
+        }
+
+        .status.healthy {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent-emerald);
+        }
+        .status.healthy::before { background: var(--accent-emerald); }
+
+        .status.degraded {
+            background: rgba(245, 158, 11, 0.15);
+            color: var(--accent-amber);
+        }
+        .status.degraded::before { background: var(--accent-amber); }
+
+        .status.disabled, .status.error {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--accent-red);
+        }
+        .status.disabled::before, .status.error::before { background: var(--accent-red); }
+
+        /* Provider List */
+        .provider-list {
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .provider-item {
+            background: var(--bg-secondary);
+            padding: 20px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--glass-border);
+            transition: all var(--transition-medium);
+        }
+
+        .provider-item:hover {
+            border-color: rgba(255, 255, 255, 0.15);
+            background: var(--bg-tertiary);
+        }
+
+        .provider-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+
+        .provider-name {
+            font-weight: 700;
+            font-size: 16px;
+            color: var(--text-primary);
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .provider-name::before {
+            content: '';
+            width: 10px; height: 10px;
+            background: var(--gradient-aurora);
+            border-radius: 50%;
+        }
+
+        .provider-stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 16px;
+        }
+
+        .provider-stat {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .provider-stat strong {
+            display: block;
+            font-size: 18px;
+            color: var(--text-primary);
+            margin-top: 4px;
+        }
+
+        /* Buttons */
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: var(--radius-md);
+            font-family: inherit;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all var(--transition-medium);
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .btn-primary {
+            background: var(--gradient-aurora);
+            color: white;
+            box-shadow: 0 4px 20px rgba(0, 212, 255, 0.3);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 30px rgba(0, 212, 255, 0.4);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-primary);
+            border: 1px solid var(--glass-border);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .btn-danger {
+            background: rgba(239, 68, 68, 0.15);
+            color: var(--accent-red);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+        }
+
+        .btn-danger:hover {
+            background: rgba(239, 68, 68, 0.25);
+        }
+
+        /* Forms */
+        .form-group {
+            margin-bottom: 24px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 10px;
+            color: var(--text-secondary);
+            font-size: 13px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 14px 18px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-md);
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 14px;
+            transition: all var(--transition-medium);
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--accent-cyan);
+            box-shadow: 0 0 0 3px rgba(0, 212, 255, 0.1);
+        }
+
+        .form-group select {
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 24 24' stroke='%23a0a0b0'%3E%3Cpath stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M19 9l-7 7-7-7'%3E%3C/path%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 14px center;
+            background-size: 18px;
+            padding-right: 48px;
+        }
+
+        /* Charts */
+        .chart-container {
+            height: 300px;
+            margin-top: 20px;
+            background: var(--bg-secondary);
+            border-radius: var(--radius-md);
+            padding: 20px;
+            border: 1px solid var(--glass-border);
+        }
+
+        /* Logs */
+        .log-entry {
+            background: var(--bg-secondary);
+            padding: 16px 20px;
+            border-radius: var(--radius-sm);
+            margin-bottom: 10px;
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 13px;
+            border-left: 3px solid var(--glass-border);
+            transition: all var(--transition-fast);
+        }
+
+        .log-entry:hover {
+            background: var(--bg-tertiary);
+        }
+
+        .log-entry.error { border-left-color: var(--accent-red); }
+        .log-entry.warning { border-left-color: var(--accent-amber); }
+        .log-entry.info { border-left-color: var(--accent-cyan); }
+
+        .log-timestamp {
+            color: var(--text-muted);
+            margin-right: 16px;
+        }
+
+        /* Alerts */
+        .alert {
+            padding: 18px 24px;
+            border-radius: var(--radius-md);
+            margin-bottom: 24px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            animation: slide-in 0.3s ease;
+        }
+
+        @keyframes slide-in {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .alert-success {
+            background: rgba(16, 185, 129, 0.1);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+            color: var(--accent-emerald);
+        }
+
+        .alert-error {
+            background: rgba(239, 68, 68, 0.1);
+            border: 1px solid rgba(239, 68, 68, 0.3);
+            color: var(--accent-red);
+        }
+
+        /* Loading */
+        .loading {
+            text-align: center;
+            padding: 60px 40px;
+            color: var(--text-muted);
+        }
+
+        .spinner {
+            width: 48px; height: 48px;
+            border: 3px solid var(--glass-border);
+            border-top-color: var(--accent-cyan);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            backdrop-filter: blur(8px);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal.active { display: flex; }
+
+        .modal-content {
+            background: var(--bg-card);
+            backdrop-filter: blur(20px);
+            border: 1px solid var(--glass-border);
+            border-radius: var(--radius-xl);
+            padding: 36px;
+            max-width: 600px;
+            width: 90%;
+            max-height: 80vh;
+            overflow-y: auto;
+            animation: modal-in 0.3s ease;
+        }
+
+        @keyframes modal-in {
+            from { opacity: 0; transform: scale(0.95); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 28px;
+            padding-bottom: 20px;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .modal-header h2 {
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            font-size: 28px;
+            cursor: pointer;
+            transition: color var(--transition-fast);
+            line-height: 1;
+        }
+
+        .modal-close:hover { color: var(--text-primary); }
+
+        /* Activity List */
+        .activity-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 16px;
+            padding: 16px 0;
+            border-bottom: 1px solid var(--glass-border);
+        }
+
+        .activity-item:last-child { border-bottom: none; }
+
+        .activity-icon {
+            width: 40px; height: 40px;
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            flex-shrink: 0;
+        }
+
+        .activity-icon.success { background: rgba(16, 185, 129, 0.15); }
+        .activity-icon.pending { background: rgba(245, 158, 11, 0.15); }
+        .activity-icon.error { background: rgba(239, 68, 68, 0.15); }
+
+        .activity-content { flex: 1; }
+
+        .activity-title {
+            font-weight: 600;
+            color: var(--text-primary);
+            margin-bottom: 4px;
+        }
+
+        .activity-meta {
+            font-size: 13px;
+            color: var(--text-muted);
+        }
+
+        /* Sync Status */
+        .sync-status-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+        }
+
+        .sync-provider {
+            background: var(--bg-secondary);
+            padding: 20px;
+            border-radius: var(--radius-md);
+            border: 1px solid var(--glass-border);
+        }
+
+        .sync-provider-name {
+            font-weight: 600;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .sync-info {
+            font-size: 13px;
+            color: var(--text-secondary);
+        }
+
+        .sync-info span {
+            display: block;
+            margin-bottom: 6px;
+        }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 8px; height: 8px; }
+        ::-webkit-scrollbar-track { background: var(--bg-secondary); }
+        ::-webkit-scrollbar-thumb { background: var(--text-muted); border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .container { padding: 16px; }
+            header { padding: 24px; }
+            .header-content { flex-direction: column; gap: 20px; text-align: center; }
+            .header-left { flex-direction: column; }
+            .tabs { flex-wrap: wrap; }
+            .tab { padding: 12px 18px; font-size: 13px; }
+            .grid { grid-template-columns: 1fr; }
+            .provider-stats { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="aurora-bg"></div>
+
+    <div class="container">
+        <header>
+            <div class="header-content">
+                <div class="header-left">
+                    <div class="logo-container">🤖</div>
+                    <div>
+                        <h1>AI Council Proxy Admin</h1>
+                        <p class="subtitle">Multi-Model AI Orchestration Dashboard</p>
+                    </div>
+                </div>
+                <div class="header-right">
+                    <span class="last-updated" id="last-updated">Last updated: Never</span>
+                    <span class="loading-spinner hidden" id="loading-spinner"></span>
+                </div>
+            </div>
+        </header>
+
+        <div class="tabs">
+            <button class="tab active" data-tab="overview">📊 Overview</button>
+            <button class="tab" data-tab="query">💬 Test Query</button>
+            <button class="tab" data-tab="providers">🌐 Providers</button>
+            <button class="tab" data-tab="models">🤖 Models</button>
+            <button class="tab" data-tab="config">⚙️ Configuration</button>
+            <button class="tab" data-tab="analytics">📈 Analytics</button>
+            <button class="tab" data-tab="logs">📝 Logs</button>
+        </div>
+
+        <!-- Test Query Tab -->
+        <div class="tab-content" id="query">
+            <div class="grid">
+                <div class="card">
+                    <h2>
+                        <span class="card-icon cyan">💬</span>
+                        Send Test Query
+                    </h2>
+                    <p style="color: var(--text-muted); margin-bottom: 16px;">
+                        Test the AI Council with different presets. Select a preset to configure which models respond to your query.
+                    </p>
+                    <div class="form-group">
+                        <label>Select Preset</label>
+                        <select id="query-preset">
+                            <option value="">Use Active Council (default)</option>
+                            <option value="fast-council">⚡ Fast Council - Quick responses with mini models</option>
+                            <option value="balanced-council">⚖️ Balanced Council - Good balance of speed and quality</option>
+                            <option value="research-council">🔬 Research Council - Deep analysis with flagship models</option>
+                            <option value="coding-council">💻 Coding Council - Optimized for code tasks</option>
+                            <option value="cost-effective-council">💰 Cost-Effective Council - Budget-friendly models</option>
+                            <option value="free-council">🆓 Free Council - Zero-cost models via OpenRouter</option>
+                        </select>
+                    </div>
+                    <div id="preset-info" style="background: var(--bg-tertiary); padding: 12px; border-radius: 8px; margin-bottom: 16px; display: none;">
+                        <strong id="preset-info-title"></strong>
+                        <p id="preset-info-desc" style="margin: 8px 0 0 0; font-size: 0.9rem; color: var(--text-muted);"></p>
+                    </div>
+                    <div class="form-group">
+                        <label>Your Query</label>
+                        <textarea id="query-input" rows="4" placeholder="Enter your question or request here..." style="width: 100%; padding: 12px; border: 1px solid var(--border-color); border-radius: 8px; background: var(--bg-secondary); color: var(--text-primary); font-family: inherit; resize: vertical;"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label style="display: flex; align-items: center; gap: 8px;">
+                            <input type="checkbox" id="query-transparency" checked>
+                            Show deliberation details (transparency mode)
+                        </label>
+                    </div>
+                    <button class="btn btn-primary" onclick="sendTestQuery()" id="send-query-btn">
+                        🚀 Send Query
+                    </button>
+                </div>
+
+                <div class="card">
+                    <h2>
+                        <span class="card-icon emerald">📋</span>
+                        Response
+                    </h2>
+                    <div id="query-response-container">
+                        <div id="query-response-placeholder" style="color: var(--text-muted); text-align: center; padding: 40px;">
+                            <p style="font-size: 2rem; margin-bottom: 8px;">💭</p>
+                            <p>Send a query to see the council's response</p>
+                        </div>
+                        <div id="query-response" style="display: none;">
+                            <div id="query-status" style="margin-bottom: 16px;"></div>
+                            <div id="query-consensus" style="background: var(--bg-tertiary); padding: 16px; border-radius: 8px; margin-bottom: 16px;"></div>
+                            <div id="query-details" style="display: none;">
+                                <h3 style="margin-bottom: 12px;">Deliberation Details</h3>
+                                <div id="query-members" style="margin-bottom: 16px;"></div>
+                                <div id="query-metrics" style="font-size: 0.85rem; color: var(--text-muted);"></div>
+                            </div>
+                        </div>
+                        <div id="query-loading" style="display: none; text-align: center; padding: 40px;">
+                            <div class="spinner"></div>
+                            <p style="margin-top: 16px;">Council is deliberating...</p>
+                            <p id="query-loading-preset" style="font-size: 0.85rem; color: var(--text-muted);"></p>
+                        </div>
+                        <div id="query-error" style="display: none; color: var(--error); padding: 16px; background: rgba(255,0,0,0.1); border-radius: 8px;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Overview Tab -->
+        <div class="tab-content active" id="overview">
+            <div class="grid">
+                <div class="card">
+                    <h2></h2>
+                        <span class="card-icon cyan">📊</span>
+                        System Status
+                    </h2>
+                    <div class="metric">
+                        <span class="metric-label">Total Requests</span>
+                        <span class="metric-value cyan" id="total-requests">-</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Active Sessions</span>
+                        <span class="metric-value" id="active-sessions">-</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Avg Response Time</span>
+                        <span class="metric-value" id="avg-response-time">-</span>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>
+                        <span class="card-icon emerald">💰</span>
+                        Cost Tracking
+                    </h2>
+                    <div class="metric">
+                        <span class="metric-label">Total Cost</span>
+                        <span class="metric-value emerald" id="total-cost">-</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Today's Cost</span>
+                        <span class="metric-value" id="today-cost">-</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Avg Cost/Request</span>
+                        <span class="metric-value" id="avg-cost">-</span>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h2>
+                        <span class="card-icon purple">⚡</span>
+                        Performance
+                    </h2>
+                    <div class="metric">
+                        <span class="metric-label">Success Rate</span>
+                        <span class="metric-value purple" id="success-rate">-</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Consensus Rate</span>
+                        <span class="metric-value" id="consensus-rate">-</span>
+                    </div>
+                    <div class="metric">
+                        <span class="metric-label">Avg Deliberations</span>
+                        <span class="metric-value" id="avg-deliberations">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>
+                    <span class="card-icon amber">🔄</span>
+                    Recent Activity
+                </h2>
+                <div id="recent-activity" class="loading">
+                    <div class="spinner"></div>
+                    <p>Loading activity...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Providers Tab -->
+        <div class="tab-content" id="providers">
+            <div class="card">
+                <h2>
+                    <span class="card-icon cyan">🌐</span>
+                    Provider Health
+                </h2>
+                <div id="provider-list" class="provider-list">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Loading providers...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Models Tab -->
+        <div class="tab-content" id="models">
+            <div class="card">
+                <h2>
+                    <span class="card-icon purple">🤖</span>
+                    Discovered Models
+                </h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 16px;">
+                    <div class="form-group" style="margin-bottom: 0;">
+                        <label style="margin-bottom: 8px;">Filter by Provider</label>
+                        <select id="model-provider-filter" style="width: auto; min-width: 200px;">
+                            <option value="">All Providers</option>
+                            <option value="openai">OpenAI</option>
+                            <option value="anthropic">Anthropic</option>
+                            <option value="google">Google</option>
+                            <option value="xai">xAI</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-primary" onclick="triggerModelSync()">🔄 Sync Now</button>
+                </div>
+                <div id="model-list" class="provider-list">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Loading models...</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>
+                    <span class="card-icon cyan">📊</span>
+                    Sync Status
+                </h2>
+                <div id="sync-status">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Loading sync status...</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>
+                    <span class="card-icon amber">📜</span>
+                    Sync History
+                </h2>
+                <div id="sync-history">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Loading sync history...</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card">
+                <h2>
+                    <span class="card-icon purple">📈</span>
+                    Provider Sync Stats (Last 30 Days)
+                </h2>
+                <div id="provider-sync-stats">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Loading provider stats...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Configuration Tab -->
+        <div class="tab-content" id="config">
+            <div class="grid">
+                <!-- Preset Selection -->
+                <div class="card">
+                    <h2>
+                        <span class="card-icon cyan">⚙️</span>
+                        Configuration Presets
+                    </h2>
+                    <div class="form-group">
+                        <label>Select Preset to Edit</label>
+                        <select id="config-preset" onchange="loadPresetForEditing()">
+                            <option value="">-- Select a Preset --</option>
+                            <option value="fast-council">Fast Council</option>
+                            <option value="balanced-council">Balanced Council</option>
+                            <option value="research-council">Research Council</option>
+                            <option value="coding-council">Coding Council</option>
+                            <option value="cost-effective-council">Cost-Effective Council</option>
+                            <option value="free-council">Free Council</option>
+                            <option value="custom">+ Create Custom Preset</option>
+                        </select>
+                    </div>
+                    <div class="form-group" id="custom-preset-name-group" style="display: none;">
+                        <label>Custom Preset Name</label>
+                        <input type="text" id="custom-preset-name" placeholder="my-custom-council">
+                    </div>
+                    <div id="preset-description" style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 16px;"></div>
+                </div>
+
+                <!-- Council Settings -->
+                <div class="card">
+                    <h2>
+                        <span class="card-icon purple">🎛️</span>
+                        Council Settings
+                    </h2>
+                    <div class="form-group">
+                        <label>Number of Council Members</label>
+                        <input type="number" id="member-count" min="1" max="6" value="3" onchange="updateMemberSlots()">
+                    </div>
+                    <div class="form-group">
+                        <label>Deliberation Rounds</label>
+                        <input type="number" id="max-rounds" min="0" max="10" value="1">
+                    </div>
+                    <div class="form-group">
+                        <label>Global Timeout (seconds)</label>
+                        <input type="number" id="global-timeout" min="10" max="300" value="60">
+                    </div>
+                    <div class="form-group">
+                        <label>Synthesis Strategy</label>
+                        <select id="synthesis-strategy">
+                            <option value="consensus-extraction">Consensus Extraction</option>
+                            <option value="weighted-fusion">Weighted Fusion</option>
+                            <option value="meta-synthesis">Meta-Synthesis</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Council Members Configuration -->
+            <div class="card" style="margin-top: 20px;">
+                <h2>
+                    <span class="card-icon emerald">👥</span>
+                    Council Members
+                </h2>
+                <p style="color: var(--text-muted); margin-bottom: 16px;">
+                    Select models from the synced model list for each council member slot.
+                </p>
+                <div id="member-slots-container">
+                    <!-- Member slots will be dynamically generated -->
+                </div>
+                <div style="margin-top: 24px; display: flex; gap: 12px;">
+                    <button class="btn btn-primary" onclick="savePresetConfiguration()">💾 Save Preset</button>
+                    <button class="btn btn-secondary" onclick="applyPresetToCouncil()">🚀 Apply to Active Council</button>
+                </div>
+            </div>
+
+            <!-- Current Active Configuration -->
+            <div class="card" style="margin-top: 20px;">
+                <h2>
+                    <span class="card-icon amber">📋</span>
+                    Current Active Council
+                </h2>
+                <div id="active-members-list" class="provider-list">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Loading current configuration...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Analytics Tab -->
+        <div class="tab-content" id="analytics">
+            <div class="grid">
+                <div class="card">
+                    <h2>
+                        <span class="card-icon cyan">📈</span>
+                        Request Volume
+                    </h2>
+                    <div class="chart-container" id="request-chart"></div>
+                </div>
+
+                <div class="card">
+                    <h2>
+                        <span class="card-icon emerald">💵</span>
+                        Cost Breakdown
+                    </h2>
+                    <div class="chart-container" id="cost-chart"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Logs Tab -->
+        <div class="tab-content" id="logs">
+            <div class="card">
+                <h2>
+                    <span class="card-icon amber">📝</span>
+                    System Logs
+                </h2>
+                <div id="log-container">
+                    <div class="loading">
+                        <div class="spinner"></div>
+                        <p>Loading logs...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Request Detail Modal -->
+        <div class="modal" id="request-modal">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 id="modal-title">Request Details</h2>
+                    <button class="modal-close" onclick="closeModal()">×</button>
+                </div>
+                <div id="modal-body">
+                    Loading...
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="admin.js"></script>
+</body>
+</html>

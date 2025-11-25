@@ -87,7 +87,7 @@ describe('Property 13: Cost calculation accuracy', () => {
           calculator.addPricingConfig(pricing);
 
           // Calculate cost
-          const result = calculator.calculateCost(member, tokenUsage);
+          const result = await calculator.calculateCost(member, tokenUsage);
 
           // Property: Cost should equal (promptTokens/1000 * promptPrice) + (completionTokens/1000 * completionPrice)
           const expectedPromptCost = (tokenUsage.promptTokens / 1000) * pricing.promptTokenPrice;
@@ -133,7 +133,7 @@ describe('Property 13: Cost calculation accuracy', () => {
           };
 
           // Calculate cost
-          const result = calculator.calculateCost(member, tokenUsage);
+          const result = await calculator.calculateCost(member, tokenUsage);
 
           // Property: Zero tokens should result in zero cost
           expect(result.cost).toBe(0);
@@ -164,7 +164,7 @@ describe('Property 13: Cost calculation accuracy', () => {
             completionTokens: baseTokens,
             totalTokens: baseTokens * 2
           };
-          const baseCost = calculator.calculateCost(member, baseUsage);
+          const baseCost = await calculator.calculateCost(member, baseUsage);
 
           // Calculate cost for multiplied tokens
           const multipliedUsage: TokenUsage = {
@@ -172,7 +172,7 @@ describe('Property 13: Cost calculation accuracy', () => {
             completionTokens: baseTokens * multiplier,
             totalTokens: baseTokens * multiplier * 2
           };
-          const multipliedCost = calculator.calculateCost(member, multipliedUsage);
+          const multipliedCost = await calculator.calculateCost(member, multipliedUsage);
 
           // Property: Cost should scale linearly with token count
           const expectedMultipliedCost = baseCost.cost * multiplier;
@@ -199,7 +199,7 @@ describe('Property 13: Cost calculation accuracy', () => {
           calculator.addPricingConfig(pricing);
 
           // Calculate cost
-          const result = calculator.calculateCost(member, tokenUsage);
+          const result = await calculator.calculateCost(member, tokenUsage);
 
           // Property: Result should include the pricing version used
           expect(result.pricingVersion).toBe(pricing.version);
@@ -234,7 +234,7 @@ describe('Property 13: Cost calculation accuracy', () => {
           // Use a provider/model that definitely doesn't have pricing config
 
           // Calculate cost
-          const result = calculator.calculateCost(member, tokenUsage);
+          const result = await calculator.calculateCost(member, tokenUsage);
 
           // Property: Missing pricing should result in zero cost with warning
           expect(result.cost).toBe(0);

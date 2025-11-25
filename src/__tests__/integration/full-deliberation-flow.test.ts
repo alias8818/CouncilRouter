@@ -89,7 +89,7 @@ class MockProviderPool implements IProviderPool {
     this.adapters = adapters;
     this.members = members;
     this.healthTracker = healthTracker || getSharedHealthTracker();
-    
+
     // Initialize health tracking for all providers
     members.forEach(member => {
       this.healthTracker.initializeProvider(member.provider);
@@ -102,7 +102,7 @@ class MockProviderPool implements IProviderPool {
     context?: ConversationContext
   ): Promise<ProviderResponse> {
     const adapter = this.adapters.get(member.id);
-    
+
     if (!adapter) {
       const error: ProviderResponse = {
         success: false,
@@ -128,13 +128,13 @@ class MockProviderPool implements IProviderPool {
 
     try {
       const response = await adapter.sendRequest(member, prompt);
-      
+
       if (response.success) {
         this.healthTracker.recordSuccess(member.provider);
       } else {
         this.healthTracker.recordFailure(member.provider);
       }
-      
+
       return response;
     } catch (error: any) {
       this.healthTracker.recordFailure(member.provider);
@@ -151,7 +151,7 @@ class MockProviderPool implements IProviderPool {
   getProviderHealth(providerId: string): ProviderHealth {
     const status = this.healthTracker.getHealthStatus(providerId);
     const successRate = this.healthTracker.getSuccessRate(providerId);
-    
+
     return {
       providerId,
       status: this.healthTracker.isDisabled(providerId) ? 'disabled' : status,
@@ -277,7 +277,7 @@ describe('Integration Tests - Full Deliberation Flow', () => {
   beforeEach(() => {
     // Create health tracker
     healthTracker = getSharedHealthTracker();
-    
+
     // Track active timers for cleanup
     jest.useRealTimers();
 
@@ -350,14 +350,14 @@ describe('Integration Tests - Full Deliberation Flow', () => {
     for (let i = 0; i < 5; i++) {
       await new Promise(resolve => setImmediate(resolve));
     }
-    
+
     // Clear any pending timers (this won't affect real timers but helps with fake timers)
     try {
       jest.runOnlyPendingTimers();
     } catch {
       // Ignore if no fake timers are active
     }
-    
+
     // Clean up health tracker state
     if (healthTracker) {
       // Reset health tracker for next test
@@ -379,12 +379,12 @@ describe('Integration Tests - Full Deliberation Flow', () => {
     // Wait long enough for the global timeout timer (5 seconds) to complete if it's still pending
     // This ensures any setTimeout callbacks from createGlobalTimeout complete
     await new Promise(resolve => setTimeout(resolve, 5100));
-    
+
     // Drain event loop multiple times to ensure all callbacks complete
     for (let i = 0; i < 10; i++) {
       await new Promise(resolve => setImmediate(resolve));
     }
-    
+
     jest.useRealTimers();
   });
 
@@ -397,7 +397,8 @@ describe('Integration Tests - Full Deliberation Flow', () => {
         timestamp: new Date()
       };
 
-      const decision = await orchestrationEngine.processRequest(userRequest);
+      const result = await orchestrationEngine.processRequest(userRequest);
+      const decision = result.consensusDecision;
 
       expect(decision).toBeDefined();
       expect(decision.content).toBeDefined();
@@ -419,7 +420,8 @@ describe('Integration Tests - Full Deliberation Flow', () => {
         timestamp: new Date()
       };
 
-      const decision = await orchestrationEngine.processRequest(userRequest);
+      const result = await orchestrationEngine.processRequest(userRequest);
+      const decision = result.consensusDecision;
 
       // Each mock provider returns 10 prompt + 20 completion = 30 total tokens
       // With 3 members, total should be 90
@@ -437,8 +439,8 @@ describe('Integration Tests - Full Deliberation Flow', () => {
         timestamp: new Date()
       };
 
-      const decision1 = await orchestrationEngine.processRequest(request1);
-      expect(decision1.content).toBeDefined();
+      const result1 = await orchestrationEngine.processRequest(request1);
+      expect(result1.consensusDecision.content).toBeDefined();
 
       const request2: UserRequest = {
         id: 'req-4',
@@ -447,8 +449,8 @@ describe('Integration Tests - Full Deliberation Flow', () => {
         timestamp: new Date()
       };
 
-      const decision2 = await orchestrationEngine.processRequest(request2);
-      expect(decision2.content).toBeDefined();
+      const result2 = await orchestrationEngine.processRequest(request2);
+      expect(result2.consensusDecision.content).toBeDefined();
 
       // Both requests should succeed
       expect(decision1.contributingMembers.length).toBeGreaterThan(0);
@@ -484,7 +486,8 @@ describe('Integration Tests - Full Deliberation Flow', () => {
         timestamp: new Date()
       };
 
-      const decision = await engine.processRequest(request);
+      const result = await engine.processRequest(request);
+      const decision = result.consensusDecision;
 
       // Should still get a decision from the working providers
       expect(decision).toBeDefined();
@@ -518,7 +521,8 @@ describe('Integration Tests - Full Deliberation Flow', () => {
         timestamp: new Date()
       };
 
-      const decision = await engine.processRequest(request);
+      const result = await engine.processRequest(request);
+      const decision = result.consensusDecision;
 
       expect(decision.content).toBeDefined();
       expect(decision.contributingMembers).toHaveLength(2);
@@ -564,7 +568,8 @@ describe('Integration Tests - Full Deliberation Flow', () => {
       };
 
       // Empty queries are processed (providers can handle them)
-      const decision = await orchestrationEngine.processRequest(request);
+      const result = await orchestrationEngine.processRequest(request);
+      const decision = result.consensusDecision;
       expect(decision).toBeDefined();
       expect(decision.content).toBeDefined();
     });
@@ -597,7 +602,8 @@ describe('Integration Tests - Full Deliberation Flow', () => {
         timestamp: new Date()
       };
 
-      const decision = await engine.processRequest(request);
+      const result = await engine.processRequest(request);
+      const decision = result.consensusDecision;
 
       expect(decision.synthesisStrategy.type).toBe('consensus-extraction');
       expect(decision.agreementLevel).toBeGreaterThan(0.8);
@@ -628,7 +634,8 @@ describe('Integration Tests - Full Deliberation Flow', () => {
         timestamp: new Date()
       };
 
-      const decision = await engine.processRequest(request);
+      const result = await engine.processRequest(request);
+      const decision = result.consensusDecision;
 
       expect(decision).toBeDefined();
       expect(decision.contributingMembers).toHaveLength(3);
@@ -647,7 +654,8 @@ describe('Integration Tests - Full Deliberation Flow', () => {
       };
 
       const startTime = Date.now();
-      const decision = await orchestrationEngine.processRequest(request);
+      const result = await orchestrationEngine.processRequest(request);
+      const decision = result.consensusDecision;
       const elapsed = Date.now() - startTime;
 
       // With parallel execution, should complete in ~10-50ms (mock delay)

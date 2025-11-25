@@ -73,18 +73,18 @@ describe('Property Test: Cost Attribution Uses Correct Member IDs', () => {
         async (member, tokenUsage) => {
           // Setup
           const calculator = new CostCalculator();
-          
+
           // Execute: Calculate cost for this member
-          const costCalc: CostCalculation = calculator.calculateCost(member, tokenUsage);
-          
+          const costCalc: CostCalculation = await calculator.calculateCost(member, tokenUsage);
+
           // Property assertions:
           // The member ID in the cost calculation should match the actual member ID
           expect(costCalc.memberId).toBe(member.id);
-          
+
           // Should not be a placeholder pattern like "member-0", "member-1", etc.
           const isPlaceholder = /^member-\d+$/.test(costCalc.memberId);
           expect(isPlaceholder).toBe(false);
-          
+
           // The cost calculation should include the correct provider and model
           expect(costCalc.provider).toBe(member.provider);
           expect(costCalc.model).toBe(member.model);
@@ -93,7 +93,7 @@ describe('Property Test: Cost Attribution Uses Correct Member IDs', () => {
       { numRuns: 100 }
     );
   }, 120000);
-  
+
   /**
    * Test that aggregated costs maintain correct member IDs
    */
@@ -106,38 +106,40 @@ describe('Property Test: Cost Attribution Uses Correct Member IDs', () => {
         ),
         async (memberUsagePairs) => {
           // Ensure unique member IDs
-          const uniquePairs = memberUsagePairs.filter((pair, i, arr) => 
+          const uniquePairs = memberUsagePairs.filter((pair, i, arr) =>
             arr.findIndex(p => p[0].id === pair[0].id) === i
           );
-          
+
           if (uniquePairs.length < 2) {
             return; // Skip if we don't have enough unique members
           }
-          
+
           // Setup
           const calculator = new CostCalculator();
-          
+
           // Execute: Calculate costs for all members
-          const calculations: CostCalculation[] = uniquePairs.map(([member, tokenUsage]) =>
-            calculator.calculateCost(member, tokenUsage)
+          const calculations: CostCalculation[] = await Promise.all(
+            uniquePairs.map(([member, tokenUsage]) =>
+              calculator.calculateCost(member, tokenUsage)
+            )
           );
-          
+
           // Aggregate the costs
           const aggregated = calculator.aggregateCosts(calculations);
-          
+
           // Property assertions:
           const memberIds = Array.from(aggregated.byMember.keys());
           const expectedMemberIds = uniquePairs.map(([member]) => member.id);
-          
+
           // All member IDs in aggregated costs should match the actual member IDs
           expect(memberIds.sort()).toEqual(expectedMemberIds.sort());
-          
+
           // No member ID should be a placeholder
           for (const memberId of memberIds) {
             const isPlaceholder = /^member-\d+$/.test(memberId);
             expect(isPlaceholder).toBe(false);
           }
-          
+
           // Each member should have a cost entry
           for (const [member] of uniquePairs) {
             expect(aggregated.byMember.has(member.id)).toBe(true);
@@ -149,7 +151,7 @@ describe('Property Test: Cost Attribution Uses Correct Member IDs', () => {
       { numRuns: 100 }
     );
   }, 120000);
-  
+
   /**
    * Test that cost calculations preserve member IDs through the full pipeline
    */
@@ -160,48 +162,48 @@ describe('Property Test: Cost Attribution Uses Correct Member IDs', () => {
         fc.array(tokenUsageArbitrary, { minLength: 2, maxLength: 5 }),
         async (members, tokenUsages) => {
           // Ensure unique member IDs
-          const uniqueMembers = members.filter((m, i, arr) => 
+          const uniqueMembers = members.filter((m, i, arr) =>
             arr.findIndex(x => x.id === m.id) === i
           );
-          
+
           if (uniqueMembers.length < 2 || tokenUsages.length < uniqueMembers.length) {
             return; // Skip if we don't have enough data
           }
-          
+
           // Setup
           const calculator = new CostCalculator();
-          
+
           // Execute: Calculate costs for each member
           const calculations: CostCalculation[] = [];
           for (let i = 0; i < uniqueMembers.length; i++) {
             const member = uniqueMembers[i];
             const tokenUsage = tokenUsages[i];
-            const calc = calculator.calculateCost(member, tokenUsage);
+            const calc = await calculator.calculateCost(member, tokenUsage);
             calculations.push(calc);
           }
-          
+
           // Property assertions:
           // Each calculation should have the correct member ID
           for (let i = 0; i < calculations.length; i++) {
             const calc = calculations[i];
             const expectedMemberId = uniqueMembers[i].id;
-            
+
             expect(calc.memberId).toBe(expectedMemberId);
-            
+
             // Should not be a placeholder
             const isPlaceholder = /^member-\d+$/.test(calc.memberId);
             expect(isPlaceholder).toBe(false);
           }
-          
+
           // Aggregate and verify member IDs are preserved
           const aggregated = calculator.aggregateCosts(calculations);
           const aggregatedMemberIds = Array.from(aggregated.byMember.keys());
-          
+
           for (const memberId of aggregatedMemberIds) {
             // Should be one of the actual member IDs
             const isActualMember = uniqueMembers.some(m => m.id === memberId);
             expect(isActualMember).toBe(true);
-            
+
             // Should not be a placeholder
             const isPlaceholder = /^member-\d+$/.test(memberId);
             expect(isPlaceholder).toBe(false);

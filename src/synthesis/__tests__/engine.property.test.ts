@@ -103,13 +103,25 @@ describe('SynthesisEngine - Property-Based Tests', () => {
     tokenUsage: tokenUsageArb
   });
 
-  const deliberationRoundArb = fc.record({
-    roundNumber: fc.integer({ min: 1, max: 5 }),
+  const deliberationRoundArb = (roundNum: number) => fc.record({
+    roundNumber: fc.constant(roundNum),
     exchanges: fc.array(exchangeArb, { minLength: 1, maxLength: 10 })
   });
 
   const deliberationThreadArb = fc.record({
-    rounds: fc.array(deliberationRoundArb, { minLength: 1, maxLength: 5 }),
+    rounds: fc.array(exchangeArb, { minLength: 1, maxLength: 10 }).chain(initialExchanges => {
+      // Always create round 0 with the initial exchanges
+      const round0 = {
+        roundNumber: 0,
+        exchanges: initialExchanges
+      };
+
+      // Optionally add additional rounds (1-4)
+      return fc.array(
+        fc.integer({ min: 1, max: 4 }).chain(roundNum => deliberationRoundArb(roundNum)),
+        { maxLength: 4 }
+      ).map(additionalRounds => [round0, ...additionalRounds]);
+    }),
     totalDuration: fc.integer({ min: 100, max: 60000 })
   });
 

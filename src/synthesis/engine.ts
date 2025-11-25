@@ -19,8 +19,16 @@ import {
 import { CodeDetector } from './code-detector';
 import { CodeSimilarityCalculator } from './code-similarity';
 import { CodeValidator } from './code-validator';
+import { IterativeConsensusSynthesizer } from './iterative-consensus/synthesizer';
+import { EmbeddingService } from '../embedding/service';
+import { NegotiationPromptBuilder } from './negotiation/prompt-builder';
+import { ConvergenceDetector } from './convergence/detector';
+import { ExampleRepository } from './examples/repository';
+import { RedisClientType } from 'redis';
+import { Pool } from 'pg';
 
 import { ModelRankings } from '../types/core';
+import { logger } from '../utils/logger';
 
 export class SynthesisEngine implements ISynthesisEngine {
   private rotationIndex: number = 0;
@@ -33,15 +41,22 @@ export class SynthesisEngine implements ISynthesisEngine {
   private codeValidator: CodeValidator;
   private modelRankingsCache: ModelRankings | null = null;
   private rankingsCachePromise: Promise<ModelRankings> | null = null;
+  private db?: Pool;
+  private redis?: RedisClientType;
+  private iterativeConsensusSynthesizer?: IterativeConsensusSynthesizer;
 
   constructor(
     providerPool: IProviderPool,
     configManager: IConfigurationManager,
-    devilsAdvocate?: IDevilsAdvocateModule
+    devilsAdvocate?: IDevilsAdvocateModule,
+    db?: Pool,
+    redis?: RedisClientType
   ) {
     this.providerPool = providerPool;
     this.configManager = configManager;
     this.devilsAdvocate = devilsAdvocate;
+    this.db = db;
+    this.redis = redis;
     this.codeDetector = new CodeDetector();
     this.codeSimilarityCalculator = new CodeSimilarityCalculator();
     this.codeValidator = new CodeValidator();
@@ -55,52 +70,34 @@ export class SynthesisEngine implements ISynthesisEngine {
     thread: DeliberationThread,
     strategy: SynthesisStrategy
   ): Promise<ConsensusDecision> {
-    // Extract query from request
+    const reqId = request.id;
     const query = request.query;
-    console.error(`[Synthesis] STEP 10: Starting synthesis for query: "${query.substring(0, 100)}"`);
 
     // Validate query (null/empty check)
     if (!query || query.trim().length === 0) {
-      console.warn('User query is null or empty, proceeding with degraded synthesis');
+      logger.warn('User query is null or empty, proceeding with degraded synthesis', { requestId: reqId, component: 'Synthesis' });
     }
 
     // Extract only Round 0 exchanges (initial responses) for synthesis
     // Deliberation rounds (Round 1+) are internal discussion and should not be included in the final answer
     const round0 = thread.rounds.find(round => round.roundNumber === 0);
     if (!round0 || !round0.exchanges || round0.exchanges.length === 0) {
+      logger.error('Cannot synthesize: no initial responses (Round 0) available', { requestId: reqId, component: 'Synthesis' });
       throw new Error('Cannot synthesize consensus: no initial responses (Round 0) available');
     }
 
     const allExchanges = round0.exchanges;
 
-    // Debug logging: Check exchanges before adding
-    allExchanges.forEach((exchange, idx) => {
-      console.error(`[Synthesis] STEP 11: Round 0 exchange ${idx} (${exchange.councilMemberId}):`, {
-        contentType: typeof exchange.content,
-        isArray: Array.isArray(exchange.content),
-        contentLength: typeof exchange.content === 'string' ? exchange.content.length : 'N/A',
-        contentPreview: typeof exchange.content === 'string' ? exchange.content.substring(0, 200) : JSON.stringify(exchange.content).substring(0, 500),
-        hasObjectObject: typeof exchange.content === 'string' && exchange.content.includes('[object Object]')
-      });
-
+    // Validate exchanges
+    allExchanges.forEach((exchange) => {
       if (typeof exchange.content !== 'string') {
-        console.error(`[Synthesis] ERROR: Round 0 exchange ${exchange.councilMemberId} has non-string content:`, {
-          type: typeof exchange.content,
-          isArray: Array.isArray(exchange.content),
-          content: exchange.content
-        });
+        logger.error(`Exchange ${exchange.councilMemberId} has non-string content`, { requestId: reqId, memberId: exchange.councilMemberId });
       } else if (exchange.content.includes('[object Object]')) {
-        console.error(`[Synthesis] ERROR: Round 0 exchange ${exchange.councilMemberId} has corrupted content:`, {
-          content: exchange.content,
-          exchangeKeys: Object.keys(exchange)
-        });
+        logger.error(`Exchange ${exchange.councilMemberId} has corrupted content`, { requestId: reqId, memberId: exchange.councilMemberId });
       }
     });
 
-    console.error(`[Synthesis] STEP 12: Processing ${allExchanges.length} initial responses (Round 0) for synthesis`);
-
     // Fixed: Throw error instead of returning placeholder when no exchanges exist
-    // This allows callers to properly handle the failure case
     if (allExchanges.length === 0) {
       throw new Error('Cannot synthesize consensus: no council member responses available');
     }
@@ -113,6 +110,7 @@ export class SynthesisEngine implements ISynthesisEngine {
     let content: string;
     let confidence: 'high' | 'medium' | 'low';
     let agreementLevel: number;
+    let iterativeConsensusMetadata: any = undefined;
 
     switch (strategy.type) {
       case 'consensus-extraction':
@@ -126,6 +124,15 @@ export class SynthesisEngine implements ISynthesisEngine {
       case 'meta-synthesis':
         ({ content, confidence, agreementLevel } = await this.metaSynthesis(allExchanges, strategy.moderatorStrategy, query));
         break;
+
+      case 'iterative-consensus': {
+        const iterativeResult = await this.iterativeConsensus(allExchanges, request, thread, strategy.config);
+        content = iterativeResult.content;
+        confidence = iterativeResult.confidence;
+        agreementLevel = iterativeResult.agreementLevel;
+        iterativeConsensusMetadata = iterativeResult.iterativeConsensusMetadata;
+        break;
+      }
 
       default:
         // Fallback to consensus extraction
@@ -187,7 +194,8 @@ export class SynthesisEngine implements ISynthesisEngine {
       agreementLevel,
       synthesisStrategy: strategy,
       contributingMembers,
-      timestamp: new Date()
+      timestamp: new Date(),
+      iterativeConsensusMetadata
     };
   }
 
@@ -635,6 +643,7 @@ export class SynthesisEngine implements ISynthesisEngine {
   }> {
     // Calculate agreement level
     const agreementLevel = this.calculateAgreementLevel(exchanges);
+    logger.info(`│ Meta-synthesis: agreementLevel=${agreementLevel.toFixed(3)}`, { component: 'Synthesis' });
 
     try {
       // Get council members to select moderator from
@@ -646,15 +655,15 @@ export class SynthesisEngine implements ISynthesisEngine {
         moderatorStrategy || { type: 'strongest' }
       );
 
-      // Detect if responses contain code
-      const isCodeRequest = exchanges.some(e => {
-        try {
-          const content = typeof e.content === 'string' ? e.content : String(e.content || '');
-          return this.codeDetector.detectCode(content);
-        } catch {
-          return false;
-        }
+      logger.info(`│ Moderator selected: ${moderator.id} (${moderator.provider}/${moderator.model})`, {
+        component: 'Synthesis',
+        memberId: moderator.id,
+        model: moderator.model
       });
+
+      // Detect if this is a code request based on the QUERY, not responses
+      // This prevents false positives from natural language containing programming keywords
+      const isCodeRequest = query ? this.isCodeQuery(query) : false;
 
       // Filter out responses with critical errors
       const validationWeights = this.weightByValidation(exchanges);
@@ -710,9 +719,11 @@ export class SynthesisEngine implements ISynthesisEngine {
       prompt += 'Provide your synthesized response now:';
 
       // Send request to moderator
+      logger.info('│ Sending synthesis prompt to moderator...', { component: 'Synthesis', memberId: moderator.id });
       const response = await this.providerPool.sendRequest(moderator, prompt);
 
       if (!response.success) {
+        logger.error(`│ Moderator synthesis failed: ${response.error?.message}`, { component: 'Synthesis', memberId: moderator.id });
         throw new Error(`Moderator synthesis failed: ${response.error?.message}`);
       }
 
@@ -720,10 +731,15 @@ export class SynthesisEngine implements ISynthesisEngine {
       const confidence = agreementLevel > 0.7 ? 'high' : agreementLevel > 0.5 ? 'medium' : 'low';
       const content = typeof response.content === 'string' ? response.content : String(response.content || '');
 
+      logger.info(`│ Moderator synthesis complete: ${content.length} chars, confidence=${confidence}`, {
+        component: 'Synthesis',
+        memberId: moderator.id
+      });
+
       return { content, confidence, agreementLevel };
 
     } catch (error) {
-      console.error('Meta-synthesis failed, falling back to structured summary:', error);
+      logger.error(`│ Meta-synthesis failed, using fallback: ${(error as Error).message}`, { component: 'Synthesis' });
 
       // Fallback to structured summary
       let synthesis = 'Meta-synthesis of council deliberation (Fallback):\n\n';
@@ -922,11 +938,20 @@ export class SynthesisEngine implements ISynthesisEngine {
       text = String(text || '');
     }
 
-    return text
+    // Preserve numbers and mathematical expressions for agreement calculation
+    // Replace operators with standard forms for comparison
+    const normalized = text
       .toLowerCase()
-      .replace(/[^\w\s]/g, ' ')
+      .replace(/\s*=\s*/g, ' equals ')     // Normalize "=" to "equals"
+      .replace(/\s*\+\s*/g, ' plus ')      // Normalize "+" to "plus"
+      .replace(/\s*-\s*/g, ' minus ')      // Normalize "-" to "minus"
+      .replace(/\s*\*\s*/g, ' times ')     // Normalize "*" to "times"
+      .replace(/\s*\/\s*/g, ' divided ')   // Normalize "/" to "divided"
+      .replace(/[^\w\s]/g, ' ')            // Remove other special chars
       .split(/\s+/)
-      .filter(word => word.length > 2); // Filter out very short words (1 and 2 chars)
+      .filter(word => word.length > 0);    // Keep all non-empty tokens (including numbers)
+
+    return normalized;
   }
 
   /**
@@ -1156,6 +1181,40 @@ export class SynthesisEngine implements ISynthesisEngine {
   }
 
   /**
+   * Detect if a query is asking for code
+   * Checks for explicit code-related keywords in the user's question
+   * This is more reliable than detecting code patterns in AI responses
+   */
+  private isCodeQuery(query: string): boolean {
+    if (!query || typeof query !== 'string') {
+      return false;
+    }
+
+    const lowerQuery = query.toLowerCase();
+
+    // Check for explicit code request patterns
+    const codeRequestPatterns = [
+      /\b(write|create|implement|code|program|script|function|method|class|algorithm)\b.*\b(code|function|class|program|script)\b/i,
+      /\b(code|programming|coding|developer|software)\b/i,
+      /\b(python|javascript|typescript|java|c\+\+|rust|go|ruby|php|swift|kotlin)\b/i,
+      /\b(api|endpoint|backend|frontend|database|sql|query)\b.*\b(implement|create|write|build)\b/i,
+      /\bhow\s+(?:do\s+i|to|can\s+i)\s+(?:write|code|implement|create|build)\b/i,
+      /\b(debug|fix|refactor|optimize)\b.*\b(code|function|program|script|bug)\b/i,
+      /```[\s\S]*```/, // Contains code blocks in the query itself
+      /\b(npm|pip|yarn|cargo|maven|gradle)\b/i, // Package managers
+      /\b(react|angular|vue|express|django|flask|spring)\b/i // Frameworks
+    ];
+
+    for (const pattern of codeRequestPatterns) {
+      if (pattern.test(lowerQuery)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  /**
    * Extract common themes from exchanges
    */
   private extractCommonThemes(exchanges: Exchange[]): string {
@@ -1321,5 +1380,61 @@ export class SynthesisEngine implements ISynthesisEngine {
 
     // Return default score
     return rankings['default'] || 50;
+  }
+
+  /**
+   * Iterative Consensus Strategy
+   * Orchestrates multi-round negotiations until consensus is achieved
+   */
+  private async iterativeConsensus(
+    exchanges: Exchange[],
+    request: UserRequest,
+    thread: DeliberationThread,
+    config: any
+  ): Promise<{
+    content: string;
+    confidence: 'high' | 'medium' | 'low';
+    agreementLevel: number;
+    iterativeConsensusMetadata?: any;
+  }> {
+    // Initialize iterative consensus synthesizer if not already created
+    if (!this.iterativeConsensusSynthesizer) {
+      if (!this.db || !this.redis) {
+        throw new Error('Database and Redis connections required for iterative consensus');
+      }
+
+      const apiKey = process.env.OPENAI_API_KEY;
+      if (!apiKey) {
+        throw new Error('OPENAI_API_KEY required for iterative consensus embedding service');
+      }
+
+      const embeddingService = new EmbeddingService(this.redis, apiKey);
+      const promptBuilder = new NegotiationPromptBuilder();
+      const convergenceDetector = new ConvergenceDetector();
+      const exampleRepository = new ExampleRepository(this.db, embeddingService);
+
+      // Note: EventLogger would need to be passed here if available
+      // For now, we'll instantiate without it (logging can be added later)
+      this.iterativeConsensusSynthesizer = new IterativeConsensusSynthesizer(
+        embeddingService,
+        promptBuilder,
+        convergenceDetector,
+        exampleRepository,
+        this.providerPool,
+        this.configManager,
+        this, // Pass synthesis engine for fallback
+        undefined // EventLogger - can be added later via dependency injection
+      );
+    }
+
+    // Execute iterative consensus
+    const decision = await this.iterativeConsensusSynthesizer.synthesize(request, thread, config);
+
+    return {
+      content: decision.content,
+      confidence: decision.confidence,
+      agreementLevel: decision.agreementLevel,
+      iterativeConsensusMetadata: decision.iterativeConsensusMetadata
+    };
   }
 }

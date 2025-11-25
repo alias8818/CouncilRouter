@@ -6,17 +6,11 @@
 import { BaseProviderAdapter } from './base';
 import { CouncilMember, ProviderResponse, ConversationContext, TokenUsage } from '../../types/core';
 
-// Inline debug logging to avoid module import issues
-function debugError(message: string, data?: any): void {
-  const timestamp = new Date().toISOString();
-  const logMessage = `[ERROR ${timestamp}] ${message}`;
-  process.stderr.write(logMessage + '\n');
-  console.error(logMessage);
-  if (data !== undefined) {
-    const dataStr = typeof data === 'string' ? data : JSON.stringify(data, null, 2);
-    process.stderr.write(dataStr + '\n');
-    console.error(dataStr);
-  }
+// Debug logging - disabled in production to reduce noise
+const DEBUG_GPT5 = process.env.DEBUG_GPT5 === 'true';
+function debugLog(message: string, data?: any): void {
+  if (!DEBUG_GPT5) return;
+  console.log(`[DEBUG] ${message}`, data !== undefined ? data : '');
 }
 
 interface OpenAIMessage {
@@ -115,10 +109,7 @@ export class OpenAIAdapter extends BaseProviderAdapter {
     prompt: string,
     context?: ConversationContext
   ): Promise<any> {
-    // TEST: Log that this function is being called
-    debugError(`[OpenAIAdapter] sendGPT5Request CALLED for ${member.id} with model ${member.model}`);
-    process.stderr.write(`[TEST] sendGPT5Request called for ${member.id}\n`);
-    console.error(`[TEST CONSOLE] sendGPT5Request called for ${member.id}`);
+    debugLog(`[OpenAIAdapter] sendGPT5Request for ${member.id} with model ${member.model}`);
 
     // Build input text from context and prompt
     let inputText = prompt;
@@ -171,10 +162,7 @@ export class OpenAIAdapter extends BaseProviderAdapter {
 
     const data: any = await response.json();
 
-    // TEST: Multiple logging methods
-    process.stderr.write('[TEST] Got response from GPT-5.1 API\n');
-    console.error('[TEST CONSOLE] Got response from GPT-5.1 API');
-    debugError(`[OpenAIAdapter] GPT-5.1 FULL RESPONSE for ${member.model}`, JSON.stringify(data, null, 2));
+    debugLog(`[OpenAIAdapter] GPT-5.1 response received for ${member.model}`);
 
     // Helper function to recursively extract text from any structure
     const extractText = (obj: any): string[] => {
@@ -221,38 +209,38 @@ export class OpenAIAdapter extends BaseProviderAdapter {
     // GPT-5.1 returns: { output: [{ type: "message", content: [{ type: "output_text", text: "..." }] }] }
     let content: string = '';
 
-    debugError('[OpenAIAdapter] Attempting structured extraction from GPT-5.1 response');
+    debugLog('[OpenAIAdapter] Attempting structured extraction from GPT-5.1 response');
     if (Array.isArray(data.output)) {
-      debugError(`[OpenAIAdapter] data.output is array with ${data.output.length} items`);
+      debugLog(`[OpenAIAdapter] data.output is array with ${data.output.length} items`);
       // Find the message-type output item
       const messageOutput = data.output.find((item: any) => item.type === 'message');
       if (messageOutput) {
-        debugError(`[OpenAIAdapter] Found message output, content array length: ${Array.isArray(messageOutput.content) ? messageOutput.content.length : 'not array'}`);
+        debugLog(`[OpenAIAdapter] Found message output, content array length: ${Array.isArray(messageOutput.content) ? messageOutput.content.length : 'not array'}`);
         if (Array.isArray(messageOutput.content)) {
           // Find all output_text content items and extract their text
           const textContents = messageOutput.content
             .filter((item: any) => item.type === 'output_text' && typeof item.text === 'string')
             .map((item: any) => item.text);
-          debugError(`[OpenAIAdapter] Found ${textContents.length} output_text items`);
+          debugLog(`[OpenAIAdapter] Found ${textContents.length} output_text items`);
           if (textContents.length > 0) {
             content = textContents.join(' ');
-            debugError(`[OpenAIAdapter] SUCCESS: Extracted text from GPT-5.1 message content: "${content.substring(0, 200)}"`);
+            debugLog(`[OpenAIAdapter] SUCCESS: Extracted text from GPT-5.1 message content: "${content.substring(0, 200)}"`);
           } else {
-            debugError('[OpenAIAdapter] No output_text items found in message content');
+            debugLog('[OpenAIAdapter] No output_text items found in message content');
           }
         }
       } else {
-        debugError('[OpenAIAdapter] No message-type output found in array');
+        debugLog('[OpenAIAdapter] No message-type output found in array');
       }
     } else {
-      debugError(`[OpenAIAdapter] data.output is not an array: ${typeof data.output}`);
+      debugLog(`[OpenAIAdapter] data.output is not an array: ${typeof data.output}`);
     }
 
     // Fallback: try recursive extraction if structured extraction failed
     if (!content) {
-      debugError('[OpenAIAdapter] Structured extraction failed, trying recursive extraction');
+      debugLog('[OpenAIAdapter] Structured extraction failed, trying recursive extraction');
       const extracted = extractText(data);
-      debugError(`[OpenAIAdapter] Recursive extraction found ${extracted.length} total strings`);
+      debugLog(`[OpenAIAdapter] Recursive extraction found ${extracted.length} total strings`);
       // Filter out IDs and other non-content strings (IDs typically start with specific prefixes)
       const filtered = extracted.filter(t =>
         t &&
@@ -263,28 +251,28 @@ export class OpenAIAdapter extends BaseProviderAdapter {
         !t.match(/^(reasoning|message|completed|assistant|developer)$/i) && // Filter out status strings
         !t.match(/^[a-z0-9_]{20,}$/i) // Filter out long alphanumeric strings (likely IDs)
       );
-      debugError(`[OpenAIAdapter] After filtering: ${filtered.length} text items`);
+      debugLog(`[OpenAIAdapter] After filtering: ${filtered.length} text items`);
       content = filtered.join(' ') || '';
       if (content) {
-        debugError(`[OpenAIAdapter] Recursive extraction found content: "${content.substring(0, 200)}"`);
+        debugLog(`[OpenAIAdapter] Recursive extraction found content: "${content.substring(0, 200)}"`);
       }
     }
 
     // Last resort: error message
     if (!content) {
-      debugError('[OpenAIAdapter] CRITICAL: Could not extract any text from GPT-5.1 response!');
+      debugLog('[OpenAIAdapter] CRITICAL: Could not extract any text from GPT-5.1 response!');
       content = 'Error: Could not extract content from GPT-5.1 response';
     }
 
     // Ensure content is a string
     if (typeof content !== 'string') {
-      debugError('[OpenAIAdapter] Content is still not a string after extraction', { type: typeof content, content });
+      debugLog('[OpenAIAdapter] Content is still not a string after extraction', { type: typeof content, content });
       content = String(content || '');
     }
 
     // Final validation
     if (content.includes('[object Object]')) {
-      debugError('[OpenAIAdapter] CRITICAL: Content still contains [object Object] after all extraction attempts!', {
+      debugLog('[OpenAIAdapter] CRITICAL: Content still contains [object Object] after all extraction attempts!', {
         content: content,
         originalOutput: data.output,
         originalResponse: data.response,
@@ -297,15 +285,15 @@ export class OpenAIAdapter extends BaseProviderAdapter {
 
     // CRITICAL: Final check before returning - if content is still corrupted, log and try one more recovery
     if (content.includes('[object Object]')) {
-      debugError('[OpenAIAdapter] CRITICAL: Content STILL corrupted after all attempts! Raw data', JSON.stringify(data, null, 2));
+      debugLog('[OpenAIAdapter] CRITICAL: Content STILL corrupted after all attempts! Raw data', JSON.stringify(data, null, 2));
       // Try one final extraction from the entire data object
       const finalExtraction = extractText(data);
       const finalContent = finalExtraction.filter(t => t && typeof t === 'string' && !t.includes('[object Object]')).join(' ');
       if (finalContent && finalContent.length > 0) {
-        debugError(`[OpenAIAdapter] Recovery successful! Extracted: "${finalContent.substring(0, 100)}"`);
+        debugLog(`[OpenAIAdapter] Recovery successful! Extracted: "${finalContent.substring(0, 100)}"`);
         content = finalContent;
       } else {
-        debugError('[OpenAIAdapter] Recovery failed. Returning error message.');
+        debugLog('[OpenAIAdapter] Recovery failed. Returning error message.');
         content = 'Error: Could not extract valid content from GPT-5.1 response';
       }
     }
@@ -327,7 +315,7 @@ export class OpenAIAdapter extends BaseProviderAdapter {
       }
     };
 
-    debugError(`[OpenAIAdapter] Returning transformed response with content: "${content.substring(0, 100)}"`);
+    debugLog(`[OpenAIAdapter] Returning transformed response with content: "${content.substring(0, 100)}"`);
 
     return transformedResponse;
   }

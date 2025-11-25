@@ -185,6 +185,52 @@ export default tseslint.config(
       '@typescript-eslint/no-var-requires': 'off',
       'no-console': 'off'
     }
+  },
+
+  // Frontend JavaScript files (browser environment)
+  {
+    files: ['src/**/public/**/*.js', 'src/dashboard/**/*.js'],
+    languageOptions: {
+      ecmaVersion: 2020,
+      sourceType: 'script',
+      globals: {
+        // Browser globals
+        document: 'readonly',
+        window: 'readonly',
+        fetch: 'readonly',
+        console: 'readonly',
+        setTimeout: 'readonly',
+        setInterval: 'readonly',
+        clearTimeout: 'readonly',
+        clearInterval: 'readonly',
+        alert: 'readonly',
+        confirm: 'readonly',
+        prompt: 'readonly',
+        localStorage: 'readonly',
+        sessionStorage: 'readonly',
+        location: 'readonly',
+        navigator: 'readonly',
+        history: 'readonly',
+        screen: 'readonly',
+        URL: 'readonly',
+        FormData: 'readonly',
+        FileReader: 'readonly',
+        Blob: 'readonly',
+        URLSearchParams: 'readonly',
+        requestAnimationFrame: 'readonly',
+        cancelAnimationFrame: 'readonly'
+      }
+    },
+    rules: {
+      // Relax rules for frontend code
+      'no-console': 'off',
+      '@typescript-eslint/no-var-requires': 'off',
+      'no-alert': 'off', // Frontend code may use alert
+      'no-debugger': 'warn', // Allow in development
+      'no-script-url': 'off', // Frontend may use javascript: URLs
+      'no-unused-vars': 'off', // Frontend functions are often called from HTML onclick handlers
+      '@typescript-eslint/no-unused-vars': 'off' // Frontend functions are often called from HTML onclick handlers
+    }
   }
 );
 

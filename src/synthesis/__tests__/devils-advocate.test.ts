@@ -201,7 +201,7 @@ describe('DevilsAdvocateModule', () => {
       const deliberationThread: DeliberationThread = {
         rounds: [
           {
-            roundNumber: 1,
+            roundNumber: 0,
             exchanges: [
               {
                 councilMemberId: 'member-1',
@@ -262,7 +262,7 @@ describe('DevilsAdvocateModule', () => {
       const deliberationThread: DeliberationThread = {
         rounds: [
           {
-            roundNumber: 1,
+            roundNumber: 0,
             exchanges: []
           }
         ],
@@ -279,7 +279,7 @@ describe('DevilsAdvocateModule', () => {
       const deliberationThread: DeliberationThread = {
         rounds: [
           {
-            roundNumber: 1,
+            roundNumber: 0,
             exchanges: [
               {
                 councilMemberId: 'member-1',
@@ -561,7 +561,7 @@ describe('DevilsAdvocateModule', () => {
       const minimalThread: DeliberationThread = {
         rounds: [
           {
-            roundNumber: 1,
+            roundNumber: 0,
             exchanges: [
               {
                 councilMemberId: 'member-1',
@@ -585,7 +585,7 @@ describe('DevilsAdvocateModule', () => {
       const complexThread: DeliberationThread = {
         rounds: [
           {
-            roundNumber: 1,
+            roundNumber: 0,
             exchanges: Array.from({ length: 5 }, (_, i) => ({
               councilMemberId: `member-${(i % 3) + 1}`,
               content: `Exchange ${i} content`,

@@ -68,7 +68,7 @@ describe('Code-Aware Synthesis Integration Tests', () => {
   const createThread = (exchanges: Exchange[]): DeliberationThread => ({
     rounds: [
       {
-        roundNumber: 1,
+        roundNumber: 0,
         exchanges
       }
     ],

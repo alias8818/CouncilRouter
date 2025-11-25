@@ -15,6 +15,14 @@ coverage/
 .env.local
 .env.*.local
 
+# Security - API keys and secrets
+*.key
+*.pem
+*.p12
+*.pfx
+secrets/
+.secrets
+
 # IDE
 .vscode/
 .idea/

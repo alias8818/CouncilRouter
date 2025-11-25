@@ -21,6 +21,20 @@ export interface IEmbeddingService {
   cosineSimilarity(embedding1: number[], embedding2: number[]): number;
 
   /**
+   * Calculate similarity between two texts
+   * Uses structural code similarity for code responses, semantic embeddings for text
+   * @param text1 - First text
+   * @param text2 - Second text
+   * @param model - Embedding model
+   * @returns Similarity score [0, 1]
+   */
+  calculateTextSimilarity(
+    text1: string,
+    text2: string,
+    model?: string,
+  ): Promise<number>;
+
+  /**
    * Batch embed multiple texts
    * @param texts - Array of texts
    * @param model - Embedding model
@@ -35,7 +49,11 @@ export interface IEmbeddingService {
    * @param priority - Queue priority (default: normal)
    * @returns Job ID for tracking
    */
-  queueEmbed(text: string, model?: string, priority?: 'high' | 'normal' | 'low'): Promise<string>;
+  queueEmbed(
+    text: string,
+    model?: string,
+    priority?: 'high' | 'normal' | 'low',
+  ): Promise<string>;
 
   /**
    * Retrieve embedding result from queue

@@ -12,6 +12,7 @@ export interface UserRequest {
   sessionId?: string;
   context?: ConversationContext;
   timestamp: Date;
+  preset?: ConfigPreset; // Optional per-request preset override
 }
 
 export interface InitialResponse {
@@ -205,7 +206,9 @@ export type ConfigPreset =
   | 'fast-council'
   | 'balanced-council'
   | 'research-council'
-  | 'coding-council';
+  | 'coding-council'
+  | 'cost-effective-council'
+  | 'free-council';
 
 // ============================================================================
 // Synthesis Strategy Models
@@ -225,6 +228,17 @@ export type ModeratorStrategy =
 // ============================================================================
 // Cost Tracking Models
 // ============================================================================
+
+export interface RequestMetrics {
+  memberCosts: Map<string, number>;
+  memberLatencies: Map<string, number>;
+  memberTokens: Map<string, { prompt: number; completion: number }>;
+}
+
+export interface ProcessRequestResult {
+  consensusDecision: ConsensusDecision;
+  metrics: RequestMetrics;
+}
 
 export interface CostBreakdown {
   totalCost: number;
@@ -291,7 +305,12 @@ export class ProviderError extends Error {
   retryable: boolean;
   details?: any;
 
-  constructor(code: string, message: string, retryable: boolean = false, details?: any) {
+  constructor(
+    code: string,
+    message: string,
+    retryable: boolean = false,
+    details?: any
+  ) {
     super(message);
     this.name = 'ProviderError';
     this.code = code;
@@ -324,6 +343,7 @@ export interface APIRequestBody {
   sessionId?: string;
   streaming?: boolean;
   transparency?: boolean; // Per-request transparency override
+  preset?: ConfigPreset; // Per-request preset selection (e.g., 'fast-council', 'cost-effective-council')
 }
 
 export interface APIResponse {
@@ -427,7 +447,7 @@ export interface ToolResult {
 export interface ToolUsage {
   councilMemberId: string;
   toolName: string;
-  parameters: Record<string, any>;
+  parameters: Record<string, unknown>;
   result: ToolResult;
   roundNumber: number;
 }
@@ -491,7 +511,10 @@ export interface IterativeConsensusConfig {
   agreementThreshold: number;
 
   // Fallback strategy when consensus not reached
-  fallbackStrategy: 'meta-synthesis' | 'consensus-extraction' | 'weighted-fusion';
+  fallbackStrategy:
+    | 'meta-synthesis'
+    | 'consensus-extraction'
+    | 'weighted-fusion';
 
   // Embedding model for similarity calculation (default: 'text-embedding-3-large')
   embeddingModel: string;
@@ -659,4 +682,162 @@ export interface NegotiationExample {
 
   // Created timestamp
   createdAt: Date;
+}
+
+// ============================================================================
+// Dynamic Model and Pricing Retrieval Models
+// ============================================================================
+
+/**
+ * Provider type for model discovery
+ */
+export type ProviderType = 'openai' | 'anthropic' | 'google' | 'xai';
+
+/**
+ * Model capability information
+ */
+export interface ModelCapability {
+  type:
+    | 'chat'
+    | 'completion'
+    | 'embedding'
+    | 'vision'
+    | 'function_calling'
+    | 'tools';
+  supported: boolean;
+}
+
+/**
+ * Model discovered from provider API
+ */
+export interface DiscoveredModel {
+  id: string;
+  provider: ProviderType;
+  displayName?: string;
+  ownedBy?: string;
+  created?: number;
+  contextWindow?: number;
+  capabilities?: ModelCapability[];
+  deprecated: boolean;
+}
+
+/**
+ * Pricing data scraped from provider website
+ */
+export interface PricingData {
+  modelName: string; // As it appears on the pricing page
+  inputCostPerMillion: number;
+  outputCostPerMillion: number;
+  tier?: string; // e.g., 'standard', 'batch', 'cached'
+  contextLimit?: number; // For tiered pricing
+}
+
+/**
+ * Model classification types
+ */
+export type ModelClassification =
+  | 'chat'
+  | 'reasoning'
+  | 'coding'
+  | 'multimodal'
+  | 'embedding'
+  | 'tools'
+  | 'general';
+
+/**
+ * Model usability status
+ */
+export type ModelUsability = 'available' | 'preview' | 'deprecated';
+
+/**
+ * Enriched model with pricing and classification
+ */
+export interface EnrichedModel {
+  id: string;
+  provider: ProviderType;
+  displayName: string;
+  classification: ModelClassification[];
+  contextWindow: number;
+  usability: ModelUsability;
+  pricing: {
+    inputCostPerMillion: number;
+    outputCostPerMillion: number;
+    tier: string;
+    contextLimit?: number;
+  }[];
+  capabilities: ModelCapability[];
+  discoveredAt: Date;
+}
+
+/**
+ * Scraping configuration for a provider
+ */
+export interface ScrapingConfig {
+  url: string;
+  selectors: {
+    table: string;
+    modelNameColumn: number;
+    inputCostColumn: number;
+    outputCostColumn: number;
+  };
+  fallbackSelectors?: Array<{
+    table: string;
+    modelNameColumn: number;
+    inputCostColumn: number;
+    outputCostColumn: number;
+  }>;
+}
+
+/**
+ * Sync job result
+ */
+export interface SyncResult {
+  success: boolean;
+  timestamp: Date;
+  modelsDiscovered: number;
+  modelsUpdated: number;
+  modelsDeprecated: number;
+  pricingUpdated: number;
+  errors: SyncError[];
+}
+
+/**
+ * Sync error information
+ */
+export interface SyncError {
+  provider: ProviderType;
+  stage: 'discovery' | 'pricing' | 'enrichment' | 'storage';
+  error: string;
+}
+
+/**
+ * Sync status information
+ */
+export interface SyncStatus {
+  lastSync: Date | null;
+  nextSync: Date | null;
+  status: 'idle' | 'running' | 'failed';
+  lastResult: SyncResult | null;
+}
+
+/**
+ * Pricing history entry
+ */
+export interface PricingHistoryEntry {
+  modelId: string;
+  inputCostPerMillion: number;
+  outputCostPerMillion: number;
+  tier: string;
+  effectiveDate: Date;
+  endDate: Date | null;
+}
+
+/**
+ * Model filter for querying
+ */
+export interface ModelFilter {
+  provider?: ProviderType;
+  classification?: ModelClassification;
+  usability?: ModelUsability;
+  minContextWindow?: number;
 }

@@ -296,6 +296,61 @@ Uses a designated council member to synthesize all responses.
 - Consistent synthesis style
 - Complex multi-perspective synthesis
 
+### Strategy 4: Iterative Consensus
+
+Orchestrates multi-round negotiations among Council Members until unanimous agreement is achieved. Uses semantic similarity analysis, convergence detection, and example-guided prompts.
+
+**Configuration:**
+
+```json
+{
+  "strategy": {
+    "type": "iterative-consensus",
+    "config": {
+      "maxRounds": 5,
+      "agreementThreshold": 0.85,
+      "fallbackStrategy": "meta-synthesis",
+      "embeddingModel": "text-embedding-3-large",
+      "earlyTerminationEnabled": true,
+      "earlyTerminationThreshold": 0.95,
+      "negotiationMode": "parallel",
+      "perRoundTimeout": 30,
+      "exampleCount": 3,
+      "humanEscalationEnabled": false
+    }
+  }
+}
+```
+
+**Configuration Options:**
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| maxRounds | number | 5 | Maximum negotiation rounds (1-10) |
+| agreementThreshold | number | 0.85 | Similarity threshold for consensus (0.7-1.0) |
+| fallbackStrategy | string | 'meta-synthesis' | Strategy when consensus fails |
+| embeddingModel | string | 'text-embedding-3-large' | Model for semantic similarity |
+| earlyTerminationEnabled | boolean | true | Stop early if threshold met |
+| earlyTerminationThreshold | number | 0.95 | Early termination similarity (0.7-1.0) |
+| negotiationMode | string | 'parallel' | 'parallel' or 'sequential' |
+| perRoundTimeout | number | 30 | Timeout per round (seconds) |
+| exampleCount | number | 3 | Historical examples to include |
+| humanEscalationEnabled | boolean | false | Enable human review on deadlock |
+
+**Presets:**
+
+- **Strict Consensus**: `maxRounds: 10`, `agreementThreshold: 0.95`, `earlyTerminationEnabled: false`
+- **Balanced Consensus**: `maxRounds: 5`, `agreementThreshold: 0.85`, `earlyTerminationEnabled: true`
+- **Fast Consensus**: `maxRounds: 3`, `agreementThreshold: 0.80`, `earlyTerminationThreshold: 0.90`
+
+**Best For:**
+- High-stakes decisions requiring unanimous agreement
+- Complex queries with multiple valid perspectives
+- Situations where consensus quality is critical
+- When you need transparency in negotiation process
+
+**See Also:** [Iterative Consensus Documentation](./ITERATIVE_CONSENSUS.md)
+
 ---
 
 ## Performance Configuration

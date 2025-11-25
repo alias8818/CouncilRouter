@@ -12,6 +12,7 @@ import { EventLogger } from './logging/logger';
 import { ProviderPool } from './providers/pool';
 import { SynthesisEngine } from './synthesis/engine';
 import { ConfigurationManager } from './config/manager';
+import { PresetUpdater } from './discovery/preset-updater';
 
 async function startServer() {
   const version = process.env.APP_VERSION || require('../package.json').version || 'dev';
@@ -38,6 +39,17 @@ async function startServer() {
     process.exit(1);
   }
 
+  // Update presets from OpenRouter on startup
+  console.log('Updating presets from OpenRouter...');
+  try {
+    const presetUpdater = new PresetUpdater(pool);
+    await presetUpdater.updatePresetsOnStartup();
+    console.log('✓ Presets updated from OpenRouter');
+  } catch (error) {
+    console.warn('⚠️  Could not update presets from OpenRouter:', error);
+    // Continue startup - will use existing DB values
+  }
+
   // Initialize Redis client
   const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
   console.log('Connecting to Redis...');
@@ -60,7 +72,7 @@ async function startServer() {
   const configManager = new ConfigurationManager(pool, redis as any);
   const sessionManager = new SessionManager(pool, redis as any);
   const eventLogger = new EventLogger(pool);
-  const providerPool = new ProviderPool();
+  const providerPool = new ProviderPool(undefined, configManager, pool);
 
   // Validate council configuration against available providers
   try {
@@ -87,7 +99,7 @@ async function startServer() {
     console.warn('⚠️  Could not validate council configuration:', error);
   }
 
-  const synthesisEngine = new SynthesisEngine(providerPool, configManager);
+  const synthesisEngine = new SynthesisEngine(providerPool, configManager, undefined, pool, redis as any);
   const orchestrationEngine = new OrchestrationEngine(
     providerPool,
     configManager,

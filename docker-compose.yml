@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   # PostgreSQL Database
   postgres:
@@ -21,6 +19,29 @@ services:
       retries: 5
     networks:
       - council-network
+
+  # PostgreSQL Test Database (for running integration tests)
+  postgres-test:
+    image: postgres:16-alpine
+    container_name: council-postgres-test
+    environment:
+      POSTGRES_USER: ${TEST_DATABASE_USER:-postgres}
+      POSTGRES_PASSWORD: ${TEST_DATABASE_PASSWORD:-postgres}
+      POSTGRES_DB: ${TEST_DATABASE_NAME:-ai_council_test}
+    ports:
+      - "${TEST_DATABASE_PORT:-5433}:5432"
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+      - ./database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${TEST_DATABASE_USER:-postgres}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - council-network
+    profiles:
+      - test
 
   # Redis Cache
   redis:
@@ -65,12 +86,15 @@ services:
       API_PORT: ${API_PORT:-3000}
       API_HOST: ${API_HOST:-0.0.0.0}
       JWT_SECRET: ${JWT_SECRET:-change-this-in-production}
+      ADMIN_API_TOKEN: ${ADMIN_API_TOKEN:-admin-test-key}
 
       # Provider API Keys (required)
       OPENAI_API_KEY: ${OPENAI_API_KEY}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
       GOOGLE_API_KEY: ${GOOGLE_API_KEY}
       XAI_API_KEY: ${XAI_API_KEY}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      ARTIFICIAL_ANALYSIS_API_KEY: ${ARTIFICIAL_ANALYSIS_API_KEY:-}
 
       # Session Configuration
       SESSION_TIMEOUT_MS: ${SESSION_TIMEOUT_MS:-1800000}
@@ -100,12 +124,50 @@ services:
       retries: 3
       start_period: 40s
 
-  # AI Council Proxy UI
-  ui:
+  # AI Council Proxy UI - DISABLED (use Admin GUI at :3001 instead)
+  # ui:
+  #   build:
+  #     context: .
+  #     dockerfile: Dockerfile.ui
+  #   container_name: council-ui
+  #   environment:
+  #     NODE_ENV: ${NODE_ENV:-production}
+  #     DATABASE_HOST: postgres
+  #     DATABASE_PORT: 5432
+  #     DATABASE_NAME: ${DATABASE_NAME:-ai_council_proxy}
+  #     DATABASE_USER: ${DATABASE_USER:-postgres}
+  #     DATABASE_PASSWORD: ${DATABASE_PASSWORD:-postgres}
+  #     DATABASE_URL: postgresql://${DATABASE_USER:-postgres}:${DATABASE_PASSWORD:-postgres}@postgres:5432/${DATABASE_NAME:-ai_council_proxy}
+  #     REDIS_HOST: redis
+  #     REDIS_PORT: 6379
+  #     REDIS_URL: redis://redis:6379
+  #     UI_PORT: ${UI_PORT:-8080}
+  #     API_BASE_URL: ${API_BASE_URL}
+  #   ports:
+  #     - "${UI_PORT:-8080}:8080"
+  #   depends_on:
+  #     postgres:
+  #       condition: service_healthy
+  #     redis:
+  #       condition: service_healthy
+  #     api:
+  #       condition: service_healthy
+  #   restart: unless-stopped
+  #   networks:
+  #     - council-network
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 40s
+
+  # Admin Dashboard (Primary GUI - port 3001)
+  admin:
     build:
       context: .
-      dockerfile: Dockerfile.ui
-    container_name: council-ui
+      dockerfile: Dockerfile.admin
+    container_name: council-admin
     environment:
       NODE_ENV: ${NODE_ENV:-production}
 
@@ -122,13 +184,22 @@ services:
       REDIS_PORT: 6379
       REDIS_URL: redis://redis:6379
 
-      # UI Configuration
-      UI_PORT: ${UI_PORT:-8080}
-      # API_BASE_URL defaults to http://localhost:3000 in code (for browser access)
-      # Override if needed for different deployment scenarios
-      API_BASE_URL: ${API_BASE_URL}
+      # Admin Configuration
+      ADMIN_PORT: ${ADMIN_PORT:-3001}
+
+      # API Gateway connection (for proxying /api/v1/* requests)
+      API_INTERNAL_HOST: api
+      API_PORT: 3000
+
+      # Provider API Keys (for health checks)
+      OPENAI_API_KEY: ${OPENAI_API_KEY}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+      GOOGLE_API_KEY: ${GOOGLE_API_KEY}
+      XAI_API_KEY: ${XAI_API_KEY}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY}
+      ARTIFICIAL_ANALYSIS_API_KEY: ${ARTIFICIAL_ANALYSIS_API_KEY:-}
     ports:
-      - "${UI_PORT:-8080}:8080"
+      - "${ADMIN_PORT:-3001}:3001"
     depends_on:
       postgres:
         condition: service_healthy
@@ -140,7 +211,7 @@ services:
     networks:
       - council-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      test: ["CMD", "curl", "-f", "http://localhost:3001/health"]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -148,6 +219,8 @@ services:
 
 volumes:
   postgres_data:
+    driver: local
+  postgres_test_data:
     driver: local
   redis_data:
     driver: local

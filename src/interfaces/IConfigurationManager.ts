@@ -6,7 +6,8 @@ import {
   TransparencyConfig,
   DevilsAdvocateConfig,
   ConfigPreset,
-  ModelRankings
+  ModelRankings,
+  IterativeConsensusConfig
 } from '../types/core';
 
 /**
@@ -65,6 +66,17 @@ export interface IConfigurationManager {
   applyPreset(preset: ConfigPreset): Promise<void>;
 
   /**
+   * Get preset configurations (for per-request preset support)
+   */
+  getPresetConfigurations(preset: ConfigPreset): Promise<{
+    council: CouncilConfig;
+    deliberation: DeliberationConfig;
+    synthesis: SynthesisConfig;
+    performance: PerformanceConfig;
+    transparency: TransparencyConfig;
+  }>;
+
+  /**
    * Get model rankings for moderator selection
    */
   getModelRankings(): Promise<ModelRankings>;
@@ -73,4 +85,14 @@ export interface IConfigurationManager {
    * Update model rankings
    */
   updateModelRankings(rankings: ModelRankings): Promise<void>;
+
+  /**
+   * Get iterative consensus configuration
+   */
+  getIterativeConsensusConfig(): Promise<IterativeConsensusConfig>;
+
+  /**
+   * Update iterative consensus configuration
+   */
+  updateIterativeConsensusConfig(config: IterativeConsensusConfig): Promise<void>;
 }

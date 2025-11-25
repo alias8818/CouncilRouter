@@ -3,7 +3,9 @@ import {
   InitialResponse,
   DeliberationRound,
   ConsensusDecision,
-  CostBreakdown
+  CostBreakdown,
+  NegotiationResponse,
+  SimilarityResult
 } from '../types/core';
 
 /**
@@ -45,7 +47,8 @@ export interface IEventLogger {
    */
   logCost(
     requestId: string,
-    cost: CostBreakdown
+    cost: CostBreakdown,
+    tokens?: Map<string, { prompt: number; completion: number }>
   ): Promise<void>;
 
   /**
@@ -70,5 +73,43 @@ export interface IEventLogger {
     improvedLength: number,
     timeTakenMs: number,
     improved: boolean
+  ): Promise<void>;
+
+  /**
+   * Log a negotiation round
+   */
+  logNegotiationRound(
+    requestId: string,
+    roundNumber: number,
+    similarityResult: SimilarityResult,
+    convergenceVelocity?: number,
+    deadlockRisk?: 'low' | 'medium' | 'high'
+  ): Promise<void>;
+
+  /**
+   * Log a negotiation response
+   */
+  logNegotiationResponse(
+    requestId: string,
+    response: NegotiationResponse,
+    embeddingModel: string
+  ): Promise<void>;
+
+  /**
+   * Log consensus metadata
+   */
+  logConsensusMetadata(
+    requestId: string,
+    metadata: {
+      totalRounds: number;
+      consensusAchieved: boolean;
+      fallbackUsed: boolean;
+      fallbackReason?: string;
+      tokensAvoided?: number;
+      estimatedCostSaved?: number;
+      deadlockDetected: boolean;
+      humanEscalationTriggered: boolean;
+      finalSimilarity: number;
+    }
   ): Promise<void>;
 }

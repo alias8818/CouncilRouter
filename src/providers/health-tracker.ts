@@ -4,15 +4,17 @@
  * Ensures consistent state across Provider Pool and Orchestration Engine
  */
 
+import { Pool } from 'pg';
+
 // Shared singleton instance for consistent failure tracking
 let sharedHealthTracker: ProviderHealthTracker | null = null;
 
 /**
  * Get the shared singleton instance of ProviderHealthTracker
  */
-export function getSharedHealthTracker(): ProviderHealthTracker {
+export function getSharedHealthTracker(db?: Pool): ProviderHealthTracker {
   if (!sharedHealthTracker) {
-    sharedHealthTracker = new ProviderHealthTracker(5); // Default threshold: 5
+    sharedHealthTracker = new ProviderHealthTracker(5, undefined, db); // Default threshold: 5
   }
   return sharedHealthTracker;
 }
@@ -42,10 +44,15 @@ export class ProviderHealthTracker {
   private readonly failureThreshold: number;
   // Rolling window: track requests from last N minutes
   private readonly rollingWindowMs: number = 15 * 60 * 1000; // 15 minutes default
+  private db?: Pool;
+  // Track latencies for average calculation (last 100 requests)
+  private latencyHistory: Map<string, number[]> = new Map();
+  private readonly maxLatencyHistory = 100;
 
-  constructor(failureThreshold: number = 5, rollingWindowMinutes: number = 15) {
+  constructor(failureThreshold: number = 5, rollingWindowMinutes: number = 15, db?: Pool) {
     this.failureThreshold = failureThreshold;
     this.rollingWindowMs = rollingWindowMinutes * 60 * 1000;
+    this.db = db;
   }
 
   /**
@@ -81,7 +88,7 @@ export class ProviderHealthTracker {
    * Record a successful request for a provider
    * Fixed: Add new record before cleanup to ensure counts are accurate
    */
-  recordSuccess(providerId: string): void {
+  async recordSuccess(providerId: string, latency?: number): Promise<void> {
     const state = this.healthState.get(providerId);
     if (!state) {
       this.initializeProvider(providerId);
@@ -89,6 +96,10 @@ export class ProviderHealthTracker {
       newState.requestHistory.push({ timestamp: new Date(), success: true });
       newState.totalRequests = 1;
       newState.successCount = 1;
+      if (latency !== undefined) {
+        this.addLatency(providerId, latency);
+      }
+      await this.persistHealth(providerId);
       return;
     }
 
@@ -100,14 +111,20 @@ export class ProviderHealthTracker {
 
     state.consecutiveFailures = 0; // Reset consecutive failure count
 
-    // Update status based on current state
-    if (state.status === 'disabled') {
-      // Provider was disabled but now has a success - re-enable
-      state.status = 'healthy';
-      state.disabledReason = undefined;
-    } else if (state.status === 'degraded') {
-      state.status = 'healthy';
+    // Track latency if provided
+    if (latency !== undefined) {
+      this.addLatency(providerId, latency);
     }
+
+    // Update status based on current state
+    const newStatus = this.getStatus(providerId);
+    state.status = newStatus;
+    if (newStatus === 'healthy') {
+      state.disabledReason = undefined;
+    }
+
+    // Persist to database
+    await this.persistHealth(providerId);
   }
 
   /**
@@ -115,7 +132,7 @@ export class ProviderHealthTracker {
    * Returns true if provider should be disabled after this failure
    * Fixed: Add new record before cleanup to ensure counts are accurate
    */
-  recordFailure(providerId: string): boolean {
+  async recordFailure(providerId: string, error?: Error): Promise<boolean> {
     const failureTime = new Date();
     const state = this.healthState.get(providerId);
     if (!state) {
@@ -126,7 +143,11 @@ export class ProviderHealthTracker {
       newState.successCount = 0;
       newState.consecutiveFailures = 1;
       newState.lastFailure = failureTime;
-      newState.status = 'degraded';
+      newState.status = this.getStatus(providerId);
+      if (newState.status === 'disabled') {
+        newState.disabledReason = `${this.failureThreshold} consecutive failures`;
+      }
+      await this.persistHealth(providerId);
       return newState.consecutiveFailures >= this.failureThreshold;
     }
 
@@ -139,15 +160,17 @@ export class ProviderHealthTracker {
     state.consecutiveFailures++;
     state.lastFailure = failureTime; // Track actual failure time
 
-    // Check if we should disable this provider
-    if (state.consecutiveFailures >= this.failureThreshold) {
-      state.status = 'disabled';
-      state.disabledReason = `${this.failureThreshold} consecutive failures`;
-      return true;
-    } else {
-      state.status = 'degraded';
-      return false;
+    // Update status based on current state
+    const newStatus = this.getStatus(providerId);
+    state.status = newStatus;
+    if (newStatus === 'disabled') {
+      state.disabledReason = error?.message || `${this.failureThreshold} consecutive failures`;
     }
+
+    // Persist to database
+    await this.persistHealth(providerId);
+
+    return newStatus === 'disabled';
   }
 
   /**
@@ -260,6 +283,99 @@ export class ProviderHealthTracker {
    */
   getTrackedProviders(): string[] {
     return Array.from(this.healthState.keys());
+  }
+
+  /**
+   * Add latency to history for average calculation
+   */
+  private addLatency(providerId: string, latency: number): void {
+    if (!this.latencyHistory.has(providerId)) {
+      this.latencyHistory.set(providerId, []);
+    }
+    const latencies = this.latencyHistory.get(providerId)!;
+    latencies.push(latency);
+    if (latencies.length > this.maxLatencyHistory) {
+      latencies.shift();
+    }
+  }
+
+  /**
+   * Calculate average latency for a provider
+   */
+  private getAverageLatency(providerId: string): number {
+    const latencies = this.latencyHistory.get(providerId);
+    if (!latencies || latencies.length === 0) {
+      return 0;
+    }
+    const sum = latencies.reduce((acc, val) => acc + val, 0);
+    return Math.round(sum / latencies.length);
+  }
+
+  /**
+   * Get status based on success rate and consecutive failures
+   */
+  getStatus(providerId: string): 'healthy' | 'degraded' | 'disabled' {
+    const state = this.healthState.get(providerId);
+    if (!state) {
+      return 'healthy';
+    }
+
+    // Disabled if consecutive failures >= threshold
+    if (state.consecutiveFailures >= this.failureThreshold) {
+      return 'disabled';
+    }
+
+    // Degraded if success rate < 80%
+    const successRate = this.getSuccessRate(providerId);
+    if (successRate < 0.8) {
+      return 'degraded';
+    }
+
+    return 'healthy';
+  }
+
+  /**
+   * Persist health state to database
+   */
+  private async persistHealth(providerId: string): Promise<void> {
+    if (!this.db) {
+      return; // No database connection, skip persistence
+    }
+
+    try {
+      const state = this.healthState.get(providerId);
+      if (!state) {
+        return;
+      }
+
+      const successRate = this.getSuccessRate(providerId);
+      const avgLatency = this.getAverageLatency(providerId);
+      const status = this.getStatus(providerId);
+
+      await this.db.query(`
+        INSERT INTO provider_health (
+          provider_id, status, success_rate, avg_latency_ms,
+          last_failure_at, disabled_reason, updated_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, NOW())
+        ON CONFLICT (provider_id) DO UPDATE SET
+          status = EXCLUDED.status,
+          success_rate = EXCLUDED.success_rate,
+          avg_latency_ms = EXCLUDED.avg_latency_ms,
+          last_failure_at = EXCLUDED.last_failure_at,
+          disabled_reason = EXCLUDED.disabled_reason,
+          updated_at = EXCLUDED.updated_at
+      `, [
+        providerId,
+        status,
+        successRate,
+        avgLatency,
+        state.lastFailure || null,
+        state.disabledReason || null
+      ]);
+    } catch (error) {
+      // Log error but don't fail request
+      console.error(`Failed to persist health for ${providerId}:`, error);
+    }
   }
 }
 

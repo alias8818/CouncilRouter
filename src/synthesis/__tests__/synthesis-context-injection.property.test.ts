@@ -24,7 +24,7 @@ describe('SynthesisEngine - Synthesis Context Injection Property Tests', () => {
 
   beforeEach(() => {
     capturedPrompts = [];
-    
+
     mockProviderPool = {
       sendRequest: jest.fn().mockImplementation(async (member, prompt) => {
         capturedPrompts.push(prompt);
@@ -84,13 +84,25 @@ describe('SynthesisEngine - Synthesis Context Injection Property Tests', () => {
     tokenUsage: tokenUsageArb
   });
 
-  const deliberationRoundArb = fc.record({
-    roundNumber: fc.integer({ min: 1, max: 5 }),
+  const deliberationRoundArb = (roundNum: number) => fc.record({
+    roundNumber: fc.constant(roundNum),
     exchanges: fc.array(exchangeArb, { minLength: 1, maxLength: 10 })
   });
 
   const deliberationThreadArb = fc.record({
-    rounds: fc.array(deliberationRoundArb, { minLength: 1, maxLength: 5 }),
+    rounds: fc.array(exchangeArb, { minLength: 1, maxLength: 10 }).chain(initialExchanges => {
+      // Always create round 0 with the initial exchanges
+      const round0 = {
+        roundNumber: 0,
+        exchanges: initialExchanges
+      };
+
+      // Optionally add additional rounds (1-4)
+      return fc.array(
+        fc.integer({ min: 1, max: 4 }).chain(roundNum => deliberationRoundArb(roundNum)),
+        { maxLength: 4 }
+      ).map(additionalRounds => [round0, ...additionalRounds]);
+    }),
     totalDuration: fc.integer({ min: 100, max: 60000 })
   });
 
@@ -145,7 +157,7 @@ describe('SynthesisEngine - Synthesis Context Injection Property Tests', () => {
         synthesisStrategyArb,
         async (request, thread, strategy) => {
           capturedPrompts.length = 0;
-          
+
           const result = await engine.synthesize(request, thread, strategy);
 
           // For meta-synthesis, verify query is in the prompt (if query is not whitespace-only)
@@ -184,7 +196,7 @@ describe('SynthesisEngine - Synthesis Context Injection Property Tests', () => {
               fc.constant('member2'),
               fc.constant('member3')
             ),
-            content: fc.string({ minLength: 20, maxLength: 200 }).map(s => 
+            content: fc.string({ minLength: 20, maxLength: 200 }).map(s =>
               `\`\`\`javascript\nfunction test() {\n  return ${s};\n}\n\`\`\``
             ),
             referencesTo: fc.array(fc.string(), { maxLength: 3 }),
@@ -199,7 +211,7 @@ describe('SynthesisEngine - Synthesis Context Injection Property Tests', () => {
         async (request, exchanges, strategy) => {
           const thread: DeliberationThread = {
             rounds: [{
-              roundNumber: 1,
+              roundNumber: 0,
               exchanges
             }],
             totalDuration: 1000
@@ -209,14 +221,14 @@ describe('SynthesisEngine - Synthesis Context Injection Property Tests', () => {
 
           // Extract code blocks from result
           const codeBlockMatches = result.content.match(/```[\s\S]*?```/g);
-          
+
           if (codeBlockMatches && codeBlockMatches.length > 0) {
             // Should have at most one complete code block (not concatenated)
             // Allow for markdown formatting but not multiple separate code blocks
-            const codeBlocks = codeBlockMatches.filter(block => 
+            const codeBlocks = codeBlockMatches.filter(block =>
               block.includes('function') || block.includes('const') || block.includes('class')
             );
-            
+
             // The result should be a single code response, not concatenation of multiple
             // We check that we don't have multiple distinct code blocks separated by text
             const distinctCodeBlocks = new Set(codeBlocks.map(b => b.trim()));
@@ -247,7 +259,7 @@ describe('SynthesisEngine - Synthesis Context Injection Property Tests', () => {
             ),
             content: fc.oneof(
               // Valid code
-              fc.string({ minLength: 20, maxLength: 200 }).map(s => 
+              fc.string({ minLength: 20, maxLength: 200 }).map(s =>
                 `\`\`\`javascript\nfunction test() {\n  return "${s}";\n}\n\`\`\``
               ),
               // Invalid code with syntax errors
@@ -263,7 +275,7 @@ describe('SynthesisEngine - Synthesis Context Injection Property Tests', () => {
         async (request, exchanges) => {
           const thread: DeliberationThread = {
             rounds: [{
-              roundNumber: 1,
+              roundNumber: 0,
               exchanges
             }],
             totalDuration: 1000
@@ -275,7 +287,7 @@ describe('SynthesisEngine - Synthesis Context Injection Property Tests', () => {
           // Result should be defined (synthesis should complete)
           expect(result).toBeDefined();
           expect(result.content).toBeDefined();
-          
+
           // If all exchanges had syntax errors, the result might be degraded but should still exist
           // The key property is that synthesis completes without crashing
         }
@@ -301,7 +313,7 @@ describe('SynthesisEngine - Synthesis Context Injection Property Tests', () => {
               fc.constant('member2'),
               fc.constant('member3')
             ),
-            content: fc.string({ minLength: 20, maxLength: 200 }).map(s => 
+            content: fc.string({ minLength: 20, maxLength: 200 }).map(s =>
               `\`\`\`javascript\nfunction test() {\n  return "${s}";\n}\n\`\`\``
             ),
             referencesTo: fc.array(fc.string(), { maxLength: 3 }),
@@ -311,10 +323,10 @@ describe('SynthesisEngine - Synthesis Context Injection Property Tests', () => {
         ),
         async (request, exchanges) => {
           capturedPrompts.length = 0;
-          
+
           const thread: DeliberationThread = {
             rounds: [{
-              roundNumber: 1,
+              roundNumber: 0,
               exchanges
             }],
             totalDuration: 1000
@@ -330,7 +342,7 @@ describe('SynthesisEngine - Synthesis Context Injection Property Tests', () => {
           // Verify prompt contains production-ready requirements
           expect(capturedPrompts.length).toBeGreaterThan(0);
           const prompt = capturedPrompts[0];
-          
+
           expect(prompt).toContain('CRITICAL REQUIREMENTS FOR PRODUCTION-READY CODE');
           expect(prompt).toContain('Correctness');
           expect(prompt).toContain('Security');
@@ -364,7 +376,7 @@ describe('SynthesisEngine - Synthesis Context Injection Property Tests', () => {
                   fc.constant('member2'),
                   fc.constant('member3')
                 ),
-                content: fc.string({ minLength: 20, maxLength: 200 }).map(s => 
+                content: fc.string({ minLength: 20, maxLength: 200 }).map(s =>
                   `\`\`\`javascript\nfunction test() {\n  return "${s}";\n}\n\`\`\``
                 ),
                 referencesTo: fc.array(fc.string(), { maxLength: 3 }),
@@ -394,10 +406,10 @@ describe('SynthesisEngine - Synthesis Context Injection Property Tests', () => {
         ),
         async (request, testCase) => {
           capturedPrompts.length = 0;
-          
+
           const thread: DeliberationThread = {
             rounds: [{
-              roundNumber: 1,
+              roundNumber: 0,
               exchanges: testCase.exchanges
             }],
             totalDuration: 1000
@@ -459,7 +471,7 @@ describe('SynthesisEngine - Synthesis Context Injection Property Tests', () => {
         async (request, thread, strategy) => {
           // Should not throw error, even with empty query
           const result = await engine.synthesize(request, thread, strategy);
-          
+
           expect(result).toBeDefined();
           expect(result.content).toBeDefined();
         }
@@ -508,7 +520,7 @@ describe('SynthesisEngine - Synthesis Context Injection Property Tests', () => {
 
           // Detect if code request
           const allExchanges = thread.rounds.flatMap(r => r.exchanges);
-          const isCodeRequest = allExchanges.some(e => 
+          const isCodeRequest = allExchanges.some(e =>
             e.content.includes('```') || e.content.includes('function')
           );
 

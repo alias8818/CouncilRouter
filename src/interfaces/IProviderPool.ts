@@ -43,4 +43,10 @@ export interface IProviderPool {
     providerId: string,
     reason: string
   ): void;
+
+  /**
+   * Get the adapter for a specific provider
+   * Used for direct access to adapter methods like streaming
+   */
+  getAdapter(providerId: string): any;
 }

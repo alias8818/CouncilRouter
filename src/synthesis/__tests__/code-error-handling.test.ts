@@ -97,7 +97,7 @@ describe('Code-Aware Synthesis Error Handling', () => {
       ];
 
       const thread: DeliberationThread = {
-        rounds: [{ roundNumber: 1, exchanges }],
+        rounds: [{ roundNumber: 0, exchanges }],
         totalDuration: 1000
       };
 

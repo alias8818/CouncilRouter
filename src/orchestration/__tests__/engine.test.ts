@@ -115,7 +115,7 @@ class MockProviderPool implements IProviderPool {
         this.getProviderHealth(providerId)
       );
     }
-    
+
     // Return health for all known providers
     const providers = new Set([...this.healthStatuses.keys(), 'openai', 'anthropic', 'google']);
     return Array.from(providers).map(providerId => this.getProviderHealth(providerId));
@@ -393,8 +393,8 @@ describe('OrchestrationEngine', () => {
       const result = await engine.processRequest(request);
 
       expect(result).toBeDefined();
-      expect(result.content).toBeTruthy();
-      expect(result.contributingMembers).toHaveLength(2);
+      expect(result.consensusDecision.content).toBeTruthy();
+      expect(result.consensusDecision.contributingMembers).toHaveLength(2);
     });
 
     it('should filter out disabled members', async () => {
@@ -411,8 +411,8 @@ describe('OrchestrationEngine', () => {
       const result = await engine.processRequest(request);
 
       expect(result).toBeDefined();
-      expect(result.contributingMembers).toHaveLength(1);
-      expect(result.contributingMembers[0]).toBe('member-2');
+      expect(result.consensusDecision.contributingMembers).toHaveLength(1);
+      expect(result.consensusDecision.contributingMembers[0]).toBe('member-2');
     });
 
     it('should throw error when minimum quorum not met', async () => {
@@ -600,7 +600,7 @@ describe('OrchestrationEngine', () => {
 
       expect(result).toBeDefined();
       // With 0 rounds, should only have initial responses
-      expect(result.contributingMembers).toHaveLength(2);
+      expect(result.consensusDecision.contributingMembers).toHaveLength(2);
     });
 
     it('should use balanced preset with 1 round', async () => {
@@ -618,7 +618,7 @@ describe('OrchestrationEngine', () => {
       const result = await engine.processRequest(request);
 
       expect(result).toBeDefined();
-      expect(result.contributingMembers.length).toBeGreaterThan(0);
+      expect(result.consensusDecision.contributingMembers.length).toBeGreaterThan(0);
     });
 
     it('should use thorough preset with 2 rounds', async () => {
@@ -636,7 +636,7 @@ describe('OrchestrationEngine', () => {
       const result = await engine.processRequest(request);
 
       expect(result).toBeDefined();
-      expect(result.contributingMembers.length).toBeGreaterThan(0);
+      expect(result.consensusDecision.contributingMembers.length).toBeGreaterThan(0);
     });
 
     it('should use research-grade preset with 4 rounds', async () => {
@@ -654,7 +654,7 @@ describe('OrchestrationEngine', () => {
       const result = await engine.processRequest(request);
 
       expect(result).toBeDefined();
-      expect(result.contributingMembers.length).toBeGreaterThan(0);
+      expect(result.consensusDecision.contributingMembers.length).toBeGreaterThan(0);
     });
   });
 
@@ -719,7 +719,7 @@ describe('OrchestrationEngine', () => {
 
       // Verify the result
       expect(result).toBeDefined();
-      expect(result.content).toBeTruthy();
+      expect(result.consensusDecision.content).toBeTruthy();
 
       // Verify context was propagated to all council members
       const contextLog = contextTrackingPool.getContextLog();
@@ -760,8 +760,8 @@ describe('OrchestrationEngine', () => {
       const result = await engine.processRequest(request);
 
       expect(result).toBeDefined();
-      expect(result.content).toBeTruthy();
-      expect(result.contributingMembers.length).toBeGreaterThan(0);
+      expect(result.consensusDecision.content).toBeTruthy();
+      expect(result.consensusDecision.contributingMembers.length).toBeGreaterThan(0);
     });
 
     it('should maintain context consistency across all council members', async () => {

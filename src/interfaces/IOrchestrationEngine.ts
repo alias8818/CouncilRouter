@@ -4,7 +4,9 @@ import {
   InitialResponse,
   DeliberationThread,
   ConsensusDecision,
-  ProviderResponse
+  ProviderResponse,
+  ProcessRequestResult,
+  RequestMetrics
 } from '../types/core';
 
 /**
@@ -15,22 +17,26 @@ export interface IOrchestrationEngine {
   /**
    * Process a user request through the entire council deliberation cycle
    */
-  processRequest(request: UserRequest): Promise<ConsensusDecision>;
+  processRequest(request: UserRequest): Promise<ProcessRequestResult>;
 
   /**
    * Distribute a request to all configured council members in parallel
    */
   distributeToCouncil(
     request: UserRequest,
-    councilMembers: CouncilMember[]
+    councilMembers: CouncilMember[],
+    metrics: RequestMetrics,
   ): Promise<InitialResponse[]>;
 
   /**
    * Conduct deliberation rounds where council members review each other's responses
+   * @param councilMembers Optional council members for per-request preset support
    */
   conductDeliberation(
     initialResponses: InitialResponse[],
-    rounds: number
+    rounds: number,
+    metrics: RequestMetrics,
+    councilMembers?: CouncilMember[],
   ): Promise<DeliberationThread>;
 
   /**
@@ -40,6 +46,6 @@ export interface IOrchestrationEngine {
    */
   handleTimeout(
     request: UserRequest,
-    partialResponses: ProviderResponse[] | any[]
+    partialResponses: ProviderResponse[] | any[],
   ): Promise<ConsensusDecision>;
 }

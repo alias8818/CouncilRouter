@@ -282,7 +282,10 @@ describe('SessionManager Property-Based Tests', () => {
 
             // Create mock client for this test
             const mockClient = {
-              query: jest.fn().mockResolvedValue({ rows: [], rowCount: 1 }),
+              query: jest.fn()
+                .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // BEGIN
+                .mockResolvedValueOnce({ rows: [{ id: testData.sessionId }], rowCount: 1 }) // Session existence check
+                .mockResolvedValue({ rows: [], rowCount: 1 }), // Other queries
               release: jest.fn()
             };
             (mockDb.connect as jest.Mock).mockResolvedValueOnce(mockClient);
@@ -360,6 +363,15 @@ describe('SessionManager Property-Based Tests', () => {
             for (let i = 0; i < testData.responses.length; i++) {
               const mockClient = {
                 query: jest.fn().mockImplementation((query: string, params?: any[]) => {
+                  // First call is BEGIN
+                  if (query === 'BEGIN') {
+                    return Promise.resolve({ rows: [], rowCount: 0 });
+                  }
+                  // Second call is session existence check
+                  if (typeof query === 'string' && query.includes('SELECT id FROM sessions WHERE id =')) {
+                    return Promise.resolve({ rows: [{ id: testData.sessionId }], rowCount: 1 });
+                  }
+                  // Track insert calls
                   if (typeof query === 'string' && query.includes('INSERT INTO session_history')) {
                     allInsertCalls.push([query, params]);
                   }

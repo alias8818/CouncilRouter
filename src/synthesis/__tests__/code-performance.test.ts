@@ -127,7 +127,7 @@ describe('Code-Aware Synthesis Performance Tests', () => {
       ];
 
       const thread: DeliberationThread = {
-        rounds: [{ roundNumber: 1, exchanges }],
+        rounds: [{ roundNumber: 0, exchanges }],
         totalDuration: 1000
       };
 

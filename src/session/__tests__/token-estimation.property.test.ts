@@ -154,6 +154,7 @@ describe('Token Estimation Property Tests', () => {
             const mockClientForHistory = {
               query: jest.fn()
                 .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // BEGIN
+                .mockResolvedValueOnce({ rows: [{ id: session.id }], rowCount: 1 }) // Session existence check
                 .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // INSERT history
                 .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // UPDATE session
                 .mockResolvedValueOnce({ // SELECT session
@@ -274,6 +275,7 @@ describe('Token Estimation Property Tests', () => {
             const mockClientForHistory = {
               query: jest.fn()
                 .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // BEGIN
+                .mockResolvedValueOnce({ rows: [{ id: session.id }], rowCount: 1 }) // Session existence check
                 .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // INSERT history
                 .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // UPDATE session
                 .mockResolvedValueOnce({ // SELECT session
@@ -360,6 +362,7 @@ describe('Token Estimation Property Tests', () => {
           const mockClientForHistory = {
             query: jest.fn()
               .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // BEGIN
+              .mockResolvedValueOnce({ rows: [{ id: 'test-session' }], rowCount: 1 }) // Session existence check
               .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // INSERT history
               .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // UPDATE session
               .mockResolvedValueOnce({ // SELECT session

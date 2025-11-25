@@ -33,9 +33,9 @@ export class Dashboard implements IDashboard {
     private db: Pool,
     private analyticsEngine: IAnalyticsEngine,
     private providerPool: IProviderPool,
-    private redTeamTester: IRedTeamTester,
+    private redTeamTester?: IRedTeamTester,
     private configManager?: IConfigurationManager
-  ) {}
+  ) { }
 
   /**
    * Get recent requests with optional filtering
@@ -337,6 +337,13 @@ export class Dashboard implements IDashboard {
    * Get red-team test analytics
    */
   async getRedTeamAnalytics(): Promise<RedTeamAnalytics> {
+    if (!this.redTeamTester) {
+      return {
+        resistanceRatesByMember: new Map(),
+        resistanceRatesByCategory: new Map(),
+        resistanceRatesByMemberAndCategory: new Map()
+      };
+    }
     return this.redTeamTester.getResistanceRates();
   }
 
@@ -344,6 +351,9 @@ export class Dashboard implements IDashboard {
    * Get security warnings for council members
    */
   async getSecurityWarnings(): Promise<Map<string, string>> {
+    if (!this.redTeamTester) {
+      return new Map();
+    }
     return this.redTeamTester.getSecurityWarnings();
   }
 
@@ -391,5 +401,160 @@ export class Dashboard implements IDashboard {
     }
 
     return this.getDeliberationThread(requestId);
+  }
+
+  /**
+   * Get iterative consensus metrics
+   */
+  /**
+   * Get benchmark comparison between iterative consensus and fallback strategies
+   */
+  async getBenchmarkComparison(timeRange: TimeRange): Promise<{
+    iterativeConsensus: {
+      avgRounds: number;
+      successRate: number;
+      avgCost: number;
+      avgLatency: number;
+      avgQuality: number;
+    };
+    fallbackStrategies: {
+      metaSynthesis: {
+        avgCost: number;
+        avgLatency: number;
+        avgQuality: number;
+      };
+      consensusExtraction: {
+        avgCost: number;
+        avgLatency: number;
+        avgQuality: number;
+      };
+      weightedFusion: {
+        avgCost: number;
+        avgLatency: number;
+        avgQuality: number;
+      };
+    };
+  }> {
+    return this.analyticsEngine.getBenchmarkComparison(timeRange);
+  }
+
+  async getConsensusMetrics(timeRange: TimeRange): Promise<{
+    successRate: number;
+    averageRounds: number;
+    fallbackRateByReason: Map<string, number>;
+    deadlockRate: number;
+    earlyTerminationRate: number;
+    costSavings: { tokensAvoided: number; estimatedCostSaved: number };
+  }> {
+    const [
+      successRate,
+      averageRounds,
+      fallbackRateByReason,
+      deadlockRate,
+      earlyTerminationRate,
+      costSavings
+    ] = await Promise.all([
+      this.analyticsEngine.calculateConsensusSuccessRate(timeRange),
+      this.analyticsEngine.calculateAverageRoundsToConsensus(timeRange),
+      this.analyticsEngine.calculateFallbackRateByReason(timeRange),
+      this.analyticsEngine.calculateDeadlockRate(timeRange),
+      this.analyticsEngine.calculateEarlyTerminationRate(timeRange),
+      this.analyticsEngine.calculateCostSavings(timeRange)
+    ]);
+
+    return {
+      successRate,
+      averageRounds,
+      fallbackRateByReason,
+      deadlockRate,
+      earlyTerminationRate,
+      costSavings
+    };
+  }
+
+  /**
+   * Get negotiation details for a request
+   */
+  async getNegotiationDetails(requestId: string): Promise<{
+    rounds: Array<{
+      roundNumber: number;
+      averageSimilarity: number;
+      minSimilarity: number;
+      maxSimilarity: number;
+      convergenceVelocity?: number;
+      deadlockRisk?: string;
+    }>;
+    responses: Array<{
+      roundNumber: number;
+      councilMemberId: string;
+      content: string;
+      agreesWithMemberId?: string;
+    }>;
+    metadata: {
+      totalRounds: number;
+      consensusAchieved: boolean;
+      fallbackUsed: boolean;
+      fallbackReason?: string;
+      finalSimilarity: number;
+    };
+  }> {
+    // Get rounds
+    const roundsQuery = `
+      SELECT 
+        round_number, average_similarity, min_similarity, max_similarity,
+        convergence_velocity, deadlock_risk
+      FROM negotiation_rounds
+      WHERE request_id = $1
+      ORDER BY round_number ASC
+    `;
+    const roundsResult = await this.db.query(roundsQuery, [requestId]);
+
+    // Get responses
+    const responsesQuery = `
+      SELECT 
+        round_number, council_member_id, content, agrees_with_member_id
+      FROM negotiation_responses
+      WHERE request_id = $1
+      ORDER BY round_number ASC, council_member_id ASC
+    `;
+    const responsesResult = await this.db.query(responsesQuery, [requestId]);
+
+    // Get metadata
+    const metadataQuery = `
+      SELECT 
+        total_rounds, consensus_achieved, fallback_used, fallback_reason, final_similarity
+      FROM consensus_metadata
+      WHERE request_id = $1
+    `;
+    const metadataResult = await this.db.query(metadataQuery, [requestId]);
+
+    return {
+      rounds: roundsResult.rows.map(row => ({
+        roundNumber: row.round_number,
+        averageSimilarity: parseFloat(row.average_similarity),
+        minSimilarity: parseFloat(row.min_similarity),
+        maxSimilarity: parseFloat(row.max_similarity),
+        convergenceVelocity: row.convergence_velocity ? parseFloat(row.convergence_velocity) : undefined,
+        deadlockRisk: row.deadlock_risk || undefined
+      })),
+      responses: responsesResult.rows.map(row => ({
+        roundNumber: row.round_number,
+        councilMemberId: row.council_member_id,
+        content: row.content,
+        agreesWithMemberId: row.agrees_with_member_id || undefined
+      })),
+      metadata: metadataResult.rows.length > 0 ? {
+        totalRounds: metadataResult.rows[0].total_rounds,
+        consensusAchieved: metadataResult.rows[0].consensus_achieved,
+        fallbackUsed: metadataResult.rows[0].fallback_used,
+        fallbackReason: metadataResult.rows[0].fallback_reason || undefined,
+        finalSimilarity: parseFloat(metadataResult.rows[0].final_similarity)
+      } : {
+        totalRounds: 0,
+        consensusAchieved: false,
+        fallbackUsed: false,
+        finalSimilarity: 0
+      }
+    };
   }
 }

@@ -35,15 +35,15 @@ class MockProviderPool implements IProviderPool {
   private responses: Map<string, ProviderResponse> = new Map();
   private healthStatuses: Map<string, ProviderHealth> = new Map();
   private disabledProviders: Set<string> = new Set();
-  
+
   setResponse(memberId: string, response: ProviderResponse): void {
     this.responses.set(memberId, response);
   }
-  
+
   setHealthStatus(providerId: string, health: ProviderHealth): void {
     this.healthStatuses.set(providerId, health);
   }
-  
+
   async sendRequest(
     member: CouncilMember,
     prompt: string,
@@ -60,11 +60,11 @@ class MockProviderPool implements IProviderPool {
     }
     return response;
   }
-  
+
   getProviderHealth(providerId: string): ProviderHealth {
     const health = this.healthStatuses.get(providerId);
     if (health) return health;
-    
+
     return {
       providerId,
       status: this.disabledProviders.has(providerId) ? 'disabled' : 'healthy',
@@ -77,7 +77,7 @@ class MockProviderPool implements IProviderPool {
     const providers = ['openai', 'anthropic', 'google'];
     return providers.map(providerId => this.getProviderHealth(providerId));
   }
-  
+
   markProviderDisabled(providerId: string, reason: string): void {
     this.disabledProviders.add(providerId);
   }
@@ -90,7 +90,7 @@ class MockConfigurationManager implements IConfigurationManager {
   private synthesisConfig: SynthesisConfig;
   private transparencyConfig: any;
   private devilsAdvocateConfig: DevilsAdvocateConfig;
-  
+
   constructor(councilConfig?: CouncilConfig) {
     const defaultRetryPolicy: RetryPolicy = {
       maxAttempts: 3,
@@ -99,7 +99,7 @@ class MockConfigurationManager implements IConfigurationManager {
       backoffMultiplier: 2,
       retryableErrors: ['RATE_LIMIT', 'TIMEOUT']
     };
-    
+
     this.councilConfig = councilConfig || {
       members: [
         {
@@ -120,22 +120,22 @@ class MockConfigurationManager implements IConfigurationManager {
       minimumSize: 2,
       requireMinimumForConsensus: false
     };
-    
+
     this.deliberationConfig = {
       rounds: 0,
       preset: 'fast'
     };
-    
+
     this.performanceConfig = {
       globalTimeout: 60,
       enableFastFallback: true,
       streamingEnabled: true
     };
-    
+
     this.synthesisConfig = {
       strategy: { type: 'consensus-extraction' }
     };
-    
+
     this.transparencyConfig = {
       enabled: false,
       forcedTransparency: false
@@ -150,31 +150,31 @@ class MockConfigurationManager implements IConfigurationManager {
       model: 'gpt-4'
     };
   }
-  
+
   async getCouncilConfig(): Promise<CouncilConfig> {
     return this.councilConfig;
   }
-  
+
   async updateCouncilConfig(config: CouncilConfig): Promise<void> {
     this.councilConfig = config;
   }
-  
+
   async getDeliberationConfig(): Promise<DeliberationConfig> {
     return this.deliberationConfig;
   }
-  
+
   async getSynthesisConfig(): Promise<SynthesisConfig> {
     return this.synthesisConfig;
   }
-  
+
   async getPerformanceConfig(): Promise<PerformanceConfig> {
     return this.performanceConfig;
   }
-  
+
   async getTransparencyConfig(): Promise<any> {
     return this.transparencyConfig;
   }
-  
+
   async updateTransparencyConfig(config: any): Promise<void> {
     this.transparencyConfig = config;
   }
@@ -186,7 +186,7 @@ class MockConfigurationManager implements IConfigurationManager {
   async updateDevilsAdvocateConfig(config: DevilsAdvocateConfig): Promise<void> {
     this.devilsAdvocateConfig = config;
   }
-  
+
   async applyPreset(): Promise<void> {
     // Not needed for tests
   }
@@ -202,7 +202,7 @@ class MockSynthesisEngine implements ISynthesisEngine {
       .flatMap(r => r.exchanges)
       .map(e => e.content)
       .join(' ');
-    
+
     return {
       content,
       confidence: 'high',
@@ -212,7 +212,7 @@ class MockSynthesisEngine implements ISynthesisEngine {
       timestamp: new Date()
     };
   }
-  
+
   async selectModerator(members: CouncilMember[]): Promise<CouncilMember> {
     return members[0];
   }
@@ -250,7 +250,7 @@ const councilConfigArbitrary = fc.record({
 }).filter(config => {
   // Ensure minimum size is valid
   if (config.minimumSize > config.members.length) return false;
-  
+
   // Ensure all member IDs are unique
   const memberIds = config.members.map(m => m.id);
   const uniqueIds = new Set(memberIds);
@@ -291,27 +291,27 @@ describe('Property Test: Graceful Degradation with Partial Responses', () => {
         async (request, councilConfig, failurePercentage) => {
           // Ensure we have at least 3 members for meaningful partial failure testing
           fc.pre(councilConfig.members.length >= 3);
-          
+
           // Calculate how many members should fail (but ensure at least one succeeds)
           const numMembersToFail = Math.min(
             Math.floor((councilConfig.members.length * failurePercentage) / 100),
             councilConfig.members.length - 1 // Always leave at least one successful
           );
-          
+
           // Ensure at least one member fails for this test to be meaningful
           fc.pre(numMembersToFail >= 1);
-          
+
           // Setup
           const mockProviderPool = new MockProviderPool();
           const mockConfigManager = new MockConfigurationManager(councilConfig);
           const mockSynthesisEngine = new MockSynthesisEngine();
-          
+
           const engine = new OrchestrationEngine(
             mockProviderPool,
             mockConfigManager,
             mockSynthesisEngine
           );
-          
+
           // Make some members fail
           for (let i = 0; i < numMembersToFail; i++) {
             const failingMember = councilConfig.members[i];
@@ -323,32 +323,32 @@ describe('Property Test: Graceful Degradation with Partial Responses', () => {
               error: new Error('Provider failure')
             });
           }
-          
+
           // Execute request
           const result = await engine.processRequest(request);
-          
+
           // Property assertions:
           // 1. A consensus decision should be produced
           expect(result).toBeDefined();
-          expect(result.content).toBeDefined();
-          expect(result.content.length).toBeGreaterThan(0);
-          
+          expect(result.consensusDecision.content).toBeDefined();
+          expect(result.consensusDecision.content.length).toBeGreaterThan(0);
+
           // 2. The consensus should include only successful members
           const successfulMemberIds = councilConfig.members
             .slice(numMembersToFail)
             .map(m => m.id);
-          
-          for (const contributingMember of result.contributingMembers) {
+
+          for (const contributingMember of result.consensusDecision.contributingMembers) {
             expect(successfulMemberIds).toContain(contributingMember);
           }
-          
+
           // 3. The number of contributing members should be less than total members
-          expect(result.contributingMembers.length).toBeLessThan(councilConfig.members.length);
-          
+          expect(result.consensusDecision.contributingMembers.length).toBeLessThan(councilConfig.members.length);
+
           // 4. The number of contributing members should equal the number of successful members
           const expectedSuccessfulCount = councilConfig.members.length - numMembersToFail;
-          expect(result.contributingMembers).toHaveLength(expectedSuccessfulCount);
-          
+          expect(result.consensusDecision.contributingMembers).toHaveLength(expectedSuccessfulCount);
+
           // 5. Consensus decision should have valid structure
           expect(result.confidence).toBeDefined();
           expect(['high', 'medium', 'low']).toContain(result.confidence);
@@ -361,7 +361,7 @@ describe('Property Test: Graceful Degradation with Partial Responses', () => {
       { numRuns: 100 }
     );
   }, 120000);
-  
+
   test('should handle majority failure gracefully', async () => {
     await fc.assert(
       fc.asyncProperty(
@@ -370,17 +370,17 @@ describe('Property Test: Graceful Degradation with Partial Responses', () => {
         async (request, councilConfig) => {
           // Setup - make majority of members fail (but not all)
           const numMembersToFail = councilConfig.members.length - 1;
-          
+
           const mockProviderPool = new MockProviderPool();
           const mockConfigManager = new MockConfigurationManager(councilConfig);
           const mockSynthesisEngine = new MockSynthesisEngine();
-          
+
           const engine = new OrchestrationEngine(
             mockProviderPool,
             mockConfigManager,
             mockSynthesisEngine
           );
-          
+
           // Make all but one member fail
           for (let i = 0; i < numMembersToFail; i++) {
             const failingMember = councilConfig.members[i];
@@ -392,27 +392,27 @@ describe('Property Test: Graceful Degradation with Partial Responses', () => {
               error: new Error('Provider failure')
             });
           }
-          
+
           // Execute request
           const result = await engine.processRequest(request);
-          
+
           // Property assertions:
           // 1. Should still produce a consensus decision with just one member
           expect(result).toBeDefined();
-          expect(result.content).toBeDefined();
-          
+          expect(result.consensusDecision.content).toBeDefined();
+
           // 2. Should have exactly one contributing member
-          expect(result.contributingMembers).toHaveLength(1);
-          
+          expect(result.consensusDecision.contributingMembers).toHaveLength(1);
+
           // 3. The contributing member should be the one that didn't fail
           const successfulMember = councilConfig.members[numMembersToFail];
-          expect(result.contributingMembers).toContain(successfulMember.id);
+          expect(result.consensusDecision.contributingMembers).toContain(successfulMember.id);
         }
       ),
       { numRuns: 100 }
     );
   }, 120000);
-  
+
   test('should fail when all members fail', async () => {
     await fc.assert(
       fc.asyncProperty(
@@ -423,13 +423,13 @@ describe('Property Test: Graceful Degradation with Partial Responses', () => {
           const mockProviderPool = new MockProviderPool();
           const mockConfigManager = new MockConfigurationManager(councilConfig);
           const mockSynthesisEngine = new MockSynthesisEngine();
-          
+
           const engine = new OrchestrationEngine(
             mockProviderPool,
             mockConfigManager,
             mockSynthesisEngine
           );
-          
+
           // Make all members fail
           for (const member of councilConfig.members) {
             mockProviderPool.setResponse(member.id, {
@@ -440,7 +440,7 @@ describe('Property Test: Graceful Degradation with Partial Responses', () => {
               error: new Error('Provider failure')
             });
           }
-          
+
           // Execute request and expect failure
           await expect(engine.processRequest(request)).rejects.toThrow();
         }
@@ -448,7 +448,7 @@ describe('Property Test: Graceful Degradation with Partial Responses', () => {
       { numRuns: 100 }
     );
   }, 120000);
-  
+
   test('should maintain response quality with partial failures', async () => {
     await fc.assert(
       fc.asyncProperty(
@@ -457,17 +457,17 @@ describe('Property Test: Graceful Degradation with Partial Responses', () => {
         async (request, councilConfig) => {
           // Setup - make half the members fail
           const numMembersToFail = Math.floor(councilConfig.members.length / 2);
-          
+
           const mockProviderPool = new MockProviderPool();
           const mockConfigManager = new MockConfigurationManager(councilConfig);
           const mockSynthesisEngine = new MockSynthesisEngine();
-          
+
           const engine = new OrchestrationEngine(
             mockProviderPool,
             mockConfigManager,
             mockSynthesisEngine
           );
-          
+
           // Make half the members fail
           for (let i = 0; i < numMembersToFail; i++) {
             const failingMember = councilConfig.members[i];
@@ -479,28 +479,28 @@ describe('Property Test: Graceful Degradation with Partial Responses', () => {
               error: new Error('Provider failure')
             });
           }
-          
+
           // Execute request
           const result = await engine.processRequest(request);
-          
+
           // Property assertions:
           // 1. Consensus decision should be produced
           expect(result).toBeDefined();
-          expect(result.content).toBeDefined();
-          
+          expect(result.consensusDecision.content).toBeDefined();
+
           // 2. Content should be non-empty and meaningful
-          expect(result.content.length).toBeGreaterThan(0);
-          
+          expect(result.consensusDecision.content.length).toBeGreaterThan(0);
+
           // 3. Should have valid confidence level
           expect(['high', 'medium', 'low']).toContain(result.confidence);
-          
+
           // 4. Agreement level should be valid
           expect(result.agreementLevel).toBeGreaterThanOrEqual(0);
           expect(result.agreementLevel).toBeLessThanOrEqual(1);
-          
+
           // 5. Contributing members should match successful members
           const expectedSuccessfulCount = councilConfig.members.length - numMembersToFail;
-          expect(result.contributingMembers).toHaveLength(expectedSuccessfulCount);
+          expect(result.consensusDecision.contributingMembers).toHaveLength(expectedSuccessfulCount);
         }
       ),
       { numRuns: 100 }

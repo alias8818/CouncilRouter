@@ -54,10 +54,10 @@ describe('Session Manager Advanced - Cache Coherency', () => {
   describe('Cache Miss Fallback (Property 91)', () => {
     test('should fallback to database when cache miss occurs (Requirement 7.1)', async () => {
       const sessionId = 'test-session-123';
-      
+
       // Cache miss - return empty
       mockRedis.hGetAll.mockResolvedValueOnce({});
-      
+
       // Database returns session
       const mockSession: Session = {
         id: sessionId,
@@ -96,7 +96,7 @@ describe('Session Manager Advanced - Cache Coherency', () => {
   describe('Cache Invalidation Correctness (Property 92)', () => {
     test('should invalidate cache correctly (Requirement 7.2)', async () => {
       const sessionId = 'test-session-123';
-      
+
       // Simulate cache invalidation by deleting keys
       await mockRedis.del(`session:${sessionId}`);
       await mockRedis.del(`session:${sessionId}:history`);
@@ -109,7 +109,7 @@ describe('Session Manager Advanced - Cache Coherency', () => {
   describe('Stale Cache Detection (Property 93)', () => {
     test('should detect and refresh stale cache (Requirement 7.3)', async () => {
       const sessionId = 'test-session-123';
-      
+
       // Simulate cache miss (stale cache would be detected by TTL or manual invalidation)
       mockRedis.hGetAll.mockResolvedValueOnce({});
 
@@ -135,7 +135,7 @@ describe('Session Manager Advanced - Cache Coherency', () => {
           }],
           rowCount: 1
         });
-      
+
       const result = await sessionManager.getSession(sessionId);
 
       expect(result).toBeDefined();
@@ -148,10 +148,10 @@ describe('Session Manager Advanced - Cache Coherency', () => {
   describe('Cache-DB Sync Resolution (Property 94)', () => {
     test('should resolve cache-DB sync conflicts (Requirement 7.4)', async () => {
       const sessionId = 'test-session-123';
-      
+
       // Simulate cache miss first, then DB returns data
       mockRedis.hGetAll.mockResolvedValueOnce({});
-      
+
       // DB has data
       mockDb.query
         .mockResolvedValueOnce({
@@ -243,6 +243,7 @@ describe('Session Manager Advanced - Concurrent Access', () => {
       // Mock transaction setup
       mockClient.query
         .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // BEGIN
+        .mockResolvedValueOnce({ rows: [{ id: sessionId }], rowCount: 1 }) // Session existence check
         .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // INSERT
         .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // UPDATE
         .mockResolvedValueOnce({
@@ -270,11 +271,11 @@ describe('Session Manager Advanced - Concurrent Access', () => {
       await sessionManager.addToHistory(sessionId, entry1);
 
       expect(mockClient.query).toHaveBeenCalledWith('BEGIN');
-      const insertCall = mockClient.query.mock.calls.find((call: any[]) => 
+      const insertCall = mockClient.query.mock.calls.find((call: any[]) =>
         call[0]?.includes('INSERT INTO session_history')
       );
       expect(insertCall).toBeDefined();
-      const forUpdateCall = mockClient.query.mock.calls.find((call: any[]) => 
+      const forUpdateCall = mockClient.query.mock.calls.find((call: any[]) =>
         call[0]?.includes('FOR UPDATE')
       );
       expect(forUpdateCall).toBeDefined();
@@ -293,6 +294,7 @@ describe('Session Manager Advanced - Concurrent Access', () => {
 
       mockClient.query
         .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // BEGIN
+        .mockResolvedValueOnce({ rows: [{ id: sessionId }], rowCount: 1 }) // Session existence check
         .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // INSERT
         .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // UPDATE
         .mockResolvedValueOnce({
@@ -325,11 +327,11 @@ describe('Session Manager Advanced - Concurrent Access', () => {
   describe('Optimistic Locking Conflict Detection (Property 97)', () => {
     test('should detect optimistic locking conflicts (Requirement 7.7)', async () => {
       const sessionId = 'test-session-123';
-      
+
       // Simulate Redis WATCH/EXEC conflict
       mockRedis.watch.mockResolvedValueOnce('OK');
       mockRedis.lLen.mockResolvedValueOnce(0);
-      
+
       const mockPipeline = {
         hSet: jest.fn().mockReturnThis(),
         rPush: jest.fn().mockReturnThis(),
@@ -337,7 +339,7 @@ describe('Session Manager Advanced - Concurrent Access', () => {
         expire: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue(null) // Transaction aborted
       };
-      
+
       mockRedis.multi.mockReturnValue(mockPipeline as any);
 
       // Should retry on conflict
@@ -373,6 +375,7 @@ describe('Session Manager Advanced - Concurrent Access', () => {
 
       mockClient.query
         .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // BEGIN
+        .mockResolvedValueOnce({ rows: [{ id: sessionId }], rowCount: 1 }) // Session existence check
         .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // INSERT
         .mockResolvedValueOnce({ rows: [], rowCount: 1 }) // UPDATE
         .mockResolvedValueOnce({
@@ -440,7 +443,7 @@ describe('Session Manager Advanced - Token Estimation', () => {
   describe('Model Encoding Selection (Property 99)', () => {
     test('should select correct encoder for model (Requirement 7.9)', () => {
       const content = 'Test content';
-      
+
       // Mock tiktoken encoder
       const mockEncoder = {
         encode: jest.fn().mockReturnValue([1, 2, 3, 4, 5])
@@ -448,7 +451,7 @@ describe('Session Manager Advanced - Token Estimation', () => {
 
       // Access private method through any cast
       const encoder = (sessionManager as any).getEncoder('gpt-4o');
-      
+
       // Should return an encoder
       expect(encoder).toBeDefined();
     });
@@ -458,7 +461,7 @@ describe('Session Manager Advanced - Token Estimation', () => {
     test('should use fallback encoder when model not found (Requirement 7.10)', () => {
       // Access private method
       const encoder = (sessionManager as any).getFallbackEncoder('unknown-model');
-      
+
       // Should return fallback encoder
       expect(encoder).toBeDefined();
     });
@@ -467,10 +470,10 @@ describe('Session Manager Advanced - Token Estimation', () => {
   describe('Large Context Token Estimation (Property 101)', () => {
     test('should estimate tokens accurately for large context (Requirement 7.11)', () => {
       const largeContent = 'A'.repeat(10000);
-      
+
       // Estimate tokens
       const tokens = (sessionManager as any).estimateTokens(largeContent);
-      
+
       expect(tokens).toBeGreaterThan(0);
       expect(typeof tokens).toBe('number');
     });
@@ -479,10 +482,10 @@ describe('Session Manager Advanced - Token Estimation', () => {
   describe('Unicode Token Counting (Property 102)', () => {
     test('should count tokens correctly for Unicode content (Requirement 7.12)', () => {
       const unicodeContent = 'Test with émojis 🎉 and 中文 and العربية';
-      
+
       // Estimate tokens
       const tokens = (sessionManager as any).estimateTokens(unicodeContent);
-      
+
       expect(tokens).toBeGreaterThan(0);
       expect(typeof tokens).toBe('number');
     });

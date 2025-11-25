@@ -8,19 +8,30 @@ src/
 ├── interfaces/         # Component interface contracts
 ├── api/                # REST API Gateway
 ├── orchestration/      # Orchestration Engine (request lifecycle)
-├── providers/          # Provider Pool and Adapters
-│   └── adapters/       # Provider-specific adapters (OpenAI, Anthropic, etc.)
+├── providers/          # Provider Pool and OpenRouter Adapter
+│   └── adapters/       # OpenRouter adapter (unified access to 300+ models)
 ├── synthesis/          # Synthesis Engine (consensus building)
+│   ├── iterative-consensus/  # Negotiation-based synthesis
+│   ├── convergence/    # Convergence detection
+│   ├── negotiation/    # Negotiation prompt building
+│   └── examples/       # Example repository
 ├── session/            # Session Manager (conversation history)
 ├── config/             # Configuration Manager
 ├── logging/            # Event Logger
-├── dashboard/          # Admin Dashboard
+├── dashboard/          # Admin Dashboard (web UI)
+│   └── public/         # Admin UI static files
 ├── analytics/          # Analytics Engine
+├── discovery/          # Model Discovery Service
+├── embedding/          # Embedding Service (similarity)
+├── escalation/         # Human Escalation Service
+├── monitoring/         # Monitoring and Metrics
 ├── __tests__/          # Integration tests
+├── start-admin.ts      # Admin dashboard startup
 └── index.ts            # Main entry point (exports)
 
 database/
 ├── schema.sql          # PostgreSQL schema
+├── migrations/         # Database migrations
 └── redis-schema.md     # Redis cache documentation
 
 docs/                   # Project documentation
@@ -52,11 +63,13 @@ Each component follows this pattern:
 
 ### Provider Adapter Pattern
 
-All provider adapters extend `BaseProviderAdapter`:
+OpenRouter adapter provides unified access to 300+ models:
+- Single adapter extends `BaseProviderAdapter`
 - Abstract base class handles retry logic, timeout, and error handling
-- Concrete adapters implement: `sendRequest()`, `getHealth()`, `formatRequest()`, `parseResponse()`
+- OpenRouter adapter implements: `sendRequest()`, `getHealth()`, `formatRequest()`, `parseResponse()`
 - Retry policy with exponential backoff built into base class
 - Error code detection and classification in base class
+- Supports free-tier models (Llama, Mistral, Gemma, Qwen, DeepSeek)
 
 ### Main Entry Point
 
@@ -75,14 +88,24 @@ All provider adapters extend `BaseProviderAdapter`:
 - `tool_usage` (Council Enhancements)
 - `budget_caps`, `budget_spending` (Council Enhancements)
 - `api_keys` (for API key authentication)
+- `devils_advocate_logs` (Synthesis Context Injection)
+- `negotiation_rounds`, `negotiation_responses`, `negotiation_examples` (Iterative Consensus)
+- `consensus_metadata`, `escalation_queue` (Iterative Consensus)
+- `models`, `model_pricing`, `pricing_history` (Dynamic Model Pricing)
+- `sync_status`, `scraping_config` (Dynamic Model Pricing)
+- `council_presets` (Database-driven configuration presets)
 
 ### Redis Keys
 - `session:{sessionId}` (TTL: 30 days)
-- `config:*` (no expiry)
+- `config:*` (no expiry, invalidated on update)
 - `provider:health:{providerId}` (TTL: 5 minutes)
 - `request:status:{requestId}` (TTL: 1 hour)
 - `request:{requestId}` (stored request data, TTL: 24 hours)
 - `idempotency:{userId}:{key}` (idempotency cache, TTL: 24 hours)
+- `deliberation:{requestId}` (deliberation thread cache, TTL: 1 hour)
+- `preset:{presetName}` (preset configuration cache, TTL: 5 minutes)
+- `model:cache:{modelId}` (model details cache, TTL: 1 hour)
+- `pricing:fallback:{modelId}` (fallback pricing cache, TTL: 7 days)
 
 ## Naming Conventions
 

@@ -49,7 +49,7 @@ describe('CostCalculator', () => {
       // Too short (less than 4 digits)
       expect(matchesPeriod('123-daily', 'daily')).toBe(false);
       expect(matchesPeriod('0-weekly', 'weekly')).toBe(false);
-      
+
       // Invalid year (outside 1900-2100 range)
       expect(matchesPeriod('1234-daily', 'daily')).toBe(false); // Year 1234 < 1900
       expect(matchesPeriod('123456-weekly', 'weekly')).toBe(false); // Year 1234 < 1900
@@ -124,8 +124,8 @@ describe('CostCalculator', () => {
       totalTokens: 1500
     };
 
-    it('should calculate cost correctly for known provider/model', () => {
-      const result = calculator.calculateCost(mockMember, mockTokenUsage);
+    it('should calculate cost correctly for known provider/model', async () => {
+      const result = await calculator.calculateCost(mockMember, mockTokenUsage);
 
       expect(result.memberId).toBe('test-member');
       expect(result.provider).toBe('openai');
@@ -137,21 +137,21 @@ describe('CostCalculator', () => {
       expect(result.currency).toBe('USD');
     });
 
-    it('should return zero cost for unknown provider/model', () => {
+    it('should return zero cost for unknown provider/model', async () => {
       const unknownMember: CouncilMember = {
         ...mockMember,
         provider: 'unknown',
         model: 'unknown-model'
       };
 
-      const result = calculator.calculateCost(unknownMember, mockTokenUsage);
+      const result = await calculator.calculateCost(unknownMember, mockTokenUsage);
 
       expect(result.cost).toBe(0);
       expect(result.currency).toBe('USD');
       expect(result.pricingVersion).toBe('unknown');
     });
 
-    it('should calculate different costs for different token counts', () => {
+    it('should calculate different costs for different token counts', async () => {
       const usage1: TokenUsage = {
         promptTokens: 1000,
         completionTokens: 1000,
@@ -164,13 +164,13 @@ describe('CostCalculator', () => {
         totalTokens: 4000
       };
 
-      const cost1 = calculator.calculateCost(mockMember, usage1);
-      const cost2 = calculator.calculateCost(mockMember, usage2);
+      const cost1 = await calculator.calculateCost(mockMember, usage1);
+      const cost2 = await calculator.calculateCost(mockMember, usage2);
 
       expect(cost2.cost).toBe(cost1.cost * 2);
     });
 
-    it('should calculate higher cost for completion tokens than prompt tokens', () => {
+    it('should calculate higher cost for completion tokens than prompt tokens', async () => {
       // For GPT-4 Turbo: prompt = $0.01/1K, completion = $0.03/1K
       const promptHeavy: TokenUsage = {
         promptTokens: 1000,
@@ -184,8 +184,8 @@ describe('CostCalculator', () => {
         totalTokens: 1000
       };
 
-      const promptCost = calculator.calculateCost(mockMember, promptHeavy);
-      const completionCost = calculator.calculateCost(mockMember, completionHeavy);
+      const promptCost = await calculator.calculateCost(mockMember, promptHeavy);
+      const completionCost = await calculator.calculateCost(mockMember, completionHeavy);
 
       expect(completionCost.cost).toBeGreaterThan(promptCost.cost);
     });

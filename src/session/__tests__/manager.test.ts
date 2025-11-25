@@ -85,10 +85,10 @@ describe('SessionManager', () => {
       // cacheSession uses pipeline, so check multi() was called and pipeline operations
       expect(mockRedis.multi).toHaveBeenCalled();
       const pipeline = (mockRedis.multi as jest.Mock).mock.results[0].value;
-      
+
       // Verify pipeline was executed
       expect(pipeline.exec).toHaveBeenCalled();
-      
+
       // Verify hSet was called with correct session data
       expect(pipeline.hSet).toHaveBeenCalledWith(
         `session:${session.id}`,
@@ -96,7 +96,7 @@ describe('SessionManager', () => {
           userId: 'user123'
         })
       );
-      
+
       // Verify expire was called
       expect(pipeline.expire).toHaveBeenCalledWith(`session:${session.id}`, 2592000);
     });
@@ -130,7 +130,10 @@ describe('SessionManager', () => {
   describe('addToHistory', () => {
     it('should add entry to database within transaction', async () => {
       const mockClient = {
-        query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
+        query: jest.fn()
+          .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // BEGIN
+          .mockResolvedValueOnce({ rows: [{ id: 'session-id' }], rowCount: 1 }) // Session existence check
+          .mockResolvedValue({ rows: [], rowCount: 0 }), // Other queries
         release: jest.fn()
       };
       (mockDb.connect as jest.Mock).mockResolvedValueOnce(mockClient);
@@ -155,7 +158,10 @@ describe('SessionManager', () => {
 
     it('should update session last activity within transaction', async () => {
       const mockClient = {
-        query: jest.fn().mockResolvedValue({ rows: [], rowCount: 0 }),
+        query: jest.fn()
+          .mockResolvedValueOnce({ rows: [], rowCount: 0 }) // BEGIN
+          .mockResolvedValueOnce({ rows: [{ id: 'session-id' }], rowCount: 1 }) // Session existence check
+          .mockResolvedValue({ rows: [], rowCount: 0 }), // Other queries
         release: jest.fn()
       };
       (mockDb.connect as jest.Mock).mockResolvedValueOnce(mockClient);

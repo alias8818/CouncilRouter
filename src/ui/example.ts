@@ -37,7 +37,7 @@ async function startServers() {
   const eventLogger = new EventLogger(pool);
 
   // Initialize Provider Pool
-  const providerPool = new ProviderPool();
+  const providerPool = new ProviderPool(undefined, configManager, pool);
 
   // Initialize Synthesis Engine
   const synthesisEngine = new SynthesisEngine(providerPool, configManager);

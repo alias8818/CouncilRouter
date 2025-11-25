@@ -44,7 +44,18 @@ Submit a new request to the AI council for processing.
 {
   "query": "What are the key differences between TypeScript and JavaScript?",
   "sessionId": "optional-session-id-for-context",
-  "streaming": false
+  "streaming": false,
+  "synthesisStrategy": {
+    "type": "iterative-consensus",
+    "config": {
+      "maxRounds": 5,
+      "agreementThreshold": 0.85,
+      "fallbackStrategy": "meta-synthesis",
+      "embeddingModel": "text-embedding-3-large",
+      "earlyTerminationEnabled": true,
+      "negotiationMode": "parallel"
+    }
+  }
 }
 ```
 

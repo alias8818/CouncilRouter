@@ -11,7 +11,9 @@ import {
   InitialResponse,
   DeliberationRound,
   ConsensusDecision,
-  CostBreakdown
+  CostBreakdown,
+  NegotiationResponse,
+  SimilarityResult
 } from '../types/core';
 
 export class EventLogger implements IEventLogger {
@@ -156,7 +158,8 @@ export class EventLogger implements IEventLogger {
    */
   async logCost(
     requestId: string,
-    cost: CostBreakdown
+    cost: CostBreakdown,
+    tokens?: Map<string, { prompt: number; completion: number }>
   ): Promise<void> {
     try {
       // Update total cost in requests table
@@ -181,13 +184,18 @@ export class EventLogger implements IEventLogger {
         const provider = memberId.split('-')[0] || 'unknown';
         const model = memberId.split('-').slice(1).join('-') || 'unknown';
 
+        // Get token counts if provided
+        const tokenData = tokens?.get(memberId);
+        const promptTokens = tokenData?.prompt || 0;
+        const completionTokens = tokenData?.completion || 0;
+
         const values = [
           this.generateUUID(),
           requestId,
           provider,
           model,
-          0, // prompt_tokens - would need to be passed separately
-          0, // completion_tokens - would need to be passed separately
+          promptTokens,
+          completionTokens,
           memberCost,
           cost.pricingVersion,
           new Date()
@@ -277,6 +285,143 @@ export class EventLogger implements IEventLogger {
    * Generate a UUID for database records
    * CRITICAL FIX: Use crypto.randomUUID() instead of Math.random() for cryptographic security
    */
+  /**
+   * Log a negotiation round
+   */
+  async logNegotiationRound(
+    requestId: string,
+    roundNumber: number,
+    similarityResult: SimilarityResult,
+    convergenceVelocity?: number,
+    deadlockRisk?: 'low' | 'medium' | 'high'
+  ): Promise<void> {
+    try {
+      const query = `
+        INSERT INTO negotiation_rounds (
+          id, request_id, round_number, average_similarity, min_similarity,
+          max_similarity, below_threshold_count, convergence_velocity,
+          deadlock_risk, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `;
+
+      const values = [
+        this.generateUUID(),
+        requestId,
+        roundNumber,
+        similarityResult.averageSimilarity,
+        similarityResult.minSimilarity,
+        similarityResult.maxSimilarity,
+        similarityResult.belowThresholdPairs.length,
+        convergenceVelocity || null,
+        deadlockRisk || null,
+        new Date()
+      ];
+
+      await this.db.query(query, values);
+    } catch (error) {
+      console.error('Error logging negotiation round:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Log a negotiation response
+   */
+  async logNegotiationResponse(
+    requestId: string,
+    response: NegotiationResponse,
+    embeddingModel: string
+  ): Promise<void> {
+    try {
+      const query = `
+        INSERT INTO negotiation_responses (
+          id, request_id, round_number, council_member_id, content,
+          agrees_with_member_id, token_count, embedding_model, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        ON CONFLICT (request_id, round_number, council_member_id) DO UPDATE
+        SET content = EXCLUDED.content,
+            agrees_with_member_id = EXCLUDED.agrees_with_member_id,
+            token_count = EXCLUDED.token_count,
+            embedding_model = EXCLUDED.embedding_model
+      `;
+
+      const values = [
+        this.generateUUID(),
+        requestId,
+        response.roundNumber,
+        response.councilMemberId,
+        response.content,
+        response.agreesWithMemberId || null,
+        response.tokenCount,
+        embeddingModel,
+        response.timestamp
+      ];
+
+      await this.db.query(query, values);
+    } catch (error) {
+      console.error('Error logging negotiation response:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Log consensus metadata
+   */
+  async logConsensusMetadata(
+    requestId: string,
+    metadata: {
+      totalRounds: number;
+      consensusAchieved: boolean;
+      fallbackUsed: boolean;
+      fallbackReason?: string;
+      tokensAvoided?: number;
+      estimatedCostSaved?: number;
+      deadlockDetected: boolean;
+      humanEscalationTriggered: boolean;
+      finalSimilarity: number;
+    }
+  ): Promise<void> {
+    try {
+      const query = `
+        INSERT INTO consensus_metadata (
+          id, request_id, total_rounds, consensus_achieved, fallback_used,
+          fallback_reason, tokens_avoided, estimated_cost_saved,
+          deadlock_detected, human_escalation_triggered, final_similarity, created_at
+        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        ON CONFLICT (request_id) DO UPDATE
+        SET total_rounds = EXCLUDED.total_rounds,
+            consensus_achieved = EXCLUDED.consensus_achieved,
+            fallback_used = EXCLUDED.fallback_used,
+            fallback_reason = EXCLUDED.fallback_reason,
+            tokens_avoided = EXCLUDED.tokens_avoided,
+            estimated_cost_saved = EXCLUDED.estimated_cost_saved,
+            deadlock_detected = EXCLUDED.deadlock_detected,
+            human_escalation_triggered = EXCLUDED.human_escalation_triggered,
+            final_similarity = EXCLUDED.final_similarity
+      `;
+
+      const values = [
+        this.generateUUID(),
+        requestId,
+        metadata.totalRounds,
+        metadata.consensusAchieved,
+        metadata.fallbackUsed,
+        metadata.fallbackReason || null,
+        metadata.tokensAvoided || null,
+        metadata.estimatedCostSaved || null,
+        metadata.deadlockDetected,
+        metadata.humanEscalationTriggered,
+        metadata.finalSimilarity,
+        new Date()
+      ];
+
+      await this.db.query(query, values);
+    } catch (error) {
+      console.error('Error logging consensus metadata:', error);
+      throw error;
+    }
+  }
+
   private generateUUID(): string {
     // Use Node.js built-in crypto.randomUUID() for proper UUID v4 generation
     // Falls back to custom implementation for older Node.js versions
