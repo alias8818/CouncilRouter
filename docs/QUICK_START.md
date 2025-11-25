@@ -5,7 +5,7 @@ Get the AI Council Proxy running in 5 minutes!
 ## Prerequisites
 
 - Docker and Docker Compose installed
-- At least one AI provider API key (OpenAI, Anthropic, or Google)
+- OpenRouter API key (provides unified access to 300+ models)
 
 ## Step 1: Clone and Configure
 
@@ -20,13 +20,13 @@ cp .env.example .env
 
 ## Step 2: Add Your API Keys
 
-Edit `.env` and add at least one API key:
+Edit `.env` and add your OpenRouter API key:
 
 ```bash
-# Add at least one of these:
-OPENAI_API_KEY=sk-your-openai-key-here
-ANTHROPIC_API_KEY=sk-ant-your-anthropic-key-here
-GOOGLE_API_KEY=AIza-your-google-key-here
+# REQUIRED: OpenRouter API key (unified access to all providers)
+OPENROUTER_API_KEY=sk-or-v1-your-openrouter-key-here
+
+# Get your key at: https://openrouter.ai/keys
 
 # Generate secure secrets (or use these for testing only)
 JWT_SECRET=your-secure-random-secret-here
@@ -117,65 +117,75 @@ curl http://localhost:3000/api/v1/requests/550e8400-e29b-41d4-a716-446655440000 
 
 ### Fast Council (Quick Responses)
 
-Edit your configuration to use fast models with no deliberation:
+Use the built-in `fast-council` preset:
 
-```json
-{
-  "council": {
-    "members": [
-      {"id": "gpt-3.5", "provider": "openai", "model": "gpt-3.5-turbo"},
-      {"id": "gemini", "provider": "google", "model": "gemini-pro"}
-    ]
-  },
-  "deliberation": {
-    "rounds": 0
-  }
-}
+```bash
+curl -X POST http://localhost:3000/api/v1/requests \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "Your question here",
+    "preset": "fast-council"
+  }'
 ```
 
-**Cost**: ~$0.003 per request  
-**Latency**: 2-5 seconds
+**Models**: GPT-4o-mini, Claude Haiku, Gemini Flash (via OpenRouter)  
+**Cost**: ~$0.001 per request  
+**Latency**: 3-8 seconds
 
 ### Balanced Council (Recommended)
 
-```json
-{
-  "council": {
-    "members": [
-      {"id": "gpt4", "provider": "openai", "model": "gpt-4-turbo-preview"},
-      {"id": "claude", "provider": "anthropic", "model": "claude-3-sonnet"},
-      {"id": "gemini", "provider": "google", "model": "gemini-pro"}
-    ]
-  },
-  "deliberation": {
-    "rounds": 1
-  }
-}
+Use the built-in `balanced-council` preset:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/requests \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "Your question here",
+    "preset": "balanced-council"
+  }'
 ```
 
+**Models**: GPT-4o, Claude Sonnet, Gemini Pro, Grok-3 (via OpenRouter)  
 **Cost**: ~$0.03 per request  
-**Latency**: 5-15 seconds
+**Latency**: 8-15 seconds
+
+### Free Council (Zero Cost)
+
+Use the built-in `free-council` preset with free-tier models:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/requests \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "Your question here",
+    "preset": "free-council"
+  }'
+```
+
+**Models**: Llama 3.3 70B, Mistral 7B, Gemma 3 12B, Qwen 2.5 72B, DeepSeek Chat (via OpenRouter)  
+**Cost**: $0.00 (completely free)  
+**Latency**: 10-15 seconds
 
 ### Research Council (Highest Quality)
 
-```json
-{
-  "council": {
-    "members": [
-      {"id": "gpt4", "provider": "openai", "model": "gpt-4-turbo-preview"},
-      {"id": "claude-opus", "provider": "anthropic", "model": "claude-3-opus"},
-      {"id": "claude-sonnet", "provider": "anthropic", "model": "claude-3-sonnet"},
-      {"id": "gemini", "provider": "google", "model": "gemini-pro"}
-    ]
-  },
-  "deliberation": {
-    "rounds": 4
-  }
-}
+Use the built-in `research-council` preset:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/requests \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "Your question here",
+    "preset": "research-council"
+  }'
 ```
 
+**Models**: GPT-5.1, Claude Opus, Gemini 3 Pro, Grok-4 (via OpenRouter)  
 **Cost**: ~$0.20 per request  
-**Latency**: 20-60 seconds
+**Latency**: 30-60 seconds
 
 ## Common Commands
 
@@ -277,11 +287,15 @@ docker-compose restart postgres
 # Check health endpoint
 curl http://localhost:3000/health
 
-# Verify API keys in .env
-cat .env | grep API_KEY
+# Verify OpenRouter API key in .env
+cat .env | grep OPENROUTER_API_KEY
 
 # Check application logs
 docker-compose logs app | grep ERROR
+
+# Test OpenRouter connection
+curl https://openrouter.ai/api/v1/models \
+  -H "Authorization: Bearer YOUR_OPENROUTER_KEY"
 ```
 
 ### High Latency
@@ -330,48 +344,44 @@ When ready for production:
 
 ### Customer Support Bot
 
-```json
-{
-  "council": {
-    "members": [
-      {"id": "gpt4", "provider": "openai", "model": "gpt-4-turbo-preview"},
-      {"id": "claude", "provider": "anthropic", "model": "claude-3-sonnet"}
-    ]
-  },
-  "deliberation": {"rounds": 1},
-  "synthesis": {"strategy": {"type": "consensus-extraction"}}
-}
+Use the `balanced-council` preset:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/requests \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "Your customer question",
+    "preset": "balanced-council"
+  }'
 ```
 
 ### Research Assistant
 
-```json
-{
-  "council": {
-    "members": [
-      {"id": "gpt4", "provider": "openai", "model": "gpt-4-turbo-preview"},
-      {"id": "claude-opus", "provider": "anthropic", "model": "claude-3-opus"},
-      {"id": "gemini", "provider": "google", "model": "gemini-pro"}
-    ]
-  },
-  "deliberation": {"rounds": 3},
-  "synthesis": {"strategy": {"type": "meta-synthesis", "moderatorStrategy": {"type": "strongest"}}}
-}
+Use the `research-council` preset:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/requests \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "Your research question",
+    "preset": "research-council"
+  }'
 ```
 
 ### Quick Q&A
 
-```json
-{
-  "council": {
-    "members": [
-      {"id": "gpt-3.5", "provider": "openai", "model": "gpt-3.5-turbo"},
-      {"id": "gemini", "provider": "google", "model": "gemini-pro"}
-    ]
-  },
-  "deliberation": {"rounds": 0},
-  "synthesis": {"strategy": {"type": "consensus-extraction"}}
-}
+Use the `fast-council` or `free-council` preset:
+
+```bash
+curl -X POST http://localhost:3000/api/v1/requests \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "query": "Your quick question",
+    "preset": "free-council"
+  }'
 ```
 
 ## SDK Examples

@@ -37,7 +37,8 @@
 ## ✨ **Key Features**
 
 ### 🧠 **Multi-Model Deliberation**
-- Orchestrates GPT-4, Claude, Gemini, and others simultaneously
+- Unified access to 300+ models via OpenRouter (GPT-4, Claude, Gemini, Llama, Mistral, and more)
+- Includes free-tier models for zero-cost operation
 - Multi-round peer review and critique
 - Graceful degradation on timeout or failures
 
@@ -67,7 +68,7 @@
 
 ### Prerequisites
 - Docker & Docker Compose
-- API keys for at least one provider (OpenAI, Anthropic, or Google)
+- OpenRouter API key (provides unified access to 300+ models including OpenAI, Anthropic, Google, and free-tier models)
 
 ### Installation
 
@@ -79,11 +80,11 @@ cd CouncilRouter
 # Copy environment template
 cp .env.example .env
 
-# Edit .env and add your API keys:
-# OPENAI_API_KEY=sk-...
-# ANTHROPIC_API_KEY=sk-ant-...
-# GOOGLE_API_KEY=...
+# Edit .env and add your OpenRouter API key:
+# OPENROUTER_API_KEY=sk-or-v1-...
 # JWT_SECRET=your-secret-key-here
+#
+# Get your OpenRouter API key at: https://openrouter.ai/keys
 
 # Start all services (PostgreSQL, Redis, API)
 docker-compose up -d

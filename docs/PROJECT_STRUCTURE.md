@@ -153,9 +153,10 @@ Defines contracts for all major components:
 - Integration with shared health tracker
 
 #### Provider Pool (`src/providers/`)
-- Manages connections to AI providers (OpenAI, Anthropic, Google)
+- Manages OpenRouter adapter for unified access to 300+ models
 - Implements retry logic with exponential backoff
 - Tracks provider health with shared health tracker
+- Integrates with Model Registry for dynamic model discovery
 - Automatic disabling after 5 consecutive failures
 - Provider-specific adapters in `adapters/` subdirectory
 - Health tracker (`health-tracker.ts`) provides single source of truth for provider status
@@ -322,8 +323,8 @@ Cache keys:
 
 All core components have been implemented:
 
-1. ✅ Provider adapters for OpenAI, Anthropic, and Google
-2. ✅ Configuration manager with validation and presets
+1. ✅ OpenRouter adapter for unified access to 300+ models (including free-tier)
+2. ✅ Configuration manager with database-driven presets
 3. ✅ Session manager with context handling and summarization
 4. ✅ Orchestration engine with timeout handling
 5. ✅ Deliberation logic with configurable rounds

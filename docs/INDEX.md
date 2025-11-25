@@ -274,11 +274,11 @@ See: [Monitoring Guide - Key Metrics](MONITORING_GUIDE.md#key-metrics-to-monitor
 |----------|----------|---------|
 | `DATABASE_URL` | Yes | - |
 | `REDIS_URL` | Yes | - |
-| `OPENAI_API_KEY` | No* | - |
-| `ANTHROPIC_API_KEY` | No* | - |
-| `GOOGLE_API_KEY` | No* | - |
-| `XAI_API_KEY` | No* | - |
-| `OPENROUTER_API_KEY` | No* | - |
+| `OPENROUTER_API_KEY` | **Yes** | Unified access to 300+ models |
+| `OPENAI_API_KEY` | No | Deprecated - use OpenRouter |
+| `ANTHROPIC_API_KEY` | No | Deprecated - use OpenRouter |
+| `GOOGLE_API_KEY` | No | Deprecated - use OpenRouter |
+| `XAI_API_KEY` | No | Deprecated - use OpenRouter |
 | `JWT_SECRET` | Yes | - |
 | `PORT` | No | 3000 |
 | `ADMIN_PORT` | No | 3001 |
@@ -353,7 +353,7 @@ For technical support:
 
 | Version | Date | Changes |
 |---------|------|---------|
-| 2.0.0 | 2024-01-XX | Major update: Iterative Consensus, Dynamic Model Pricing, OpenRouter, Admin Dashboard, Request Deduplication |
+| 2.0.0 | 2025-01-XX | **BREAKING**: OpenRouter-only architecture, Iterative Consensus, Dynamic Model Pricing, Admin Dashboard, Request Deduplication, Free-tier models |
 | 1.0.0 | 2024-01-15 | Initial documentation release |
 
 See: [Recent Changes](RECENT_CHANGES.md) for detailed changelog

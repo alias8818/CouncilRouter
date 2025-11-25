@@ -10,7 +10,7 @@ This guide covers deploying the AI Council Proxy system to production environmen
 - PostgreSQL 14+ (or use Docker)
 - Redis 7+ (or use Docker)
 - Node.js 18+ (for local development)
-- API keys for AI providers (OpenAI, Anthropic, Google)
+- OpenRouter API key (unified access to 300+ models)
 
 ## Quick Start with Docker Compose
 
@@ -38,12 +38,12 @@ DATABASE_URL=postgresql://postgres:password@postgres:5432/ai_council_proxy
 REDIS_URL=redis://redis:6379
 
 # Provider API Keys
-OPENAI_API_KEY=sk-your-openai-key
-ANTHROPIC_API_KEY=sk-ant-your-anthropic-key
-GOOGLE_API_KEY=AIza-your-google-key
+# REQUIRED: OpenRouter API key (get at https://openrouter.ai/keys)
+OPENROUTER_API_KEY=sk-or-v1-your-key-here
 
 # Server
 PORT=3000
+ADMIN_PORT=3001
 NODE_ENV=production
 
 # Authentication
@@ -53,6 +53,7 @@ API_KEY_SALT=your-secure-random-salt-here
 # Performance
 GLOBAL_TIMEOUT_SECONDS=60
 ENABLE_STREAMING=true
+ENABLE_METRICS_TRACKING=true
 
 # Logging
 LOG_LEVEL=info

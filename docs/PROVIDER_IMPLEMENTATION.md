@@ -1,8 +1,22 @@
-# Provider Pool and Adapters Implementation
+# Provider Pool and OpenRouter Adapter Implementation
 
 ## Overview
 
-This document describes the implementation of the provider pool and adapter system for the AI Council Proxy.
+This document describes the implementation of the provider pool and OpenRouter adapter system for the AI Council Proxy. The system uses **OpenRouter as the unified gateway** to access 300+ AI models from multiple providers through a single API.
+
+## Architecture Change: OpenRouter-Only
+
+**Previous Architecture**: Individual adapters for each provider (OpenAI, Anthropic, Google, xAI)  
+**Current Architecture**: Single OpenRouter adapter providing unified access to all models
+
+### Benefits of OpenRouter Integration
+
+- **Single API Key**: Access all providers through one endpoint
+- **300+ Models**: Including GPT-4, Claude, Gemini, Llama, Mistral, and more
+- **Free Tier Models**: Zero-cost options (Llama 3.3, Mistral 7B, Gemma 3, etc.)
+- **Simplified Configuration**: No need to manage multiple API keys
+- **Consistent Interface**: Uniform request/response format across all models
+- **Automatic Fallbacks**: OpenRouter handles provider outages transparently
 
 ## Components Implemented
 
@@ -30,63 +44,67 @@ Abstract base class that provides common functionality for all provider adapters
 - Timeout errors are retryable
 - Proper cleanup of timeout handlers in all code paths
 
-### 2. OpenAI Provider Adapter (`src/providers/adapters/openai.ts`)
+### 2. OpenRouter Adapter (`src/providers/adapters/openrouter.ts`)
 
-Implements communication with OpenAI's API:
+**Primary adapter** that provides unified access to all AI models:
 
 **Features:**
-- Chat completions API integration
+- Unified chat completions API for all providers
 - Conversation context support
 - Token usage tracking
+- Streaming support via Server-Sent Events
+- Automatic model ID mapping (e.g., `openai/gpt-4o`, `anthropic/claude-3-opus`)
 - Health check via models endpoint
 
 **API Details:**
-- Endpoint: `https://api.openai.com/v1/chat/completions`
-- Authentication: Bearer token
-- Supports conversation history
+- Endpoint: `https://openrouter.ai/api/v1/chat/completions`
+- Authentication: Bearer token (`OPENROUTER_API_KEY`)
+- Supports 300+ models from multiple providers
+- Includes free-tier models with `:free` suffix
 
-### 3. Anthropic Provider Adapter (`src/providers/adapters/anthropic.ts`)
+**Model ID Format:**
+```
+provider/model-name
+Examples:
+- openai/gpt-4o
+- anthropic/claude-3-opus
+- google/gemini-pro
+- meta-llama/llama-3.3-70b-instruct:free
+- mistralai/mistral-7b-instruct:free
+```
 
-Implements communication with Anthropic's Claude API:
+**Streaming Support:**
+```typescript
+async *sendStreamingRequest(
+  member: CouncilMember,
+  prompt: string,
+  context?: ConversationContext
+): AsyncGenerator<StreamChunk>
+```
 
-**Features:**
-- Messages API integration
-- Conversation context support
-- Token usage tracking
-- Health check via minimal request
+### 3. Legacy Provider Adapters (Deprecated)
 
-**API Details:**
-- Endpoint: `https://api.anthropic.com/v1/messages`
-- Authentication: x-api-key header
-- API version: 2023-06-01
-- Supports conversation history
+The following adapters are **deprecated** and maintained only for backward compatibility:
 
-### 4. Google Provider Adapter (`src/providers/adapters/google.ts`)
+- `OpenAIAdapter` (`src/providers/adapters/openai.ts`) - Use OpenRouter instead
+- `AnthropicAdapter` (`src/providers/adapters/anthropic.ts`) - Use OpenRouter instead
+- `GoogleAdapter` (`src/providers/adapters/google.ts`) - Use OpenRouter instead
+- `GrokAdapter` (`src/providers/adapters/grok.ts`) - Use OpenRouter instead
 
-Implements communication with Google's Gemini API:
+**Migration Path**: All models are now accessed through OpenRouter. Update your configuration to use `provider: 'openrouter'` with the appropriate model ID.
 
-**Features:**
-- Generate content API integration
-- Conversation context support
-- Token usage tracking
-- Health check via minimal request
+### 4. Provider Pool (`src/providers/pool.ts`)
 
-**API Details:**
-- Endpoint: `https://generativelanguage.googleapis.com/v1beta`
-- Authentication: API key in query parameter
-- Supports conversation history
-
-### 5. Provider Pool (`src/providers/pool.ts`)
-
-Manages all provider adapters and tracks their health:
+Manages the OpenRouter adapter and tracks provider health:
 
 **Key Features:**
-- Automatic adapter initialization from environment variables
+- Initializes OpenRouter adapter from `OPENROUTER_API_KEY` environment variable
 - Health tracking per provider using shared health tracker
 - Automatic provider disabling after consecutive failures
 - Success rate and latency tracking
 - Manual provider enable/disable
 - Integration with shared ProviderHealthTracker
+- Model Registry integration for dynamic model discovery
 
 **Health Tracking:**
 - Status: `healthy`, `degraded`, `disabled`
@@ -97,22 +115,33 @@ Manages all provider adapters and tracks their health:
 - Shared health state across Provider Pool and Orchestration Engine
 
 **Provider Management:**
-- Initializes adapters for OpenAI, Anthropic, and Google
-- Reads API keys from environment variables
+- Initializes OpenRouter adapter with unified access to 300+ models
+- Reads `OPENROUTER_API_KEY` from environment variables
 - Prevents requests to disabled providers
 - Supports manual provider recovery
 - Returns all provider health statuses via `getAllProviderHealth()`
+- Queries Model Registry for available models via `getAvailableModels()`
 
 ## Configuration
 
 ### Environment Variables
 
-Required environment variables for provider API keys:
+Required environment variable for OpenRouter:
 
 ```bash
-OPENAI_API_KEY=your-openai-key
-ANTHROPIC_API_KEY=your-anthropic-key
-GOOGLE_API_KEY=your-google-key
+# REQUIRED: OpenRouter API key (unified access to all providers)
+OPENROUTER_API_KEY=sk-or-v1-your-key-here
+
+# Get your key at: https://openrouter.ai/keys
+```
+
+**Legacy environment variables (deprecated, not used):**
+```bash
+# These are no longer required or used
+OPENAI_API_KEY=...      # Deprecated
+ANTHROPIC_API_KEY=...   # Deprecated
+GOOGLE_API_KEY=...      # Deprecated
+XAI_API_KEY=...         # Deprecated
 ```
 
 ### Retry Policy Configuration
@@ -164,15 +193,15 @@ npm test -- src/providers/__tests__/pool.test.ts
 import { ProviderPool } from './providers/pool';
 import { CouncilMember } from './types/core';
 
-// Initialize pool
+// Initialize pool (automatically loads OpenRouter adapter)
 const pool = new ProviderPool();
 
-// Define a council member
+// Define a council member using OpenRouter
 const member: CouncilMember = {
   id: 'gpt4-member',
-  provider: 'openai',
-  model: 'gpt-4',
-  timeout: 30000,
+  provider: 'openrouter',
+  model: 'openai/gpt-4o',  // OpenRouter model ID format
+  timeout: 30,  // seconds
   retryPolicy: {
     maxAttempts: 3,
     initialDelayMs: 1000,
@@ -197,10 +226,53 @@ if (response.success) {
 }
 
 // Check provider health
-const health = pool.getProviderHealth('openai');
-console.log('OpenAI status:', health.status);
+const health = pool.getProviderHealth('openrouter');
+console.log('OpenRouter status:', health.status);
 console.log('Success rate:', health.successRate);
 console.log('Avg latency:', health.avgLatency);
+```
+
+### Using Free-Tier Models
+
+```typescript
+// Define a council member using a free model
+const freeMember: CouncilMember = {
+  id: 'llama-free',
+  provider: 'openrouter',
+  model: 'meta-llama/llama-3.3-70b-instruct:free',  // Free tier model
+  timeout: 30,
+  retryPolicy: {
+    maxAttempts: 2,
+    initialDelayMs: 500,
+    maxDelayMs: 5000,
+    backoffMultiplier: 2,
+    retryableErrors: ['RATE_LIMIT', 'TIMEOUT']
+  }
+};
+
+const response = await pool.sendRequest(
+  freeMember,
+  'Explain quantum computing',
+  conversationContext
+);
+// Cost: $0.00
+```
+
+### Streaming Responses
+
+```typescript
+import { OpenRouterAdapter } from './providers/adapters/openrouter';
+
+const adapter = new OpenRouterAdapter(process.env.OPENROUTER_API_KEY!);
+
+// Stream response chunks as they arrive
+for await (const chunk of adapter.sendStreamingRequest(member, prompt, context)) {
+  if (!chunk.done) {
+    process.stdout.write(chunk.content);  // Print incrementally
+  } else {
+    console.log('\n[Stream complete]');
+  }
+}
 ```
 
 ## Requirements Satisfied

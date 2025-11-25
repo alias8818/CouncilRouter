@@ -16,12 +16,19 @@ DATABASE_URL=postgresql://username:password@localhost:5432/ai_council_proxy
 REDIS_URL=redis://localhost:6379
 
 # Provider API Keys
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
-GOOGLE_API_KEY=AIza...
+# REQUIRED: OpenRouter API key (unified access to 300+ models)
+OPENROUTER_API_KEY=sk-or-v1-...
+# Get your key at: https://openrouter.ai/keys
+
+# Legacy provider keys (DEPRECATED - not used)
+# OPENAI_API_KEY=sk-...
+# ANTHROPIC_API_KEY=sk-ant-...
+# GOOGLE_API_KEY=AIza...
+# XAI_API_KEY=...
 
 # Server Configuration
 PORT=3000
+ADMIN_PORT=3001
 NODE_ENV=production
 
 # Authentication
@@ -31,6 +38,7 @@ API_KEY_SALT=your-salt-here
 # Performance
 GLOBAL_TIMEOUT_SECONDS=60
 ENABLE_STREAMING=true
+ENABLE_METRICS_TRACKING=true
 
 # Logging
 LOG_LEVEL=info
@@ -63,17 +71,17 @@ interface CouncilMember {
 }
 ```
 
-**Example Configuration:**
+**Example Configuration (OpenRouter):**
 
 ```json
 {
   "members": [
     {
-      "id": "gpt4-turbo",
-      "provider": "openai",
-      "model": "gpt-4-turbo-preview",
+      "id": "gpt4o-member",
+      "provider": "openrouter",
+      "model": "openai/gpt-4o",
       "weight": 1.0,
-      "timeout": 30000,
+      "timeout": 30,
       "retryPolicy": {
         "maxAttempts": 3,
         "initialDelayMs": 1000,
@@ -83,11 +91,11 @@ interface CouncilMember {
       }
     },
     {
-      "id": "claude-3-opus",
-      "provider": "anthropic",
-      "model": "claude-3-opus-20240229",
+      "id": "claude-sonnet",
+      "provider": "openrouter",
+      "model": "anthropic/claude-sonnet-4-5-20250929",
       "weight": 1.0,
-      "timeout": 30000,
+      "timeout": 30,
       "retryPolicy": {
         "maxAttempts": 3,
         "initialDelayMs": 1000,
@@ -98,10 +106,10 @@ interface CouncilMember {
     },
     {
       "id": "gemini-pro",
-      "provider": "google",
-      "model": "gemini-pro",
+      "provider": "openrouter",
+      "model": "google/gemini-2.5-pro",
       "weight": 1.0,
-      "timeout": 30000,
+      "timeout": 30,
       "retryPolicy": {
         "maxAttempts": 3,
         "initialDelayMs": 1000,
@@ -113,6 +121,56 @@ interface CouncilMember {
   ],
   "minimumSize": 2,
   "requireMinimumForConsensus": true
+}
+```
+
+**Example Configuration (Free-Tier Models):**
+
+```json
+{
+  "members": [
+    {
+      "id": "llama-free",
+      "provider": "openrouter",
+      "model": "meta-llama/llama-3.3-70b-instruct:free",
+      "timeout": 30,
+      "retryPolicy": {
+        "maxAttempts": 2,
+        "initialDelayMs": 500,
+        "maxDelayMs": 5000,
+        "backoffMultiplier": 2,
+        "retryableErrors": ["RATE_LIMIT", "TIMEOUT"]
+      }
+    },
+    {
+      "id": "mistral-free",
+      "provider": "openrouter",
+      "model": "mistralai/mistral-7b-instruct:free",
+      "timeout": 30,
+      "retryPolicy": {
+        "maxAttempts": 2,
+        "initialDelayMs": 500,
+        "maxDelayMs": 5000,
+        "backoffMultiplier": 2,
+        "retryableErrors": ["RATE_LIMIT", "TIMEOUT"]
+      }
+    },
+    {
+      "id": "gemma-free",
+      "provider": "openrouter",
+      "model": "google/gemma-3-12b-it:free",
+      "timeout": 30,
+      "retryPolicy": {
+        "maxAttempts": 2,
+        "initialDelayMs": 500,
+        "maxDelayMs": 5000,
+        "backoffMultiplier": 2,
+        "retryableErrors": ["RATE_LIMIT", "TIMEOUT"]
+      }
+    }
+  ],
+  "minimumSize": 2,
+  "requireMinimumForConsensus": false
 }
 ```
 
@@ -129,12 +187,19 @@ interface CouncilMember {
 | Option | Type | Description | Required |
 |--------|------|-------------|----------|
 | id | string | Unique identifier | Yes |
-| provider | string | Provider name (openai, anthropic, google) | Yes |
-| model | string | Model identifier | Yes |
-| version | string | Model version | No |
+| provider | string | Provider name (use 'openrouter' for all models) | Yes |
+| model | string | OpenRouter model ID (format: `provider/model-name`) | Yes |
+| version | string | Model version (deprecated, use model ID) | No |
 | weight | number | Weight for weighted fusion (0-1) | No |
-| timeout | number | Timeout in milliseconds | Yes |
+| timeout | number | Timeout in seconds | Yes |
 | retryPolicy | object | Retry configuration | Yes |
+
+**OpenRouter Model ID Format:**
+- OpenAI models: `openai/gpt-4o`, `openai/gpt-4o-mini`
+- Anthropic models: `anthropic/claude-sonnet-4-5-20250929`, `anthropic/claude-opus-4-5-20251101`
+- Google models: `google/gemini-2.5-pro`, `google/gemini-2.0-flash`
+- Free models: `meta-llama/llama-3.3-70b-instruct:free`, `mistralai/mistral-7b-instruct:free`
+- Full list: https://openrouter.ai/models
 
 ---
 
