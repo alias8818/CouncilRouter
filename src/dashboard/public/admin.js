@@ -11,6 +11,22 @@
 let currentTab = "overview";
 let refreshInterval = null;
 
+function getAdminProxyHeaders(extraHeaders = {}) {
+  const tokenInput = document.getElementById("query-admin-token");
+  const token = tokenInput?.value || "";
+
+  if (!token || !token.trim()) {
+    if (tokenInput) tokenInput.focus();
+    throw new Error("Admin API token is required for test queries");
+  }
+
+  return {
+    ...extraHeaders,
+    Authorization: `ApiKey ${token.trim()}`,
+  };
+}
+
+
 // Initialize on page load
 document.addEventListener("DOMContentLoaded", () => {
   setupTabs();
@@ -1229,6 +1245,9 @@ async function sendTestQuery() {
 
   try {
     // Build request body
+    const proxyHeaders = getAdminProxyHeaders({
+      "Content-Type": "application/json",
+    });
     const requestBody = {
       query,
       transparency,
@@ -1242,9 +1261,7 @@ async function sendTestQuery() {
     try {
       submitResponse = await fetch("/api/v1/requests", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: proxyHeaders,
         body: JSON.stringify(requestBody),
       });
     } catch (fetchError) {
@@ -1309,7 +1326,9 @@ async function sendTestQuery() {
         : `Using active council configuration (${elapsedSeconds}s elapsed)`;
 
       try {
-        const statusResponse = await fetch(`/api/v1/requests/${requestId}`);
+        const statusResponse = await fetch(`/api/v1/requests/${requestId}`, {
+          headers: proxyHeaders,
+        });
 
         if (statusResponse.ok) {
           const contentType = statusResponse.headers.get("content-type");
@@ -1365,7 +1384,7 @@ async function sendTestQuery() {
     }
 
     // Display response
-    displayQueryResponse(result, requestId, transparency);
+    displayQueryResponse(result, requestId, transparency, proxyHeaders);
   } catch (error) {
     console.error("Error sending query:", error);
     document.getElementById("query-loading").style.display = "none";
@@ -1381,7 +1400,7 @@ async function sendTestQuery() {
 /**
  * Display query response
  */
-async function displayQueryResponse(result, requestId, showDetails) {
+async function displayQueryResponse(result, requestId, showDetails, proxyHeaders) {
   const responseDiv = document.getElementById("query-response");
   const statusDiv = document.getElementById("query-status");
   const consensusDiv = document.getElementById("query-consensus");
@@ -1411,6 +1430,7 @@ async function displayQueryResponse(result, requestId, showDetails) {
     try {
       const deliberationResponse = await fetch(
         `/api/v1/requests/${requestId}/deliberation`,
+        { headers: proxyHeaders },
       );
 
       if (deliberationResponse.ok) {

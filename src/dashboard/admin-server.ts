@@ -83,7 +83,11 @@ export class AdminServer {
     });
 
     // Proxy /api/v1/* requests to the API gateway
-    this.app.use('/api/v1', this.proxyToApiGateway.bind(this));
+    this.app.use(
+      '/api/v1',
+      this.authenticateAdminProxy.bind(this),
+      this.proxyToApiGateway.bind(this)
+    );
 
     // Overview metrics
     this.app.get('/api/admin/overview', this.getOverview.bind(this));
@@ -145,6 +149,35 @@ export class AdminServer {
    * Proxy requests to the API Gateway for /api/v1/* endpoints
    * This allows the Test Query feature to work from the admin dashboard
    */
+  private authenticateAdminProxy(
+    req: Request,
+    res: Response,
+    next: NextFunction
+  ): void {
+    if (!this.adminApiToken) {
+      res.status(503).json({
+        error: {
+          code: 'ADMIN_API_TOKEN_NOT_CONFIGURED',
+          message: 'Admin API token is not configured'
+        }
+      });
+      return;
+    }
+
+    const authHeader = req.headers.authorization?.trim();
+    if (authHeader !== `ApiKey ${this.adminApiToken}`) {
+      res.status(401).json({
+        error: {
+          code: 'ADMIN_AUTHENTICATION_REQUIRED',
+          message: 'Admin authorization is required'
+        }
+      });
+      return;
+    }
+
+    next();
+  }
+
   private proxyToApiGateway(
     req: Request,
     res: Response,
@@ -160,11 +193,6 @@ export class AdminServer {
       ...req.headers,
       host: `${targetHost}:${apiPort}`
     };
-
-    // Keep the admin token server-side instead of exposing it in browser JS.
-    if (this.adminApiToken && !req.headers.authorization) {
-      headers.authorization = `ApiKey ${this.adminApiToken}`;
-    }
 
     const options: http.RequestOptions = {
       hostname: targetHost,

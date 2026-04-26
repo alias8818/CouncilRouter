@@ -869,6 +869,7 @@ export class UserInterface {
 
     let currentRequestId = null;
     let deliberationVisible = false;
+    let activeApiKey = null;
 
     function getApiKey() {
       const apiKeyInput = document.getElementById('apiKey');
@@ -906,6 +907,7 @@ export class UserInterface {
 
       const apiKey = getApiKey();
       if (!apiKey) return;
+      activeApiKey = apiKey;
 
       const submitBtn = document.getElementById('submitBtn');
       submitBtn.disabled = true;
@@ -940,7 +942,7 @@ export class UserInterface {
         const data = await response.json();
         currentRequestId = data.requestId;
         showStatus('Processing your request...', 'processing');
-        pollForResponse(currentRequestId);
+        pollForResponse(currentRequestId, apiKey);
       } catch (error) {
         showStatus(\`Error: \${error.message}\`, 'error');
         submitBtn.disabled = false;
@@ -948,12 +950,7 @@ export class UserInterface {
       }
     }
 
-    async function pollForResponse(requestId) {
-      const apiKey = getApiKey();
-      if (!apiKey) {
-        enableNewRequest();
-        return;
-      }
+    async function pollForResponse(requestId, apiKey) {
       const maxAttempts = 120;
       let attempts = 0;
 
@@ -977,7 +974,7 @@ export class UserInterface {
 
           if (data.status === 'completed') {
             if (!currentRequestId) currentRequestId = requestId;
-            displayResponse(data.consensusDecision);
+            displayResponse(data.consensusDecision, apiKey);
             hideStatus();
             enableNewRequest();
           } else if (data.status === 'failed') {
@@ -1019,7 +1016,7 @@ export class UserInterface {
       return '<p>' + formatted + '</p>';
     }
 
-    function displayResponse(decision) {
+    function displayResponse(decision, apiKey = activeApiKey) {
       const responseSection = document.getElementById('responseSection');
       const responseContent = document.getElementById('responseContent');
 
@@ -1039,10 +1036,10 @@ export class UserInterface {
 
       if (decision && typeof decision === 'object' && decision.iterativeConsensusMetadata) {
         displayConsensusMetadata(decision.iterativeConsensusMetadata);
-        if (currentRequestId) setTimeout(() => loadNegotiationDetails(currentRequestId), 100);
+        if (currentRequestId && apiKey) setTimeout(() => loadNegotiationDetails(currentRequestId, apiKey), 100);
       }
 
-      if (currentRequestId) setTimeout(() => loadDeliberationData(currentRequestId), 100);
+      if (currentRequestId && apiKey) setTimeout(() => loadDeliberationData(currentRequestId, apiKey), 100);
     }
 
     function displayConsensusMetadata(metadata) {
@@ -1083,9 +1080,8 @@ export class UserInterface {
       metadataSection.classList.add('visible');
     }
 
-    async function loadNegotiationDetails(requestId) {
+    async function loadNegotiationDetails(requestId, apiKey) {
       try {
-        const apiKey = getApiKey();
         if (!apiKey) return;
         const response = await fetch(\`\${config.apiBaseUrl}/api/v1/requests/\${requestId}/negotiation\`, {
           headers: { 'Authorization': \`ApiKey \${apiKey}\` }
@@ -1125,9 +1121,8 @@ export class UserInterface {
       negotiationSection.classList.add('visible');
     }
 
-    async function loadDeliberationData(requestId) {
+    async function loadDeliberationData(requestId, apiKey) {
       try {
-        const apiKey = getApiKey();
         if (!apiKey) return;
         const response = await fetch(\`\${config.apiBaseUrl}/api/v1/requests/\${requestId}/deliberation\`, {
           headers: { 'Authorization': \`ApiKey \${apiKey}\` }
@@ -1203,7 +1198,7 @@ export class UserInterface {
       if (deliberationVisible) {
         deliberationSection.classList.add('visible');
         transparencyBtn.textContent = 'Hide Deliberation';
-        if (currentRequestId) loadDeliberationData(currentRequestId);
+        if (currentRequestId && activeApiKey) loadDeliberationData(currentRequestId, activeApiKey);
       } else {
         deliberationSection.classList.remove('visible');
         transparencyBtn.textContent = 'Show Deliberation';
@@ -1240,6 +1235,7 @@ export class UserInterface {
       document.getElementById('newRequestBtn').classList.add('hidden');
       hideStatus();
       currentRequestId = null;
+      activeApiKey = null;
       deliberationVisible = false;
     }
 
