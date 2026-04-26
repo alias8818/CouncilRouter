@@ -304,9 +304,9 @@ export class UserInterface {
       box-shadow: 0 0 30px rgba(0, 212, 255, 0.2);
     }
 
-    .query-textarea {
+    .query-textarea,
+    .api-key-input {
       width: 100%;
-      min-height: 140px;
       padding: 20px;
       background: var(--bg-secondary);
       border: none;
@@ -314,12 +314,19 @@ export class UserInterface {
       font-family: inherit;
       font-size: 16px;
       color: var(--text-primary);
-      resize: vertical;
       transition: all var(--transition-medium);
     }
 
-    .query-textarea::placeholder { color: var(--text-muted); }
-    .query-textarea:focus { outline: none; background: var(--bg-tertiary); }
+    .query-textarea {
+      min-height: 140px;
+      resize: vertical;
+    }
+
+    .api-key-input { height: 58px; }
+    .query-textarea::placeholder,
+    .api-key-input::placeholder { color: var(--text-muted); }
+    .query-textarea:focus,
+    .api-key-input:focus { outline: none; background: var(--bg-tertiary); }
 
     .button-group {
       display: flex;
@@ -776,6 +783,23 @@ export class UserInterface {
       <div class="content">
         <div class="input-section">
           <div class="input-label">
+            <span class="input-label-icon">🔐</span>
+            API Key
+          </div>
+          <div class="textarea-wrapper api-key-wrapper">
+            <input
+              id="apiKey"
+              class="api-key-input"
+              type="password"
+              placeholder="Enter your API key"
+              aria-label="API key"
+              autocomplete="off"
+            />
+          </div>
+        </div>
+
+        <div class="input-section">
+          <div class="input-label">
             <span class="input-label-icon">✨</span>
             Your Query
           </div>
@@ -845,6 +869,18 @@ export class UserInterface {
 
     let currentRequestId = null;
     let deliberationVisible = false;
+    let activeApiKey = null;
+
+    function getApiKey() {
+      const apiKeyInput = document.getElementById('apiKey');
+      const apiKey = apiKeyInput ? apiKeyInput.value.trim() : '';
+      if (!apiKey) {
+        showStatus('Please enter an API key', 'error');
+        if (apiKeyInput) apiKeyInput.focus();
+        return null;
+      }
+      return apiKey;
+    }
 
     async function loadConfig() {
       try {
@@ -869,6 +905,10 @@ export class UserInterface {
         return;
       }
 
+      const apiKey = getApiKey();
+      if (!apiKey) return;
+      activeApiKey = apiKey;
+
       const submitBtn = document.getElementById('submitBtn');
       submitBtn.disabled = true;
       document.getElementById('submitBtnText').innerHTML = '<span class="spinner"></span>Processing...';
@@ -878,7 +918,6 @@ export class UserInterface {
       deliberationVisible = false;
 
       try {
-        const apiKey = localStorage.getItem('apiKey') || 'demo-api-key-for-testing-purposes-only-12345678901234567890';
         const response = await fetch(\`\${config.apiBaseUrl}/api/v1/requests\`, {
           method: 'POST',
           headers: {
@@ -903,7 +942,7 @@ export class UserInterface {
         const data = await response.json();
         currentRequestId = data.requestId;
         showStatus('Processing your request...', 'processing');
-        pollForResponse(currentRequestId);
+        pollForResponse(currentRequestId, apiKey);
       } catch (error) {
         showStatus(\`Error: \${error.message}\`, 'error');
         submitBtn.disabled = false;
@@ -911,8 +950,7 @@ export class UserInterface {
       }
     }
 
-    async function pollForResponse(requestId) {
-      const apiKey = localStorage.getItem('apiKey') || 'demo-api-key-for-testing-purposes-only-12345678901234567890';
+    async function pollForResponse(requestId, apiKey) {
       const maxAttempts = 120;
       let attempts = 0;
 
@@ -936,7 +974,7 @@ export class UserInterface {
 
           if (data.status === 'completed') {
             if (!currentRequestId) currentRequestId = requestId;
-            displayResponse(data.consensusDecision);
+            displayResponse(data.consensusDecision, apiKey);
             hideStatus();
             enableNewRequest();
           } else if (data.status === 'failed') {
@@ -978,7 +1016,7 @@ export class UserInterface {
       return '<p>' + formatted + '</p>';
     }
 
-    function displayResponse(decision) {
+    function displayResponse(decision, apiKey = activeApiKey) {
       const responseSection = document.getElementById('responseSection');
       const responseContent = document.getElementById('responseContent');
 
@@ -998,10 +1036,10 @@ export class UserInterface {
 
       if (decision && typeof decision === 'object' && decision.iterativeConsensusMetadata) {
         displayConsensusMetadata(decision.iterativeConsensusMetadata);
-        if (currentRequestId) setTimeout(() => loadNegotiationDetails(currentRequestId), 100);
+        if (currentRequestId && apiKey) setTimeout(() => loadNegotiationDetails(currentRequestId, apiKey), 100);
       }
 
-      if (currentRequestId) setTimeout(() => loadDeliberationData(currentRequestId), 100);
+      if (currentRequestId && apiKey) setTimeout(() => loadDeliberationData(currentRequestId, apiKey), 100);
     }
 
     function displayConsensusMetadata(metadata) {
@@ -1042,9 +1080,9 @@ export class UserInterface {
       metadataSection.classList.add('visible');
     }
 
-    async function loadNegotiationDetails(requestId) {
+    async function loadNegotiationDetails(requestId, apiKey) {
       try {
-        const apiKey = localStorage.getItem('apiKey') || 'demo-api-key-for-testing-purposes-only-12345678901234567890';
+        if (!apiKey) return;
         const response = await fetch(\`\${config.apiBaseUrl}/api/v1/requests/\${requestId}/negotiation\`, {
           headers: { 'Authorization': \`ApiKey \${apiKey}\` }
         });
@@ -1083,9 +1121,9 @@ export class UserInterface {
       negotiationSection.classList.add('visible');
     }
 
-    async function loadDeliberationData(requestId) {
+    async function loadDeliberationData(requestId, apiKey) {
       try {
-        const apiKey = localStorage.getItem('apiKey') || 'demo-api-key-for-testing-purposes-only-12345678901234567890';
+        if (!apiKey) return;
         const response = await fetch(\`\${config.apiBaseUrl}/api/v1/requests/\${requestId}/deliberation\`, {
           headers: { 'Authorization': \`ApiKey \${apiKey}\` }
         });
@@ -1160,7 +1198,7 @@ export class UserInterface {
       if (deliberationVisible) {
         deliberationSection.classList.add('visible');
         transparencyBtn.textContent = 'Hide Deliberation';
-        if (currentRequestId) loadDeliberationData(currentRequestId);
+        if (currentRequestId && activeApiKey) loadDeliberationData(currentRequestId, activeApiKey);
       } else {
         deliberationSection.classList.remove('visible');
         transparencyBtn.textContent = 'Show Deliberation';
@@ -1197,6 +1235,7 @@ export class UserInterface {
       document.getElementById('newRequestBtn').classList.add('hidden');
       hideStatus();
       currentRequestId = null;
+      activeApiKey = null;
       deliberationVisible = false;
     }
 

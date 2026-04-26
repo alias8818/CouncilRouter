@@ -101,7 +101,7 @@ describe('APIGateway - Error Paths and Edge Cases', () => {
           mockRedis,
           mockDbPool
         );
-      }).toThrow('JWT_SECRET environment variable is required in production');
+      }).toThrow('JWT_SECRET environment variable or constructor parameter is required');
     });
 
     it('should use environment JWT_SECRET if provided', () => {
@@ -118,7 +118,7 @@ describe('APIGateway - Error Paths and Edge Cases', () => {
       expect(gatewayInstance).toBeDefined();
     });
 
-    it('should warn and use default JWT_SECRET in development when not provided', () => {
+    it('should warn and generate a development JWT_SECRET when not provided', () => {
       const consoleWarnSpy = jest.spyOn(console, 'warn').mockImplementation();
       process.env.NODE_ENV = 'development';
 
@@ -131,7 +131,7 @@ describe('APIGateway - Error Paths and Edge Cases', () => {
       );
 
       expect(consoleWarnSpy).toHaveBeenCalledWith(
-        expect.stringContaining('WARNING: Using default JWT_SECRET')
+        expect.stringContaining('WARNING: Generated ephemeral JWT_SECRET')
       );
       expect(gatewayInstance).toBeDefined();
 
