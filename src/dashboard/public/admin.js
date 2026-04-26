@@ -1244,7 +1244,6 @@ async function sendTestQuery() {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: "ApiKey admin-test-key",
         },
         body: JSON.stringify(requestBody),
       });
@@ -1310,11 +1309,7 @@ async function sendTestQuery() {
         : `Using active council configuration (${elapsedSeconds}s elapsed)`;
 
       try {
-        const statusResponse = await fetch(`/api/v1/requests/${requestId}`, {
-          headers: {
-            Authorization: "ApiKey admin-test-key",
-          },
-        });
+        const statusResponse = await fetch(`/api/v1/requests/${requestId}`);
 
         if (statusResponse.ok) {
           const contentType = statusResponse.headers.get("content-type");
@@ -1416,11 +1411,6 @@ async function displayQueryResponse(result, requestId, showDetails) {
     try {
       const deliberationResponse = await fetch(
         `/api/v1/requests/${requestId}/deliberation`,
-        {
-          headers: {
-            Authorization: "ApiKey admin-test-key",
-          },
-        },
       );
 
       if (deliberationResponse.ok) {

@@ -30,6 +30,7 @@ export class AdminServer {
   private syncScheduler?: ISyncScheduler;
   private db: Pool;
   private redis: RedisClientType;
+  private adminApiToken?: string;
 
   constructor(
     dashboard: IDashboard,
@@ -46,6 +47,7 @@ export class AdminServer {
     this.syncScheduler = syncScheduler;
     this.db = db;
     this.redis = redis;
+    this.adminApiToken = process.env.ADMIN_API_TOKEN?.trim();
 
     this.setupMiddleware();
     this.setupRoutes();
@@ -154,15 +156,22 @@ export class AdminServer {
     // For Docker internal networking, use service name
     const targetHost = process.env.API_INTERNAL_HOST || apiHost;
 
+    const headers: http.OutgoingHttpHeaders = {
+      ...req.headers,
+      host: `${targetHost}:${apiPort}`
+    };
+
+    // Keep the admin token server-side instead of exposing it in browser JS.
+    if (this.adminApiToken && !req.headers.authorization) {
+      headers.authorization = `ApiKey ${this.adminApiToken}`;
+    }
+
     const options: http.RequestOptions = {
       hostname: targetHost,
       port: parseInt(apiPort),
       path: `/api/v1${req.url}`,
       method: req.method,
-      headers: {
-        ...req.headers,
-        host: `${targetHost}:${apiPort}`
-      }
+      headers
     };
 
     const proxyReq = http.request(options, (proxyRes) => {

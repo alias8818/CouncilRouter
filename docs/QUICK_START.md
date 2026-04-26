@@ -24,7 +24,7 @@ Edit `.env` and add your OpenRouter API key:
 
 ```bash
 # REQUIRED: OpenRouter API key (unified access to all providers)
-OPENROUTER_API_KEY=sk-or-v1-your-openrouter-key-here
+OPENROUTER_API_KEY=your-openrouter-key-here
 
 # Get your key at: https://openrouter.ai/keys
 

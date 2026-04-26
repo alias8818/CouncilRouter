@@ -7,7 +7,7 @@ import express, { Express, Request, Response, NextFunction } from 'express';
 import cors from 'cors';
 import rateLimit from 'express-rate-limit';
 import jwt from 'jsonwebtoken';
-import { randomUUID, createHash } from 'crypto';
+import { randomUUID, createHash, randomBytes } from 'crypto';
 import { Server } from 'http';
 import { RedisClientType } from 'redis';
 import { Pool } from 'pg';
@@ -94,18 +94,17 @@ export class APIGateway implements IAPIGateway {
     this.idempotencyCache = idempotencyCache;
     this.modelRegistry = modelRegistry;
 
-    // Require JWT_SECRET environment variable in production
-    if (!jwtSecret && !process.env.JWT_SECRET) {
-      if (process.env.NODE_ENV === 'production') {
-        throw new Error(
-          'JWT_SECRET environment variable is required in production'
-        );
-      }
-      // Only allow default in development
-      console.warn(
-        'WARNING: Using default JWT_SECRET. Set JWT_SECRET environment variable in production!'
+    if (!jwtSecret && !process.env.JWT_SECRET && process.env.NODE_ENV === 'production') {
+      throw new Error(
+        'JWT_SECRET environment variable or constructor parameter is required'
       );
-      this.jwtSecret = 'default-secret-change-in-production';
+    }
+
+    if (!jwtSecret && !process.env.JWT_SECRET) {
+      console.warn(
+        'WARNING: Generated ephemeral JWT_SECRET for development/test use. Set JWT_SECRET in persistent environments.'
+      );
+      this.jwtSecret = randomBytes(32).toString('hex');
     } else {
       this.jwtSecret = jwtSecret || process.env.JWT_SECRET!;
     }
@@ -313,9 +312,10 @@ export class APIGateway implements IAPIGateway {
         return;
       }
 
-      // Check for admin dashboard token (internal use only)
-      const adminToken = process.env.ADMIN_API_TOKEN || 'admin-test-key';
-      if (apiKey === adminToken) {
+      // Check for admin dashboard token (internal use only). There is no
+      // fallback token: deployments must opt in by setting ADMIN_API_TOKEN.
+      const adminToken = process.env.ADMIN_API_TOKEN?.trim();
+      if (adminToken && apiKey === adminToken) {
         req.userId = 'admin-dashboard';
         next();
         return;
